@@ -16,6 +16,6 @@ body {
 }
 
 ::selection {
-  background: theme("colors.primary");
+  background: theme("colors.primary.DEFAULT");
   color: theme("colors.primary.foreground");
 }
