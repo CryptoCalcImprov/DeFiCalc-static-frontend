@@ -1,44 +1,57 @@
-# CryptoCalc.io
+# CryptoCalc.io Static Site Framework
 
-A comprehensive cryptocurrency calculation and analysis platform.
+A reusable Next.js + Tailwind CSS starter designed for static exports and GitHub Pages hosting. The project ships with a
+component-driven architecture to help you assemble marketing pages quickly while keeping the codebase maintainable.
 
-## Overview
+## Features
 
-CryptoCalc.io is a modern web application designed to provide powerful cryptocurrency calculation tools and real-time market analysis.
-
-## Tech Stack
-
-- **Frontend**: React with TypeScript
-- **Backend**: NestJS with TypeScript
-- **Database**: MongoDB
-- **Build System**: Nx Monorepo
+- **Static export ready** – preconfigured `next.config.js` for `next export` compatibility and GitHub Pages hosting.
+- **Tailwind CSS** – extendable design system with reusable layout, section, and UI components.
+- **Modular structure** – feature-focused folders keep components isolated and easy to reuse.
 
 ## Getting Started
 
-```bash
-# Install dependencies
-npm install
+1. Install dependencies:
 
-# Start development servers
-npm run dev
-```
+   ```bash
+   npm install
+   ```
 
-## Project Structure
+2. Run the development server:
 
-```
-CryptoCalc.io/
-├── apps/
-│   ├── frontend/          # React frontend application
-│   └── backend-api/       # NestJS backend API
-├── libs/                  # Shared libraries
-└── tools/                 # Development tools
-```
+   ```bash
+   npm run dev
+   ```
 
-## Development
+3. Open [http://localhost:3000](http://localhost:3000) to view the site.
 
-More documentation coming soon.
+## Static Export for GitHub Pages
+
+1. Generate the static build:
+
+   ```bash
+   npm run export
+   ```
+
+2. Deploy the `out/` directory to GitHub Pages. You can commit the directory to the `gh-pages` branch or configure an
+   action to publish it automatically.
+
+3. Update `next.config.js` with a `basePath` if your site will be served from a project subdirectory (e.g. `/cryptocalc`).
+
+## Customize the Starter
+
+- Adjust colors and design tokens in `tailwind.config.ts`.
+- Add new sections to `src/components/sections` and assemble them within `src/app/page.tsx` using the `Section` layout
+  wrapper.
+- Share UI primitives inside `src/components/ui` to keep styles consistent across pages.
+
+## Scripts
+
+- `npm run dev` – Start the development server.
+- `npm run build` – Create a production build.
+- `npm run export` – Generate static assets in the `out` directory (ready for GitHub Pages).
+- `npm run lint` – Run Next.js ESLint configuration.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
+[MIT](LICENSE)
