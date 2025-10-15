@@ -9,13 +9,20 @@ const config: Config = {
     extend: {
       colors: {
         primary: {
-          DEFAULT: "#1A73E8",
-          foreground: "#FFFFFF"
+          DEFAULT: "#34F5C5",
+          foreground: "#041F1A"
         },
         accent: {
-          DEFAULT: "#F9AB00",
-          foreground: "#1A1A1A"
+          DEFAULT: "#8B5CF6",
+          foreground: "#0F172A"
         }
+      },
+      boxShadow: {
+        glow: "0 0 40px -10px rgba(52, 245, 197, 0.45)"
+      },
+      backgroundImage: {
+        "hero-grid": "radial-gradient(circle at 1px 1px, rgba(52,245,197,0.18) 1px, transparent 0)",
+        "glow-ring": "conic-gradient(from 180deg at 50% 50%, rgba(52,245,197,0.25), rgba(139,92,246,0.4), rgba(52,245,197,0.25))"
       }
     }
   },
