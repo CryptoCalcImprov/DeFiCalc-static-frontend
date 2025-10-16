@@ -1,41 +1,210 @@
 export const navigationLinks = [
-  { href: "#features", label: "Features" },
-  { href: "#workflow", label: "Workflow" },
-  { href: "#cta", label: "Get Started" }
+  { href: "#overview", label: "Overview" },
+  { href: "#markets", label: "Markets" },
+  { href: "#protocols", label: "Protocols" },
+  { href: "#toolkit", label: "Toolkit" },
+  { href: "#insights", label: "Insights" }
 ] as const;
 
-export const featureCards = [
+export const heroStrategies = [
   {
-    title: "Reusable components",
-    description: "Composable layout, section, and UI primitives keep your marketing pages consistent without repetition."
+    name: "Stable Yield Loop",
+    netApr: "8.4%",
+    rewards: "USDC + OP",
+    health: "92",
+    riskLevel: "Safe",
+    riskTone: "low",
+    tags: ["Multi-chain", "Auto-compound"]
   },
   {
-    title: "Static export ready",
-    description: "Opinionated Next.js configuration optimised for GitHub Pages, including unoptimised images and trailing slashes."
+    name: "ETH Liquid Staking",
+    netApr: "6.1%",
+    rewards: "stETH",
+    health: "87",
+    riskLevel: "Balanced",
+    riskTone: "medium",
+    tags: ["LST", "Ethereum"]
   },
   {
-    title: "Tailwind design system",
-    description: "Extendable color palette and utility-first styles make it easy to adapt the branding to your product."
+    name: "Multi-chain Lending",
+    netApr: "12.5%",
+    rewards: "ARB + GMX",
+    health: "74",
+    riskLevel: "Adventurous",
+    riskTone: "high",
+    tags: ["Looping", "Volatile"]
   }
 ] as const;
 
-export const workflowSteps = [
+export const protocolFilters = {
+  sortOptions: ["TVL", "24h Growth", "Category"],
+  categories: ["Liquid Staking", "Lending", "CDP", "DEX Aggregator"],
+  chains: ["Ethereum", "Solana", "Arbitrum", "Polygon"]
+} as const;
+
+export const marketPulse = {
+  totals: [
+    { label: "Total TVL", value: "$47.2B", change: "+2.1%" },
+    { label: "Stablecoin Cap", value: "$129.4B", change: "-0.4%" },
+    { label: "DEX Volume (24h)", value: "$5.7B", change: "+6.2%" }
+  ],
+  trending: [
+    { name: "rETH - wstETH", metric: "APR 6.9%", change: "+0.5%" },
+    { name: "USDC - USDT", metric: "Fees $1.2M", change: "+3.4%" },
+    { name: "ARB Perps", metric: "OI $420M", change: "-1.1%" }
+  ],
+  alerts: [
+    { title: "Maker vault health", detail: "3 vaults below 160% collateral" },
+    { title: "Solana staking", detail: "Epoch 517 rewards posting in 2h" }
+  ]
+} as const;
+
+export const protocolLeaders = [
   {
-    title: "1. Customize",
-    description: "Update the Tailwind theme, metadata, and reusable components to match your product branding."
+    name: "Lido",
+    chain: "Ethereum",
+    category: "Liquid Staking",
+    tvl: "$15.4B",
+    change24h: "+1.8%",
+    governanceNote: "Governance vote closes in 3 days",
+    changeDirection: "up"
   },
   {
-    title: "2. Compose",
-    description: "Assemble sections by combining layout primitives with feature-specific content components."
+    name: "Aave V3",
+    chain: "Multi-chain",
+    category: "Lending",
+    tvl: "$6.7B",
+    change24h: "+0.6%",
+    governanceNote: "New collateral listing proposed",
+    changeDirection: "up"
   },
   {
-    title: "3. Deploy",
-    description: "Run `npm run export` and publish the generated `out` directory with GitHub Pages."
+    name: "MakerDAO",
+    chain: "Ethereum",
+    category: "CDP",
+    tvl: "$5.1B",
+    change24h: "-0.9%",
+    governanceNote: "Endgame plan update posted",
+    changeDirection: "down"
+  },
+  {
+    name: "GMX",
+    chain: "Arbitrum",
+    category: "Perpetuals",
+    tvl: "$1.3B",
+    change24h: "+3.1%",
+    governanceNote: "Fee switch pilot in progress",
+    changeDirection: "up"
+  },
+  {
+    name: "Jupiter",
+    chain: "Solana",
+    category: "DEX Aggregator",
+    tvl: "$870M",
+    change24h: "+4.6%",
+    governanceNote: "Community airdrop round 2",
+    changeDirection: "up"
+  },
+  {
+    name: "Pendle",
+    chain: "Ethereum",
+    category: "Yield Markets",
+    tvl: "$610M",
+    change24h: "-1.2%",
+    governanceNote: "vePENDLE boost proposal",
+    changeDirection: "down",
+    sponsored: true
   }
 ] as const;
 
-export const footerLinks = [
-  { href: "https://github.com/", label: "GitHub" },
-  { href: "https://nextjs.org/", label: "Next.js" },
-  { href: "https://tailwindcss.com/", label: "Tailwind" }
+export const toolkitHighlights = [
+  {
+    title: "Cross-chain coverage",
+    description:
+      "Track opportunities across 12+ networks with unified metrics, curated benchmarks, and actionable alerts.",
+    icon: "network",
+    networks: ["Ethereum", "BNB", "Polygon", "Arbitrum", "Solana"]
+  },
+  {
+    title: "Risk-scored strategies",
+    description:
+      "See volatility, collateral usage, and health factors at a glance so you can size positions confidently.",
+    icon: "gauge"
+  },
+  {
+    title: "Team-ready workspaces",
+    description:
+      "Collaborate on dashboards, export CSVs, schedule email summaries, and route alerts to the right teammates.",
+    icon: "team"
+  },
+  {
+    title: "Calculator Sandbox",
+    description:
+      "Drag and drop formula blocks like token price, borrow rate, and emissions to model custom DeFi plays.",
+    icon: "sandbox"
+  }
+] as const;
+
+export const insightHighlights = [
+  "Getting Started", "Yield Explainers", "Risk Playbooks"
+] as const;
+
+export const insightsLibrary = [
+  {
+    title: "DeFi 101",
+    description: "A friendly primer that breaks down TVL, APY, and smart contract risk with interactive explainers.",
+    action: "Start tutorial"
+  },
+  {
+    title: "Yield Explainers",
+    description: "Understand how staking, liquidity mining, and delta-neutral strategies stack in different market regimes.",
+    action: "Browse guides"
+  },
+  {
+    title: "Risk Playbooks",
+    description: "Scenario templates to stress-test positions across liquidation levels, volatility, and oracle shocks.",
+    action: "Open playbooks"
+  }
+] as const;
+
+export const footerColumns = [
+  {
+    title: "Platform",
+    links: [
+      { href: "#overview", label: "Overview" },
+      { href: "#markets", label: "Markets" },
+      { href: "#protocols", label: "Protocols" },
+      { href: "#toolkit", label: "Toolkit" }
+    ]
+  },
+  {
+    title: "Solutions",
+    links: [
+      { href: "#strategies", label: "Strategy Monitor" },
+      { href: "#insights", label: "Insights Library" },
+      { href: "#nova", label: "Nova Assistant" }
+    ]
+  },
+  {
+    title: "Resources",
+    links: [
+      { href: "#toolkit", label: "Calculator Sandbox" },
+      { href: "#protocols", label: "Protocol Briefings" },
+      { href: "#community", label: "Community Updates" }
+    ]
+  },
+  {
+    title: "Company",
+    links: [
+      { href: "https://twitter.com", label: "X (Twitter)", external: true },
+      { href: "https://discord.com", label: "Discord", external: true },
+      { href: "mailto:hello@deficalc.io", label: "Contact" }
+    ]
+  }
+] as const;
+
+export const socialLinks = [
+  { href: "https://twitter.com", label: "Twitter" },
+  { href: "https://discord.com", label: "Discord" },
+  { href: "https://github.com", label: "GitHub" }
 ] as const;
