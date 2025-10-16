@@ -1,13 +1,15 @@
-# CryptoCalc.io Static Site Framework
+# DeFiCalc.io Redesign Concept
 
-A reusable Next.js + Tailwind CSS starter designed for static exports and GitHub Pages hosting. The project ships with a
-component-driven architecture to help you assemble marketing pages quickly while keeping the codebase maintainable.
+A dark-themed Next.js concept that reimagines DeFiCalc.io as an approachable yet powerful analytics gateway. The current build focuses on
+visual design and content structure – data plumbing, Nova integration, and calculator logic will be handled in future iterations.
 
 ## Features
 
-- **Static export ready** – preconfigured `next.config.js` for `next export` compatibility and GitHub Pages hosting.
-- **Tailwind CSS** – extendable design system with reusable layout, section, and UI components.
-- **Modular structure** – feature-focused folders keep components isolated and easy to reuse.
+- **Strategy-forward hero** – showcases the Strategy Monitor with risk badges, live health scores, and approachable messaging.
+- **Protocol leaders grid** – modular cards for top protocols, governance context, and clearly marked sponsored placements.
+- **Toolkit highlights** – communicates calculator sandbox, cross-chain coverage, and team collaboration benefits.
+- **Nova assistant preview** – demonstrates the future AI chat experience with suggestions and sample responses.
+- **Design handoff section** – summarises mood boards, wireframes, and component library deliverables for the next phase.
 
 ## Getting Started
 
@@ -23,7 +25,7 @@ component-driven architecture to help you assemble marketing pages quickly while
    npm run dev
    ```
 
-3. Open [http://localhost:3000](http://localhost:3000) to view the site.
+3. Open [http://localhost:3000](http://localhost:3000) to view the concept.
 
 ## Static Export for GitHub Pages
 
@@ -40,10 +42,9 @@ component-driven architecture to help you assemble marketing pages quickly while
 
 ## Customize the Starter
 
-- Adjust colors and design tokens in `tailwind.config.ts`.
-- Add new sections to `src/components/sections` and assemble them within `src/app/page.tsx` using the `Section` layout
-  wrapper.
-- Share UI primitives inside `src/components/ui` to keep styles consistent across pages.
+- Adjust colors and design tokens in `tailwind.config.ts` to tune the gradient-heavy palette.
+- Update components in `src/components/sections` to explore additional modules (calculator sandbox, Nova expansions, etc.).
+- Share UI primitives inside `src/components/ui` to keep styles consistent across the design system.
 
 ## Scripts
 
