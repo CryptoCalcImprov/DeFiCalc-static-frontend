@@ -1,10 +1,12 @@
-import { CallToActionSection } from "@/components/sections/cta";
-import { FeaturesSection } from "@/components/sections/features";
 import { HeroSection } from "@/components/sections/hero";
-import { WorkflowSection } from "@/components/sections/workflow";
+import { InsightsSection } from "@/components/sections/insights";
+import { MarketPulseSection } from "@/components/sections/market-pulse";
+import { ProtocolLeadersSection } from "@/components/sections/protocol-leaders";
+import { ToolkitHighlightsSection } from "@/components/sections/toolkit-highlights";
 import { Section } from "@/components/layout/section";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
+import { NovaAssistant } from "@/components/ui/nova-assistant";
 
 export default function HomePage() {
   return (
@@ -13,29 +15,36 @@ export default function HomePage() {
       <main className="flex-1">
         <HeroSection />
         <Section
-          id="features"
-          title="Build with reusable sections"
-          description="Compose your landing page from modular building blocks that scale with your product."
+          id="markets"
+          title="Market pulse that surfaces what matters"
+          description="Monitor macro DeFi health, stablecoin flows, and the pairs gaining momentum across networks."
         >
-          <FeaturesSection />
+          <MarketPulseSection />
         </Section>
         <Section
-          id="workflow"
-          title="Workflow that keeps deployments simple"
-          description="Each step focuses on developer experience for GitHub Pages hosting."
+          id="protocols"
+          title="Protocol leaders and governance radar"
+          description="Rank strategies by TVL, growth, and on-chain governance signals so you never miss a pivotal update."
         >
-          <WorkflowSection />
+          <ProtocolLeadersSection />
         </Section>
         <Section
-          id="cta"
-          title="Start shipping in minutes"
-          description="Use the preconfigured commands and documentation to push live quickly."
-          className="bg-slate-950"
+          id="toolkit"
+          title="Analyst toolkit built for collaboration"
+          description="Everything your team needs to design, test, and share strategies – from risk dashboards to the Calculator Sandbox."
         >
-          <CallToActionSection />
+          <ToolkitHighlightsSection />
+        </Section>
+        <Section
+          id="insights"
+          title="Insights library that educates while you explore"
+          description="Guided explainers and playbooks keep new users confident and give veterans deeper context for every move."
+        >
+          <InsightsSection />
         </Section>
       </main>
       <SiteFooter />
+      <NovaAssistant />
     </div>
   );
 }
