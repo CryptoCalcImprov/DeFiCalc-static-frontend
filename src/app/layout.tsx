@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import "../styles/globals.css";
 
-const title = "CryptoCalc.io";
-const description = "A reusable Next.js + Tailwind CSS framework ready for static deployment on GitHub Pages.";
+const title = "DeFiCalc.io";
+const description =
+  "Make sharper DeFi moves with a modular analytics hub, strategy monitor, and collaborative toolkit.";
 
 export const metadata: Metadata = {
   title,
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased">
+      <body className="min-h-screen bg-background text-slate-100 antialiased">
         {children}
       </body>
     </html>
