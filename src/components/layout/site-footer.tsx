@@ -32,8 +32,8 @@ export function SiteFooter() {
                     <Link
                       href={link.href}
                       className="transition hover:text-mint"
-                      target={link.external ? "_blank" : undefined}
-                      rel={link.external ? "noreferrer" : undefined}
+                      target={'external' in link && link.external ? "_blank" : undefined}
+                      rel={'external' in link && link.external ? "noreferrer" : undefined}
                     >
                       {link.label}
                     </Link>
