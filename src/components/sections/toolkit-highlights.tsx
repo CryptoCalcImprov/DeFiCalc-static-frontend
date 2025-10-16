@@ -54,7 +54,7 @@ export function ToolkitHighlightsSection() {
             <div>
               <h3 className="text-xl font-semibold text-white">{highlight.title}</h3>
               <p className="mt-3 text-sm leading-relaxed text-slate-300">{highlight.description}</p>
-              {highlight.networks ? (
+              {'networks' in highlight && highlight.networks ? (
                 <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-300">
                   {highlight.networks.map((network) => (
                     <span key={network} className="rounded-full border border-slate-800/70 bg-slate-900/60 px-3 py-1">

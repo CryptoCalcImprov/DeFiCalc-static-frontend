@@ -17,7 +17,7 @@ type ButtonVariant = keyof typeof variants;
 
 type ButtonProps = (
   | ({ href?: undefined } & ButtonHTMLAttributes<HTMLButtonElement>)
-  | ({ href: string } & AnchorHTMLAttributes<HTMLAnchorElement>)
+  | ({ href: string } & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'>)
 ) & {
   variant?: ButtonVariant;
 };
@@ -26,8 +26,10 @@ export function Button({ className, variant = "primary", href, ...props }: Butto
   const combined = clsx(baseStyles, variants[variant], className);
 
   if (href) {
-    return <Link href={href} className={combined} {...props} />;
+    const { disabled, ...anchorProps } = props as any;
+    return <Link href={href} className={combined} {...anchorProps} />;
   }
 
-  return <button className={combined} {...props} />;
+  const { download, hrefLang, media, ping, target, type, ...buttonProps } = props as any;
+  return <button className={combined} {...buttonProps} />;
 }
