@@ -1,5 +1,6 @@
 import { HeroSection } from "@/components/sections/hero";
 import { InsightsSection } from "@/components/sections/insights";
+import { DcaCalculatorSection } from "@/components/sections/dca-calculator";
 import { MarketPulseSection } from "@/components/sections/market-pulse";
 import { ProtocolLeadersSection } from "@/components/sections/protocol-leaders";
 import { ToolkitHighlightsSection } from "@/components/sections/toolkit-highlights";
@@ -34,6 +35,13 @@ export default function HomePage() {
           description="Everything your team needs to design, test, and share strategies – from risk dashboards to the Calculator Sandbox."
         >
           <ToolkitHighlightsSection />
+        </Section>
+        <Section
+          id="calculator"
+          title="DCA calculator guided by Nova"
+          description="Model recurring buys, preview your capital deployment, and ask Nova for guardrails before executing."
+        >
+          <DcaCalculatorSection />
         </Section>
         <Section
           id="insights"
