@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -29,24 +29,6 @@ type DerivedMetrics = {
   monthlyContribution: number;
   estimatedTokens: number;
 };
-
-type NovaRequestDetail = {
-  id: string;
-  prompt: string;
-  metadata?: Record<string, unknown>;
-};
-
-type NovaResponseDetail = {
-  id: string;
-  output?: string;
-  error?: string;
-};
-
-declare global {
-  interface WindowEventMap {
-    "nova:response": CustomEvent<NovaResponseDetail>;
-  }
-}
 
 const fallbackMessage =
   "Nova isn't connected in this preview. Open the Ask Nova assistant inside the product to generate a tailored breakdown.";
@@ -100,8 +82,6 @@ export function DcaCalculatorSection() {
     referencePrice: "3200",
   });
   const [novaStatus, setNovaStatus] = useState<NovaStatus>({ status: "idle" });
-  const fallbackTimer = useRef<number>();
-  const pendingRequestId = useRef<string | null>(null);
 
   const metrics = useMemo<DerivedMetrics>(() => {
     const initial = Number.parseFloat(form.initialInvestment) || 0;
@@ -136,86 +116,79 @@ export function DcaCalculatorSection() {
     };
   }, [form]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const handleNovaResponse = (event: CustomEvent<NovaResponseDetail>) => {
-      const detail = event.detail;
-      if (!detail?.id || detail.id !== pendingRequestId.current) {
-        return;
-      }
-
-      pendingRequestId.current = null;
-      if (fallbackTimer.current) {
-        window.clearTimeout(fallbackTimer.current);
-        fallbackTimer.current = undefined;
-      }
-
-      if (detail.error) {
-        setNovaStatus({ status: "error", requestId: detail.id, message: detail.error });
-      } else if (detail.output) {
-        setNovaStatus({ status: "success", requestId: detail.id, message: detail.output });
-      } else {
-        setNovaStatus({
-          status: "error",
-          requestId: detail.id,
-          message: fallbackMessage,
-        });
-      }
-    };
-
-    window.addEventListener("nova:response", handleNovaResponse as EventListener);
-
-    return () => {
-      window.removeEventListener("nova:response", handleNovaResponse as EventListener);
-      if (fallbackTimer.current) {
-        window.clearTimeout(fallbackTimer.current);
-        fallbackTimer.current = undefined;
-      }
-      pendingRequestId.current = null;
-    };
-  }, []);
-
-  const runNovaFallback = (requestId: string) => {
-    pendingRequestId.current = null;
-    setNovaStatus({ status: "error", requestId, message: fallbackMessage });
-  };
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const requestId = `dca-${Date.now()}`;
-    pendingRequestId.current = requestId;
     setNovaStatus({ status: "pending", requestId });
+    const apiUrl = process.env.NEXT_PUBLIC_NOVA_API_URL?.replace(/\/$/, "");
+    const apiKey = process.env.NEXT_PUBLIC_NOVA_API_KEY;
 
-    if (typeof window === "undefined") {
-      runNovaFallback(requestId);
+    if (!apiUrl || !apiKey) {
+      setNovaStatus({
+        status: "error",
+        requestId,
+        message: "Nova configuration is missing. Please set NEXT_PUBLIC_NOVA_API_URL and NEXT_PUBLIC_NOVA_API_KEY.",
+      });
       return;
     }
 
-    const detail: NovaRequestDetail = {
-      id: requestId,
-      prompt: createNovaPrompt(form, metrics),
-      metadata: {
-        source: "dca-calculator",
-        form,
-      },
-    };
+    const prompt = createNovaPrompt(form, metrics);
 
-    const novaEvent = new CustomEvent<NovaRequestDetail>("nova:request", { detail });
-    window.dispatchEvent(novaEvent);
+    try {
+      const response = await fetch(`${apiUrl}/ai`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          prompt,
+          metadata: {
+            source: "dca-calculator",
+            form,
+          },
+        }),
+      });
 
-    if (fallbackTimer.current) {
-      window.clearTimeout(fallbackTimer.current);
-    }
-
-    fallbackTimer.current = window.setTimeout(() => {
-      if (pendingRequestId.current === requestId) {
-        runNovaFallback(requestId);
+      if (!response.ok) {
+        const errorText = await response.text();
+        setNovaStatus({
+          status: "error",
+          requestId,
+          message: errorText || fallbackMessage,
+        });
+        return;
       }
-    }, 4000);
+
+      const rawPayload = await response.text();
+      let message = fallbackMessage;
+
+      if (rawPayload) {
+        try {
+          const data = JSON.parse(rawPayload);
+          message =
+            (typeof data === "string" && data) ||
+            data?.output ||
+            data?.message ||
+            data?.data?.output ||
+            fallbackMessage;
+        } catch (parseError) {
+          message = rawPayload;
+        }
+      }
+
+      setNovaStatus({ status: "success", requestId, message });
+    } catch (error) {
+      setNovaStatus({
+        status: "error",
+        requestId,
+        message:
+          error instanceof Error
+            ? error.message || fallbackMessage
+            : fallbackMessage,
+      });
+    }
   };
 
   return (
