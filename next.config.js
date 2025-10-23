@@ -9,6 +9,10 @@ const nextConfig = {
         assetPrefix: `/${repoName}/`
       }
     : {}),
+  env: {
+    NEXT_PUBLIC_NOVA_API_URL: process.env.NEXT_PUBLIC_NOVA_API_URL,
+    NEXT_PUBLIC_NOVA_API_KEY: process.env.NEXT_PUBLIC_NOVA_API_KEY
+  },
   output: "export",
   distDir: "out",
   images: {
