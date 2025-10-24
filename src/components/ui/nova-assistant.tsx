@@ -47,27 +47,19 @@ export function NovaAssistant() {
       requestUrl = sanitized;
     }
 
-    let hostHeader: string | undefined;
     try {
       const parsedUrl = new URL(
         requestUrl,
         requestUrl.startsWith("http") ? undefined : typeof window !== "undefined" ? window.location.origin : undefined,
       );
-      hostHeader = parsedUrl.host;
       requestUrl = parsedUrl.toString();
     } catch (error) {
-      if (typeof window !== "undefined") {
-        hostHeader = window.location.host;
-      }
+      // Ignore parse errors and fall back to the original requestUrl
     }
 
     const headers = new Headers({
       "Content-Type": "application/json",
     });
-
-    if (hostHeader) {
-      headers.set("Host", hostHeader);
-    }
 
     const apiKey = process.env.NEXT_PUBLIC_NOVA_API_KEY?.trim();
     if (apiKey) {
@@ -103,6 +95,8 @@ export function NovaAssistant() {
             data?.message ??
             data?.content ??
             data?.reply ??
+            data?.text ??
+            data?.choices?.[0]?.message?.content ??
             (typeof data === "string" ? data : JSON.stringify(data));
         } catch (jsonError) {
           assistantReply = await response.text();
@@ -159,9 +153,9 @@ export function NovaAssistant() {
         Ask Nova
       </button>
       {open ? (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex justify-center md:items-end md:justify-end bg-black/40 backdrop-blur-sm">
           <div className="absolute inset-0" onClick={() => setOpen(false)} aria-hidden />
-          <div className="relative mt-auto w-full max-w-md rounded-t-3xl border border-slate-800/70 bg-surface/95 p-6 shadow-2xl md:mt-0 md:rounded-3xl md:mr-8 md:mb-8">
+          <div className="relative flex h-full min-h-0 w-full max-w-none flex-col overflow-hidden rounded-none border border-slate-800/70 bg-surface/95 p-4 shadow-2xl md:h-[80vh] md:max-h-[80vh] md:max-w-2xl md:rounded-3xl md:p-6 md:mr-8 md:mb-8">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-mint">
@@ -182,8 +176,8 @@ export function NovaAssistant() {
                 </svg>
               </button>
             </div>
-            <div className="mt-6 space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/70 p-4 text-sm text-slate-200">
-              <div className="flex max-h-64 flex-col gap-4 overflow-y-auto pr-1">
+            <div className="mt-6 flex flex-1 min-h-0 flex-col rounded-2xl border border-slate-800/70 bg-slate-950/70 p-4 text-sm text-slate-200">
+              <div className="flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto pr-1 nova-scroll">
                 {messages.map((message, index) => (
                   <div
                     key={`${message.role}-${index}`}
@@ -202,7 +196,7 @@ export function NovaAssistant() {
                     >
                       {message.role === "assistant" ? "N" : "You"}
                     </div>
-                    <p className="rounded-2xl bg-slate-900/70 px-4 py-3 text-left text-sm text-slate-200">
+                    <p className="rounded-2xl bg-slate-900/70 px-4 py-3 text-left text-sm text-slate-200 whitespace-pre-wrap break-words">
                       {message.content}
                     </p>
                   </div>
@@ -216,18 +210,20 @@ export function NovaAssistant() {
                   </div>
                 ) : null}
               </div>
-              <div className="flex flex-wrap gap-3">
-                {starterPrompts.map((prompt) => (
-                  <Button
-                    key={prompt}
-                    variant="secondary"
-                    className="rounded-full bg-slate-900/80 px-4 py-2 text-xs"
-                    onClick={() => handleStarterPrompt(prompt)}
-                  >
-                    {prompt}
-                  </Button>
-                ))}
-              </div>
+              {messages.length === 1 ? (
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {starterPrompts.map((prompt) => (
+                    <Button
+                      key={prompt}
+                      variant="secondary"
+                      className="rounded-full bg-slate-900/80 px-4 py-2 text-xs"
+                      onClick={() => handleStarterPrompt(prompt)}
+                    >
+                      {prompt}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
             </div>
             <form className="mt-6" onSubmit={handleSubmit}>
               <label className="sr-only" htmlFor="nova-question">
