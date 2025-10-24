@@ -38,7 +38,8 @@ export function NovaAssistant() {
     setInput("");
     setIsLoading(true);
 
-    const baseUrl = process.env.NEXT_PUBLIC_NOVA_API_URL?.trim();
+    const baseUrl =
+      process.env.NODE_ENV !== "development" ? process.env.NEXT_PUBLIC_NOVA_API_URL?.trim() : undefined;
     let requestUrl = "/ai";
 
     if (baseUrl) {
