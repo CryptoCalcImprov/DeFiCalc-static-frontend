@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -26,11 +26,10 @@ export function NovaAssistant() {
     },
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const prompt = input.trim();
+  const processPrompt = async (rawPrompt: string) => {
+    const prompt = rawPrompt.trim();
     if (!prompt) {
       return;
     }
@@ -131,6 +130,21 @@ export function NovaAssistant() {
     }
   };
 
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await processPrompt(input);
+  };
+
+  const handleStarterPrompt = (prompt: string, { autoSubmit = false } = {}) => {
+    setInput(prompt);
+
+    if (autoSubmit) {
+      void processPrompt(prompt);
+    } else {
+      inputRef.current?.focus();
+    }
+  };
+
   return (
     <div id="nova">
       <button
@@ -207,9 +221,7 @@ export function NovaAssistant() {
                     key={prompt}
                     variant="secondary"
                     className="rounded-full bg-slate-900/80 px-4 py-2 text-xs"
-                    onClick={() => {
-                      setInput(prompt);
-                    }}
+                    onClick={() => handleStarterPrompt(prompt)}
                   >
                     {prompt}
                   </Button>
@@ -229,6 +241,7 @@ export function NovaAssistant() {
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
                   disabled={isLoading}
+                  ref={inputRef}
                 />
                 <Button type="submit" variant="gradient" className="px-4 py-2 text-xs" disabled={isLoading}>
                   Send
