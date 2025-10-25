@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { NovaAvatar } from "@/components/ui/nova-avatar";
 import { MessageParser } from "@/components/ui/message-parser";
 
@@ -20,8 +21,14 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
       {role === "assistant" ? (
         <NovaAvatar />
       ) : (
-        <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-200 shrink-0">
-          You
+        <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 shrink-0 overflow-hidden">
+          <Image
+            src="/assets/user-avatar.png"
+            alt="User"
+            width={32}
+            height={32}
+            className="h-full w-full object-cover"
+          />
         </div>
       )}
       <div className="rounded-2xl bg-slate-900/70 px-4 py-3 text-left text-sm text-slate-200 whitespace-pre-wrap break-all">
