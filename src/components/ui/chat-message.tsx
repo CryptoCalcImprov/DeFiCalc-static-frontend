@@ -1,7 +1,7 @@
 "use client";
 
 import { NovaAvatar } from "@/components/ui/nova-avatar";
-import { MessageWithMath } from "@/components/ui/math-text";
+import { MessageParser } from "@/components/ui/message-parser";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
@@ -24,8 +24,8 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
           You
         </div>
       )}
-      <div className="rounded-2xl bg-slate-900/70 px-4 py-3 text-left text-sm text-slate-200 whitespace-pre-wrap break-words">
-        <MessageWithMath content={content} />
+      <div className="rounded-2xl bg-slate-900/70 px-4 py-3 text-left text-sm text-slate-200 whitespace-pre-wrap break-all">
+        <MessageParser content={content} />
       </div>
     </div>
   );

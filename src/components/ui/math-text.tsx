@@ -43,13 +43,12 @@ interface MessageWithMathProps {
 
 export function MessageWithMath({ content, className = "" }: MessageWithMathProps) {
   // Parse content for inline math (between $ $) and block math (between $$ $$)
-  // Also auto-detect common math patterns
   const parseContent = () => {
     const parts: JSX.Element[] = [];
     let currentIndex = 0;
     let key = 0;
 
-    // First, try to find explicit math delimiters
+    // Regex to find math expressions
     // Block math: $$...$$
     // Inline math: $...$
     const mathRegex = /\$\$([^\$]+)\$\$|\$([^\$]+)\$/g;
@@ -83,7 +82,6 @@ export function MessageWithMath({ content, className = "" }: MessageWithMathProp
     }
 
     // If no explicit math found, render as plain text
-    // (We could add auto-detection here, but for now keep it simple)
     if (!hasExplicitMath) {
       return [<span key="original">{content}</span>];
     }
