@@ -25,7 +25,7 @@ export function NovaAssistant() {
     {
       role: "assistant",
       content:
-        "Hi! Ask me about strategy health, projected yields, or how to model a position in the Calculator Sandbox.\n\nFor example, I can explain formulas like APY: $$APY = \\left(1 + \\frac{r}{n}\\right)^n - 1$$ or TVL calculations using proper math notation!",
+        "Hi! Ask me about strategy health, projected yields, or how to model a position in the Calculator Sandbox.\n\nI can explain formulas with proper math notation and show you charts or images when helpful!",
     },
   ]);
   const [isLoading, setIsLoading] = useState(false);
