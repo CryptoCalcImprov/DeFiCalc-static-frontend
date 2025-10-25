@@ -3,6 +3,9 @@
 import { FormEvent, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ChatMessage } from "@/components/ui/chat-message";
+import { StarterPrompts } from "@/components/ui/starter-prompts";
+import { ThinkingIndicator } from "@/components/ui/thinking-indicator";
 
 const starterPrompts = [
   "How can I calculate yield?",
@@ -71,7 +74,7 @@ export function NovaAssistant() {
       model: "gpt-5-mini",
       temperature: 0.7,
       verbosity: "medium",
-      max_tokens: 500,
+      max_tokens: 2000,
       reasoning: false,
       reasoning_params: {},
       image_urls: [],
@@ -196,50 +199,16 @@ export function NovaAssistant() {
             <div className="mt-6 flex flex-1 min-h-0 flex-col rounded-2xl border border-slate-800/70 bg-slate-950/70 p-4 text-sm text-slate-200">
               <div className="flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto pr-1 nova-scroll">
                 {messages.map((message, index) => (
-                  <div
+                  <ChatMessage
                     key={`${message.role}-${index}`}
-                    className={
-                      message.role === "assistant"
-                        ? "flex items-start gap-3 text-slate-200"
-                        : "flex flex-row-reverse items-start gap-3 text-right text-white"
-                    }
-                  >
-                    <div
-                      className={
-                        message.role === "assistant"
-                          ? "mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-mint/20 text-mint"
-                          : "mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-200"
-                      }
-                    >
-                      {message.role === "assistant" ? "N" : "You"}
-                    </div>
-                    <p className="rounded-2xl bg-slate-900/70 px-4 py-3 text-left text-sm text-slate-200 whitespace-pre-wrap break-words">
-                      {message.content}
-                    </p>
-                  </div>
+                    role={message.role}
+                    content={message.content}
+                  />
                 ))}
-                {isLoading ? (
-                  <div className="flex items-start gap-3 text-slate-400">
-                    <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-mint/20 text-mint">N</div>
-                    <p className="rounded-2xl bg-slate-900/70 px-4 py-3 text-left text-sm text-slate-400">
-                      Nova is thinking...
-                    </p>
-                  </div>
-                ) : null}
+                {isLoading ? <ThinkingIndicator /> : null}
               </div>
               {messages.length === 1 ? (
-                <div className="mt-4 flex flex-wrap gap-3">
-                  {starterPrompts.map((prompt) => (
-                    <Button
-                      key={prompt}
-                      variant="secondary"
-                      className="rounded-full bg-slate-900/80 px-4 py-2 text-xs"
-                      onClick={() => handleStarterPrompt(prompt)}
-                    >
-                      {prompt}
-                    </Button>
-                  ))}
-                </div>
+                <StarterPrompts prompts={starterPrompts} onPromptClick={handleStarterPrompt} />
               ) : null}
             </div>
             <form className="mt-6" onSubmit={handleSubmit}>
