@@ -84,12 +84,13 @@ export function NovaAssistant() {
         body: JSON.stringify(body),
       });
 
-      const contentType = response.headers.get("content-type");
+      const contentType = response.headers.get("content-type") ?? "";
+      const rawBody = await response.text();
       let assistantReply = "";
 
-      if (contentType?.includes("application/json")) {
+      if (contentType.includes("application/json")) {
         try {
-          const data = await response.json();
+          const data = rawBody ? JSON.parse(rawBody) : null;
           assistantReply =
             data?.output ??
             data?.message ??
@@ -97,19 +98,35 @@ export function NovaAssistant() {
             data?.reply ??
             data?.text ??
             data?.choices?.[0]?.message?.content ??
-            (typeof data === "string" ? data : JSON.stringify(data));
+            (typeof data === "string" ? data : data ? JSON.stringify(data) : "");
         } catch (jsonError) {
-          assistantReply = await response.text();
+          assistantReply = rawBody;
         }
       } else {
-        assistantReply = await response.text();
+        assistantReply = rawBody;
       }
+
+      const resolvedReply = typeof assistantReply === "string" ? assistantReply : String(assistantReply ?? "");
+      const trimmedReply = resolvedReply.trim();
 
       if (!response.ok) {
-        throw new Error(assistantReply || `Nova responded with status ${response.status}`);
+        throw new Error(trimmedReply || rawBody || `Nova responded with status ${response.status}`);
       }
 
-      setMessages((prev) => [...prev, { role: "assistant", content: assistantReply || "Nova had no response." }]);
+      if (!trimmedReply) {
+        console.warn("Nova returned an empty response payload.", {
+          status: response.status,
+          headers: Object.fromEntries(response.headers.entries()),
+          rawBody,
+        });
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "I didn't receive any text back from Nova. Please try again." },
+        ]);
+        return;
+      }
+
+      setMessages((prev) => [...prev, { role: "assistant", content: resolvedReply }]);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Something went wrong while talking to Nova. Please try again.";
