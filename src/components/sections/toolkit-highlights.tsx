@@ -45,10 +45,10 @@ export function ToolkitHighlightsSection() {
       {toolkitHighlights.map((highlight) => (
         <article
           key={highlight.title}
-          className="relative overflow-hidden rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6 shadow-lg shadow-black/10"
+          className="relative overflow-hidden rounded-3xl border border-slate-800/70 bg-slate-950 p-6 shadow-lg shadow-black/10"
         >
           <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900/70">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900">
               {renderIcon(highlight.icon)}
             </div>
             <div>
@@ -57,7 +57,7 @@ export function ToolkitHighlightsSection() {
               {'networks' in highlight && highlight.networks ? (
                 <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-300">
                   {highlight.networks.map((network) => (
-                    <span key={network} className="rounded-full border border-slate-800/70 bg-slate-900/60 px-3 py-1">
+                    <span key={network} className="rounded-full border border-slate-800/70 bg-slate-900 px-3 py-1">
                       {network}
                     </span>
                   ))}

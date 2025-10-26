@@ -7,12 +7,15 @@ import { Section } from "@/components/layout/section";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { NovaAssistant } from "@/components/ui/nova-assistant";
+import { Scene3D } from "@/components/ui/Scene3D";
 
 export default function HomePage() {
   return (
-    <div className="flex min-h-screen flex-col">
-      <SiteHeader />
-      <main className="flex-1">
+    <div className="flex min-h-screen flex-col relative">
+      <Scene3D />
+      <div className="relative z-10">
+        <SiteHeader />
+        <main className="flex-1">
         <HeroSection />
         <Section
           id="markets"
@@ -42,9 +45,10 @@ export default function HomePage() {
         >
           <InsightsSection />
         </Section>
-      </main>
-      <SiteFooter />
-      <NovaAssistant />
+        </main>
+        <SiteFooter />
+        <NovaAssistant />
+      </div>
     </div>
   );
 }
