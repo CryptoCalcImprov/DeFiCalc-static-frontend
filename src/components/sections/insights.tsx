@@ -4,7 +4,7 @@ export function InsightsSection() {
   return (
     <div className="grid gap-6 md:grid-cols-3">
       {insightsLibrary.map((insight) => (
-        <article key={insight.title} className="rounded-3xl border border-slate-800/70 bg-slate-950/70 p-6">
+        <article key={insight.title} className="rounded-3xl border border-slate-800/70 bg-slate-950 p-6">
           <h3 className="text-lg font-semibold text-white">{insight.title}</h3>
           <p className="mt-3 text-sm leading-relaxed text-slate-300">{insight.description}</p>
           <button

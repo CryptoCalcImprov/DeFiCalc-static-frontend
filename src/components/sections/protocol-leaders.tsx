@@ -36,7 +36,7 @@ export function ProtocolLeadersSection() {
       </div>
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {protocolLeaders.map((protocol) => (
-          <article key={protocol.name} className="group relative overflow-hidden rounded-3xl border border-slate-800/70 bg-slate-950/80 p-6 shadow-lg shadow-black/20 transition hover:border-mint/50">
+          <article key={protocol.name} className="group relative overflow-hidden rounded-3xl border border-slate-800/70 bg-slate-950 p-6 shadow-lg shadow-black/20 transition hover:border-mint/50">
             {'sponsored' in protocol && protocol.sponsored ? (
               <span className="absolute right-4 top-4 rounded-full bg-lavender/20 px-3 py-1 text-xs font-semibold text-lavender">
                 Sponsored
