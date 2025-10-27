@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { heroStrategies, insightHighlights } from "@/lib/site-content";
 
 const riskToneClasses = {
-  low: "bg-mint/20 text-mint",
-  medium: "bg-primary/20 text-primary",
-  high: "bg-lavender/20 text-lavender"
+  low: "bg-mint/18 text-mint ring-1 ring-inset ring-mint/35",
+  medium: "bg-primary/18 text-primary ring-1 ring-inset ring-primary/35",
+  high: "bg-lavender/20 text-lavender ring-1 ring-inset ring-lavender/35"
 } as const;
 
 export function HeroSection() {
