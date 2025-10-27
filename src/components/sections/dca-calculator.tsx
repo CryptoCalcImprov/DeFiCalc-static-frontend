@@ -28,11 +28,18 @@ const defaultFormState: DcaFormState = {
 };
 
 function buildPrompt({ token, amount, interval, duration }: DcaFormState) {
-  return `You are Nova, a DeFi research assistant helping an analyst evaluate a dollar-cost-averaging plan.\n` +
-    `Calculate the projected accumulation results for purchasing ${amount} USD of ${token} on a ${interval} cadence over ${duration}.\n` +
-    `Summarize performance factors, expected cost basis shifts, and risk considerations in 3 bullet points.\n` +
-    `After the summary, output a JSON array labeled DATA with objects formatted as {"date":"YYYY-MM-DD","price":number} representing the synthetic price series used for the calculation.\n` +
-    `Use the following structure exactly:\nSUMMARY:\n- bullet point one\n- bullet point two\n- bullet point three\nDATA:\n[{"date":"2024-01-01","price":123.45}, ...]\nEnsure prices are numbers, not strings.`;
+  return (
+    `You are Nova, a DeFi research assistant helping an analyst evaluate a dollar-cost-averaging plan.\n` +
+    `You must respond in a single message without requesting clarification or follow-up details.\n` +
+    `Plan details: invest ${amount} USD of ${token} on a ${interval} cadence for ${duration}.\n\n` +
+    `Guidelines:\n` +
+    `1. Determine the schedule start date automatically: call your date/time capability to retrieve today's UTC date and use it as the starting point. Do not ask the user.\n` +
+    `2. Generate a plausible synthetic price path that matches the cadence and duration. If historical context improves realism, silently call available data tools (e.g., CoinDesk history) without prompting the user; otherwise craft a consistent synthetic series.\n` +
+    `3. Summarize performance factors, expected cost basis shifts, and key risks in exactly three concise bullet points. State any assumptions directly inside the bullets.\n` +
+    `4. After the summary, output a JSON array labeled DATA containing objects formatted as {"date":"YYYY-MM-DD","price":number}. Provide one entry per scheduled purchase date, ordered chronologically. Prices must be numbers, not strings.\n` +
+    `5. Never ask questions, never defer the calculation, and always include both the SUMMARY section and the DATA array.\n\n` +
+    `Use the following structure exactly:\nSUMMARY:\n- bullet point one\n- bullet point two\n- bullet point three\nDATA:\n[{"date":"2024-01-01","price":123.45}, ...]`
+  );
 }
 
 function parseNovaReply(reply: string) {
@@ -223,7 +230,7 @@ export function DcaCalculatorSection() {
           model: "gpt-5-mini",
           temperature: 0.7,
           verbosity: "medium",
-          max_tokens: 30000, // Increased for structured output with JSON data
+          max_tokens: 18000, // Increased for structured output with JSON data
           reasoning: false,
           reasoning_params: {},
           image_urls: [],
