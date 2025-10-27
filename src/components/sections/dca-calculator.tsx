@@ -152,8 +152,8 @@ export function DcaCalculatorSection() {
               {
                 label: `${formState.token} price`,
                 data: dataset.map((point) => point.price),
-                borderColor: "#22d3ee",
-                backgroundColor: "rgba(34, 211, 238, 0.15)",
+                borderColor: "#36D6C3",
+                backgroundColor: "rgba(54, 214, 195, 0.18)",
                 tension: 0.35,
                 fill: true,
               },
@@ -165,35 +165,35 @@ export function DcaCalculatorSection() {
             plugins: {
               legend: {
                 labels: {
-                  color: "#e2e8f0",
+                  color: "#F6FAFF",
                   font: {
                     size: 12,
                   },
                 },
               },
               tooltip: {
-                backgroundColor: "#0f172a",
-                titleColor: "#e2e8f0",
-                bodyColor: "#cbd5f5",
-                borderColor: "#22d3ee",
+                backgroundColor: "#0C2537",
+                titleColor: "#F6FAFF",
+                bodyColor: "#CBD5E1",
+                borderColor: "#3AC6FF",
                 borderWidth: 1,
               },
             },
             scales: {
               x: {
                 ticks: {
-                  color: "#94a3b8",
+                  color: "#7E90A6",
                 },
                 grid: {
-                  color: "rgba(148, 163, 184, 0.1)",
+                  color: "rgba(126, 144, 166, 0.12)",
                 },
               },
               y: {
                 ticks: {
-                  color: "#94a3b8",
+                  color: "#7E90A6",
                 },
                 grid: {
-                  color: "rgba(148, 163, 184, 0.1)",
+                  color: "rgba(126, 144, 166, 0.12)",
                 },
               },
             },
@@ -228,10 +228,10 @@ export function DcaCalculatorSection() {
         body: JSON.stringify({
           input: prompt.trim(),
           model: "gpt-5-mini",
-          temperature: 0.7,
-          verbosity: "medium",
+          temperature: 0.0,
+          verbosity: "low",
           max_tokens: 18000, // Increased for structured output with JSON data
-          reasoning: false,
+          reasoning: true,
           reasoning_params: {},
           image_urls: [],
         }),
@@ -272,30 +272,30 @@ export function DcaCalculatorSection() {
   };
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-8">
       <form
-        className="flex flex-col gap-6 rounded-3xl border border-slate-800/70 bg-slate-950/80 p-6"
+        className="flex flex-col gap-4 rounded-2xl border border-slate-800/55 bg-surface/80 p-4 shadow-[0_10px_32px_rgba(6,21,34,0.35)] backdrop-blur-sm sm:gap-5 sm:rounded-3xl sm:p-6"
         onSubmit={handleSubmit}
       >
         <div>
-          <h3 className="text-xl font-semibold text-white">Configure your DCA plan</h3>
-          <p className="mt-2 text-sm text-slate-400">
+          <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">Configure your DCA plan</h3>
+          <p className="mt-1.5 text-xs text-slate-300 sm:mt-2 sm:text-sm">
             Adjust token, contribution size, cadence, and horizon to see how Nova models accumulation over time.
           </p>
         </div>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <label className="flex flex-col gap-2 text-sm font-medium text-slate-200">
+        <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
+          <label className="flex flex-col gap-1.5 text-xs font-medium text-slate-200 sm:gap-2 sm:text-sm">
             Token
             <input
               type="text"
               value={formState.token}
               onChange={handleFieldChange("token")}
-              className="rounded-2xl border border-slate-800/70 bg-slate-900/60 px-4 py-2 text-white placeholder:text-slate-500 focus:border-mint focus:outline-none"
+              className="rounded-xl border border-slate-800/60 bg-background/70 px-3 py-1.5 text-sm text-slate-50 placeholder:text-slate-500 focus:border-mint focus:outline-none focus:ring-0 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
               placeholder="e.g. ETH"
               required
             />
           </label>
-          <label className="flex flex-col gap-2 text-sm font-medium text-slate-200">
+          <label className="flex flex-col gap-1.5 text-xs font-medium text-slate-200 sm:gap-2 sm:text-sm">
             Contribution amount (USD)
             <input
               type="number"
@@ -303,29 +303,29 @@ export function DcaCalculatorSection() {
               step="10"
               value={formState.amount}
               onChange={handleFieldChange("amount")}
-              className="rounded-2xl border border-slate-800/70 bg-slate-900/60 px-4 py-2 text-white placeholder:text-slate-500 focus:border-mint focus:outline-none"
+              className="rounded-xl border border-slate-800/60 bg-background/70 px-3 py-1.5 text-sm text-slate-50 placeholder:text-slate-500 focus:border-mint focus:outline-none focus:ring-0 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
               placeholder="e.g. 500"
               required
             />
           </label>
-          <label className="flex flex-col gap-2 text-sm font-medium text-slate-200">
+          <label className="flex flex-col gap-1.5 text-xs font-medium text-slate-200 sm:gap-2 sm:text-sm">
             Purchase cadence
             <select
               value={formState.interval}
               onChange={handleFieldChange("interval")}
-              className="rounded-2xl border border-slate-800/70 bg-slate-900/60 px-4 py-2 text-white focus:border-mint focus:outline-none"
+              className="rounded-xl border border-slate-800/60 bg-background/70 px-3 py-1.5 text-sm text-slate-50 focus:border-mint focus:outline-none focus:ring-0 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
             >
               <option value="weekly">Weekly</option>
               <option value="bi-weekly">Bi-weekly</option>
               <option value="monthly">Monthly</option>
             </select>
           </label>
-          <label className="flex flex-col gap-2 text-sm font-medium text-slate-200">
+          <label className="flex flex-col gap-1.5 text-xs font-medium text-slate-200 sm:gap-2 sm:text-sm">
             Duration
             <select
               value={formState.duration}
               onChange={handleFieldChange("duration")}
-              className="rounded-2xl border border-slate-800/70 bg-slate-900/60 px-4 py-2 text-white focus:border-mint focus:outline-none"
+              className="rounded-xl border border-slate-800/60 bg-background/70 px-3 py-1.5 text-sm text-slate-50 focus:border-mint focus:outline-none focus:ring-0 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
             >
               <option value="3 months">3 months</option>
               <option value="6 months">6 months</option>
@@ -336,7 +336,7 @@ export function DcaCalculatorSection() {
         </div>
         <button
           type="submit"
-          className="inline-flex items-center justify-center gap-2 rounded-full bg-cta-gradient px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-mint"
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-cta-gradient px-4 py-2.5 text-xs font-semibold text-slate-50 shadow-lg shadow-[rgba(58,198,255,0.24)] transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-mint sm:px-5 sm:py-3 sm:text-sm"
           disabled={isLoading}
         >
           {isLoading ? "Generating projection..." : "Run DCA projection"}
@@ -344,12 +344,12 @@ export function DcaCalculatorSection() {
             <path d="M5 3l6 5-6 5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
-        {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+        {error ? <p className="text-sm text-critical">{error}</p> : null}
       </form>
-      <div className="flex flex-col gap-6 rounded-3xl border border-slate-800/70 bg-slate-950/60 p-6">
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-800/50 bg-surface/70 p-4 shadow-[0_10px_32px_rgba(6,21,34,0.25)] backdrop-blur-sm sm:gap-5 sm:rounded-3xl sm:p-6">
         <div>
-          <h3 className="text-xl font-semibold text-white">Nova&rsquo;s takeaway</h3>
-          <ul className="mt-3 space-y-3 text-sm leading-relaxed text-slate-300">
+          <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">Nova&rsquo;s takeaway</h3>
+          <ul className="mt-2 space-y-2 text-xs leading-relaxed text-slate-300 sm:mt-3 sm:space-y-3 sm:text-sm">
             {summaryLines.map((line, index) => (
               <li key={index} className="flex items-start gap-2">
                 <span className="mt-1 inline-flex h-1.5 w-1.5 flex-shrink-0 rounded-full bg-mint" aria-hidden />
@@ -358,13 +358,13 @@ export function DcaCalculatorSection() {
             ))}
           </ul>
         </div>
-        <div className="flex-1 rounded-2xl border border-slate-800/60 bg-slate-950/80 p-4">
-          <h4 className="text-sm font-semibold uppercase tracking-widest text-slate-400">Price trajectory</h4>
-          <div className="mt-4 h-64">
+        <div className="flex-1 rounded-xl border border-slate-800/55 bg-background/70 p-3 sm:rounded-2xl sm:p-4">
+          <h4 className="text-xs font-semibold uppercase tracking-widest text-slate-400 sm:text-sm">Price trajectory</h4>
+          <div className="mt-3 h-48 sm:mt-4 sm:h-64">
             {hasDataset ? (
               <canvas ref={canvasRef} className="h-full w-full" />
             ) : (
-              <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-800/80 bg-slate-950/80 text-center text-sm text-slate-500">
+              <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-800/65 bg-background/60 text-center text-sm text-slate-500">
                 {isLoading
                   ? "Asking Nova for price history..."
                   : "Run the projection to visualize Nova's modeled price path."}
