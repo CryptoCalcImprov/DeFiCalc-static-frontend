@@ -218,16 +218,9 @@ export function DcaCalculatorSection() {
       const prompt = buildPrompt(formState);
       // Increase max_tokens for DCA since we need structured output with JSON
       const { reply } = await requestNova(prompt, {
-        body: JSON.stringify({
-          input: prompt.trim(),
-          model: "gpt-5-mini",
-          temperature: 0.7,
-          verbosity: "medium",
+        payloadOverrides: {
           max_tokens: 30000, // Increased for structured output with JSON data
-          reasoning: false,
-          reasoning_params: {},
-          image_urls: [],
-        }),
+        },
       });
       
       console.log('[DCA] Received reply length:', reply.length);
