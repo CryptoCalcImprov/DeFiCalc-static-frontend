@@ -19,7 +19,7 @@ export function SiteHeader() {
             alt="DeFiCalc.io"
             width={120}
             height={32}
-            className="h-8 w-auto"
+            style={{ width: "auto", height: "32px" }}
             priority
           />
           <span className="bg-gradient-to-r from-purple-600 via-blue-500 to-purple-600 bg-clip-text text-lg font-semibold tracking-tight text-transparent">
