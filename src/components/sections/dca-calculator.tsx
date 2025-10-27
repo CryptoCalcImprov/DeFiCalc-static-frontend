@@ -216,7 +216,32 @@ export function DcaCalculatorSection() {
 
     try {
       const prompt = buildPrompt(formState);
-      const { reply } = await requestNova(prompt);
+      // Increase max_tokens for DCA since we need structured output with JSON
+      const { reply } = await requestNova(prompt, {
+        body: JSON.stringify({
+          input: prompt.trim(),
+          model: "gpt-5-mini",
+          temperature: 0.7,
+          verbosity: "medium",
+          max_tokens: 30000, // Increased for structured output with JSON data
+          reasoning: false,
+          reasoning_params: {},
+          image_urls: [],
+        }),
+      });
+      
+      console.log('[DCA] Received reply length:', reply.length);
+      console.log('[DCA] First 200 chars:', reply.substring(0, 200));
+      
+      // Check if Nova returned empty content
+      if (!reply || !reply.trim()) {
+        setError("Nova returned an empty response. The gateway might be experiencing issues.");
+        setDataset([]);
+        setSummary("Unable to process the DCA projection. Please try again in a moment.");
+        setIsLoading(false);
+        return;
+      }
+      
       const { summary: parsedSummary, dataset: parsedDataset } = parseNovaReply(reply);
 
       setSummary(parsedSummary);
@@ -226,6 +251,7 @@ export function DcaCalculatorSection() {
         setError("Nova didn't return price history data for this run. Showing the textual summary instead.");
       }
     } catch (novaError) {
+      console.error('[DCA] Request error:', novaError);
       const message =
         novaError instanceof Error
           ? novaError.message

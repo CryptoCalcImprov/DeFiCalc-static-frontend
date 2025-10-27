@@ -73,6 +73,14 @@ export async function requestNova(
       ...DEFAULT_BODY,
     });
 
+  console.log('[Nova] Request body:', body);
+  console.log('[Nova] Request details:', {
+    url: requestUrl,
+    method: 'POST',
+    headers: Object.fromEntries(headers.entries()),
+    bodyLength: body.length,
+  });
+
   const response = await fetch(requestUrl, {
     method: "POST",
     ...options,
@@ -82,29 +90,61 @@ export async function requestNova(
 
   const contentType = response.headers.get("content-type") ?? "";
   const rawBody = await response.text();
+  
+  console.log('[Nova] Response received');
+  console.log('[Nova] Status:', response.status);
+  console.log('[Nova] Content-Type:', contentType);
+  console.log('[Nova] Raw body:', rawBody);
+  
   let assistantReply: unknown = rawBody;
 
   if (contentType.includes("application/json")) {
     try {
       const data = rawBody ? JSON.parse(rawBody) : null;
+      
+      console.log('[Nova] Parsed JSON data:', JSON.stringify(data, null, 2));
+      
+      // Check if text field exists but is empty - this might be an error
+      if (data?.text === "") {
+        console.warn('[Nova] Empty text field detected. Checking for alternative fields...');
+        console.log('[Nova] Full response structure:', Object.keys(data || {}));
+        
+        // If we have other fields that might contain data, log them
+        if (data.tool_calls && Array.isArray(data.tool_calls) && data.tool_calls.length > 0) {
+          console.log('[Nova] Tool calls detected:', data.tool_calls);
+        }
+      }
+      
+      // Try to find content in various fields
       assistantReply =
+        data?.text ?? // Check text first for Nova gateway responses
         data?.output ??
         data?.message ??
         data?.content ??
         data?.reply ??
-        data?.text ??
         data?.choices?.[0]?.message?.content ??
         (typeof data === "string" ? data : data ? JSON.stringify(data) : "");
+      
+      console.log('[Nova] Extracted assistant reply:', typeof assistantReply, assistantReply?.toString().substring(0, 200));
     } catch (jsonError) {
+      console.error('[Nova] Failed to parse JSON:', jsonError);
       assistantReply = rawBody;
     }
   }
 
   const resolvedReply = typeof assistantReply === "string" ? assistantReply : String(assistantReply ?? "");
   const trimmedReply = resolvedReply.trim();
+  
+  console.log('[Nova] Resolved reply:', trimmedReply.substring(0, 200));
+  console.log('[Nova] Trimmed reply length:', trimmedReply.length);
 
   if (!response.ok) {
     throw new Error(trimmedReply || rawBody || `Nova responded with status ${response.status}`);
+  }
+
+  // If we got a successful response but no content, log it as a warning
+  if (trimmedReply.length === 0) {
+    console.warn('[Nova] Empty reply received from successful response. Raw body:', rawBody);
   }
 
   return {
