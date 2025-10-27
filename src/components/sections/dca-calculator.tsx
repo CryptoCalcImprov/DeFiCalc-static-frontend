@@ -230,7 +230,7 @@ export function DcaCalculatorSection() {
           model: "gpt-5-mini",
           temperature: 0.0,
           verbosity: "low",
-          max_tokens: 18000, // Increased for structured output with JSON data
+          max_tokens: 50000, // Increased for structured output with JSON data
           reasoning: true,
           reasoning_params: {},
           image_urls: [],
