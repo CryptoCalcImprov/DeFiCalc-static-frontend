@@ -1,5 +1,6 @@
 import { HeroSection } from "@/components/sections/hero";
 import { InsightsSection } from "@/components/sections/insights";
+import { DcaCalculatorSection } from "@/components/sections/dca-calculator";
 import { MarketPulseSection } from "@/components/sections/market-pulse";
 import { ProtocolLeadersSection } from "@/components/sections/protocol-leaders";
 import { ToolkitHighlightsSection } from "@/components/sections/toolkit-highlights";
@@ -16,35 +17,42 @@ export default function HomePage() {
       <div className="relative z-10">
         <SiteHeader />
         <main className="flex-1">
-        <HeroSection />
-        <Section
-          id="markets"
-          title="Market pulse that surfaces what matters"
-          description="Monitor macro DeFi health, stablecoin flows, and the pairs gaining momentum across networks."
-        >
-          <MarketPulseSection />
-        </Section>
-        <Section
-          id="protocols"
-          title="Protocol leaders and governance radar"
-          description="Rank strategies by TVL, growth, and on-chain governance signals so you never miss a pivotal update."
-        >
-          <ProtocolLeadersSection />
-        </Section>
-        <Section
-          id="toolkit"
-          title="Analyst toolkit built for collaboration"
-          description="Everything your team needs to design, test, and share strategies – from risk dashboards to the Calculator Sandbox."
-        >
-          <ToolkitHighlightsSection />
-        </Section>
-        <Section
-          id="insights"
-          title="Insights library that educates while you explore"
-          description="Guided explainers and playbooks keep new users confident and give veterans deeper context for every move."
-        >
-          <InsightsSection />
-        </Section>
+          <HeroSection />
+          <Section
+            id="markets"
+            title="Market pulse that surfaces what matters"
+            description="Monitor macro DeFi health, stablecoin flows, and the pairs gaining momentum across networks."
+          >
+            <MarketPulseSection />
+          </Section>
+          <Section
+            id="protocols"
+            title="Protocol leaders and governance radar"
+            description="Rank strategies by TVL, growth, and on-chain governance signals so you never miss a pivotal update."
+          >
+            <ProtocolLeadersSection />
+          </Section>
+          <Section
+            id="toolkit"
+            title="Analyst toolkit built for collaboration"
+            description="Everything your team needs to design, test, and share strategies – from risk dashboards to the Calculator Sandbox."
+          >
+            <ToolkitHighlightsSection />
+          </Section>
+          <Section
+            id="dca"
+            title="Model DCA plays with Nova"
+            description="Experiment with recurring buys and let Nova explain cost basis shifts, risk factors, and price path assumptions."
+          >
+            <DcaCalculatorSection />
+          </Section>
+          <Section
+            id="insights"
+            title="Insights library that educates while you explore"
+            description="Guided explainers and playbooks keep new users confident and give veterans deeper context for every move."
+          >
+            <InsightsSection />
+          </Section>
         </main>
         <SiteFooter />
         <NovaAssistant />
