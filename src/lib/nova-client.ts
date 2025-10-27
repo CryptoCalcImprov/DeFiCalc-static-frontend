@@ -7,6 +7,17 @@ export type RequestNovaResult = {
   headers: Record<string, string>;
 };
 
+const TIME_TOOL_NAME = "get_current_time" as const;
+
+const TIME_TOOL_CONFIG = Object.freeze({
+  type: TIME_TOOL_NAME,
+});
+
+const TIME_TOOL_GUIDANCE =
+  "You can call the get_current_time tool to retrieve the current date and time. " +
+  "Whenever the user asks about the current date, current time, or anything that requires real-time awareness, " +
+  "call the tool first and incorporate the returned timestamp in your final response.";
+
 const DEFAULT_BODY = {
   model: DEFAULT_MODEL,
   temperature: 0.7,
@@ -15,6 +26,20 @@ const DEFAULT_BODY = {
   reasoning: false,
   reasoning_params: {},
   image_urls: [] as string[],
+  tools: [TIME_TOOL_CONFIG] as const,
+  tool_choice: "auto" as const,
+};
+
+type NovaPayload = {
+  input: string;
+  tools?: unknown;
+  tool_choice?: unknown;
+  [key: string]: unknown;
+};
+
+type RequestNovaOptions = Omit<RequestInit, "body"> & {
+  payloadOverrides?: Record<string, unknown>;
+  body?: BodyInit | null;
 };
 
 function createRequestUrl() {
@@ -60,18 +85,78 @@ function buildHeaders(options?: Partial<RequestInit>) {
 
 export async function requestNova(
   prompt: string,
-  options: Partial<RequestInit> = {},
+  options: RequestNovaOptions = {},
 ): Promise<RequestNovaResult> {
   const trimmedPrompt = prompt.trim();
+  const promptWithToolGuidance =
+    TIME_TOOL_GUIDANCE + (trimmedPrompt.length > 0 ? `\n\n${trimmedPrompt}` : "");
   const requestUrl = createRequestUrl();
   const headers = buildHeaders(options);
 
-  const body =
-    options.body ??
-    JSON.stringify({
-      input: trimmedPrompt,
-      ...DEFAULT_BODY,
+  const { payloadOverrides, body: overrideBody, ...requestOptions } = options;
+
+  let mergedPayload: NovaPayload = {
+    input: promptWithToolGuidance,
+    ...DEFAULT_BODY,
+    ...(payloadOverrides ?? {}),
+  };
+
+  if (overrideBody != null) {
+    if (typeof overrideBody === "string") {
+      try {
+        const parsed = JSON.parse(overrideBody);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          mergedPayload = {
+            ...mergedPayload,
+            ...(parsed as Record<string, unknown>),
+          };
+        }
+      } catch (error) {
+        console.warn("[Nova] Failed to parse override body as JSON. Using merged payload instead.", error);
+      }
+    } else {
+      console.warn("[Nova] Received unsupported override body type. Using merged payload instead.");
+    }
+  }
+
+  const potentialInput = mergedPayload["input"];
+  const selectedInput =
+    typeof potentialInput === "string" && potentialInput.trim().length > 0
+      ? potentialInput.trim()
+      : promptWithToolGuidance;
+
+  const finalInput =
+    selectedInput.includes(TIME_TOOL_GUIDANCE) || selectedInput === TIME_TOOL_GUIDANCE
+      ? selectedInput
+      : `${TIME_TOOL_GUIDANCE}\n\n${selectedInput}`.trim();
+
+  const finalPayload: NovaPayload = {
+    ...mergedPayload,
+    input: finalInput,
+  };
+
+  if (!Array.isArray(finalPayload.tools)) {
+    finalPayload.tools = [...DEFAULT_BODY.tools];
+  } else {
+    const hasTimeTool = finalPayload.tools.some((tool) => {
+      if (typeof tool !== "object" || tool === null) {
+        return false;
+      }
+
+      const toolType = (tool as { type?: unknown }).type;
+      return toolType === TIME_TOOL_NAME;
     });
+
+    if (!hasTimeTool) {
+      finalPayload.tools = [...finalPayload.tools, TIME_TOOL_CONFIG];
+    }
+  }
+
+  if (typeof finalPayload.tool_choice !== "string") {
+    finalPayload.tool_choice = DEFAULT_BODY.tool_choice;
+  }
+
+  const body = JSON.stringify(finalPayload);
 
   console.log('[Nova] Request body:', body);
   console.log('[Nova] Request details:', {
@@ -83,7 +168,7 @@ export async function requestNova(
 
   const response = await fetch(requestUrl, {
     method: "POST",
-    ...options,
+    ...requestOptions,
     headers,
     body,
   });
