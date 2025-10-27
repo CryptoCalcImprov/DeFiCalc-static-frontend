@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -12,8 +13,18 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-800/70 bg-background/80 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link href="/" className="text-lg font-semibold tracking-tight text-primary">
-          DeFiCalc.io
+        <Link href="/" className="flex items-center gap-2">
+          <Image
+            src="/assets/defi-calc-logo-transparent-mini.png"
+            alt="DeFiCalc.io"
+            width={120}
+            height={32}
+            className="h-8 w-auto"
+            priority
+          />
+          <span className="bg-gradient-to-r from-purple-600 via-blue-500 to-purple-600 bg-clip-text text-lg font-semibold tracking-tight text-transparent">
+            DeFiCalc.io
+          </span>
         </Link>
         <nav className="hidden items-center gap-8 text-sm font-medium text-slate-200 lg:flex">
           {navigationLinks.map((item) => (

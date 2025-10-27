@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ChatMessage } from "@/components/ui/chat-message";
 import { StarterPrompts } from "@/components/ui/starter-prompts";
 import { ThinkingIndicator } from "@/components/ui/thinking-indicator";
+import { requestNova } from "@/lib/nova-client";
 
 const starterPrompts = [
   "How can I calculate yield?",
@@ -41,85 +42,14 @@ export function NovaAssistant() {
     setInput("");
     setIsLoading(true);
 
-    const baseUrl =
-      process.env.NODE_ENV !== "development" ? process.env.NEXT_PUBLIC_NOVA_API_URL?.trim() : undefined;
-    let requestUrl = "/ai";
-
-    if (baseUrl) {
-      const sanitized = baseUrl.endsWith("/ai") ? baseUrl : `${baseUrl.replace(/\/$/, "")}/ai`;
-      requestUrl = sanitized;
-    }
-
     try {
-      const parsedUrl = new URL(
-        requestUrl,
-        requestUrl.startsWith("http") ? undefined : typeof window !== "undefined" ? window.location.origin : undefined,
-      );
-      requestUrl = parsedUrl.toString();
-    } catch (error) {
-      // Ignore parse errors and fall back to the original requestUrl
-    }
-
-    const headers = new Headers({
-      "Content-Type": "application/json",
-    });
-
-    const apiKey = process.env.NEXT_PUBLIC_NOVA_API_KEY?.trim();
-    if (apiKey) {
-      headers.set("Authorization", `Bearer ${apiKey}`);
-    }
-
-    const body = {
-      input: prompt,
-      model: "gpt-5-mini",
-      temperature: 0.7,
-      verbosity: "medium",
-      max_tokens: 2000,
-      reasoning: false,
-      reasoning_params: {},
-      image_urls: [],
-    };
-
-    try {
-      const response = await fetch(requestUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-      });
-
-      const contentType = response.headers.get("content-type") ?? "";
-      const rawBody = await response.text();
-      let assistantReply = "";
-
-      if (contentType.includes("application/json")) {
-        try {
-          const data = rawBody ? JSON.parse(rawBody) : null;
-          assistantReply =
-            data?.output ??
-            data?.message ??
-            data?.content ??
-            data?.reply ??
-            data?.text ??
-            data?.choices?.[0]?.message?.content ??
-            (typeof data === "string" ? data : data ? JSON.stringify(data) : "");
-        } catch (jsonError) {
-          assistantReply = rawBody;
-        }
-      } else {
-        assistantReply = rawBody;
-      }
-
-      const resolvedReply = typeof assistantReply === "string" ? assistantReply : String(assistantReply ?? "");
-      const trimmedReply = resolvedReply.trim();
-
-      if (!response.ok) {
-        throw new Error(trimmedReply || rawBody || `Nova responded with status ${response.status}`);
-      }
+      const { reply, rawBody, status, headers } = await requestNova(prompt);
+      const trimmedReply = reply.trim();
 
       if (!trimmedReply) {
         console.warn("Nova returned an empty response payload.", {
-          status: response.status,
-          headers: Object.fromEntries(response.headers.entries()),
+          status,
+          headers,
           rawBody,
         });
         setMessages((prev) => [
@@ -129,7 +59,7 @@ export function NovaAssistant() {
         return;
       }
 
-      setMessages((prev) => [...prev, { role: "assistant", content: resolvedReply }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Something went wrong while talking to Nova. Please try again.";
