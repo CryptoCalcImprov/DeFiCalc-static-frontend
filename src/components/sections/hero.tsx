@@ -22,7 +22,7 @@ export function HeroSection() {
           <div className="inline-flex items-center gap-2 rounded-full border border-mint/30 bg-slate-900/60 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-mint">
             DeFi onboarding made friendly
           </div>
-          <h1 className="mt-6 text-4xl font-bold leading-tight text-white sm:text-5xl">
+          <h1 className="mt-6 text-4xl font-bold leading-tight sm:text-5xl">
             Make sharper DeFi moves with live market, protocol, and risk analytics in one place.
           </h1>
           <p className="mt-6 text-lg leading-relaxed text-slate-300">
