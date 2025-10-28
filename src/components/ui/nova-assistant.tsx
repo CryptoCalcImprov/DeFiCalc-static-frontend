@@ -1,17 +1,94 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ChatMessage } from "@/components/ui/chat-message";
+import { StarterPrompts } from "@/components/ui/starter-prompts";
+import { ThinkingIndicator } from "@/components/ui/thinking-indicator";
+import { requestNova } from "@/lib/nova-client";
 
 const starterPrompts = [
   "How can I calculate yield?",
   "Explain TVL vs APY",
-  "Show safe ETH strategies"
+  "Show safe ETH strategies",
 ];
+
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
 
 export function NovaAssistant() {
   const [open, setOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      role: "assistant",
+      content:
+        "Hi! Ask me about strategy health, projected yields, or how to model a position in the Calculator Sandbox.\n\nI can explain formulas with proper math notation and show you charts or images when helpful!",
+    },
+  ]);
+  const [isLoading, setIsLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const processPrompt = async (rawPrompt: string) => {
+    const prompt = rawPrompt.trim();
+    if (!prompt) {
+      return;
+    }
+
+    setMessages((prev) => [...prev, { role: "user", content: prompt }]);
+    setInput("");
+    setIsLoading(true);
+
+    try {
+      const { reply, rawBody, status, headers } = await requestNova(prompt);
+      const trimmedReply = reply.trim();
+
+      if (!trimmedReply) {
+        console.warn("Nova returned an empty response payload.", {
+          status,
+          headers,
+          rawBody,
+        });
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "I didn't receive any text back from Nova. Please try again." },
+        ]);
+        return;
+      }
+
+      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Something went wrong while talking to Nova. Please try again.";
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `I ran into an issue processing that request: ${errorMessage}`,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await processPrompt(input);
+  };
+
+  const handleStarterPrompt = (prompt: string, { autoSubmit = false } = {}) => {
+    setInput(prompt);
+
+    if (autoSubmit) {
+      void processPrompt(prompt);
+    } else {
+      inputRef.current?.focus();
+    }
+  };
 
   return (
     <div id="nova">
@@ -26,9 +103,9 @@ export function NovaAssistant() {
         Ask Nova
       </button>
       {open ? (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex justify-center md:items-end md:justify-end bg-black/40 backdrop-blur-sm">
           <div className="absolute inset-0" onClick={() => setOpen(false)} aria-hidden />
-          <div className="relative mt-auto w-full max-w-md rounded-t-3xl border border-slate-800/70 bg-surface/95 p-6 shadow-2xl md:mt-0 md:rounded-3xl md:mr-8 md:mb-8">
+          <div className="relative flex h-full min-h-0 w-full max-w-none flex-col overflow-hidden rounded-none border border-slate-800/70 bg-surface/95 p-4 shadow-2xl md:h-[80vh] md:max-h-[80vh] md:max-w-2xl md:rounded-3xl md:p-6 md:mr-8 md:mb-8">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-slate-900/80 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-mint">
@@ -49,22 +126,22 @@ export function NovaAssistant() {
                 </svg>
               </button>
             </div>
-            <div className="mt-6 space-y-4 rounded-2xl border border-slate-800/70 bg-slate-950/70 p-4 text-sm text-slate-200">
-              <div className="flex items-start gap-3">
-                <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-mint/20 text-mint">N</div>
-                <p>
-                  Hi! Ask me about strategy health, projected yields, or how to model a position in the Calculator Sandbox.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                {starterPrompts.map((prompt) => (
-                  <Button key={prompt} variant="secondary" className="rounded-full bg-slate-900/80 px-4 py-2 text-xs" onClick={() => setOpen(false)}>
-                    {prompt}
-                  </Button>
+            <div className="mt-6 flex flex-1 min-h-0 flex-col rounded-2xl border border-slate-800/70 bg-slate-950/70 p-4 text-sm text-slate-200">
+              <div className="flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto pr-1 nova-scroll">
+                {messages.map((message, index) => (
+                  <ChatMessage
+                    key={`${message.role}-${index}`}
+                    role={message.role}
+                    content={message.content}
+                  />
                 ))}
+                {isLoading ? <ThinkingIndicator /> : null}
               </div>
+              {messages.length === 1 ? (
+                <StarterPrompts prompts={starterPrompts} onPromptClick={handleStarterPrompt} />
+              ) : null}
             </div>
-            <form className="mt-6">
+            <form className="mt-6" onSubmit={handleSubmit}>
               <label className="sr-only" htmlFor="nova-question">
                 Ask Nova a question
               </label>
@@ -74,8 +151,12 @@ export function NovaAssistant() {
                   type="text"
                   placeholder="Type your DeFi question..."
                   className="flex-1 bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  disabled={isLoading}
+                  ref={inputRef}
                 />
-                <Button type="submit" variant="gradient" className="px-4 py-2 text-xs">
+                <Button type="submit" variant="gradient" className="px-4 py-2 text-xs" disabled={isLoading}>
                   Send
                 </Button>
               </div>

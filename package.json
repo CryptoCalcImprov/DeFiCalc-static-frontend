@@ -3,17 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "export": "next build"
   },
   "dependencies": {
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
+    "@react-three/postprocessing": "^3.0.4",
+    "chart.js": "^4.5.1",
     "clsx": "2.1.0",
+    "katex": "^0.16.25",
     "next": "14.2.33",
     "react": "18.2.0",
-    "react-dom": "18.2.0"
+    "react-dom": "18.2.0",
+    "react-katex": "^3.1.0",
+    "three": "^0.160.1"
   },
   "devDependencies": {
     "@types/node": "20.12.7",
