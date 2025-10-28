@@ -14,14 +14,16 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 w-full border-b border-slate-800/70 bg-background/80 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-2">
-          <Image
-            src="/assets/defi-calc-logo-transparent-mini.png"
-            alt="DeFiCalc.io"
-            width={120}
-            height={32}
-            style={{ width: "auto", height: "32px" }}
-            priority
-          />
+          <span className="relative h-8 w-[90px]">
+            <Image
+              src="/assets/defi-calc-logo-transparent-mini.png"
+              alt="DeFiCalc.io"
+              fill
+              sizes="90px"
+              className="object-contain"
+              priority
+            />
+          </span>
           <span className="bg-gradient-to-r from-purple-600 via-blue-500 to-purple-600 bg-clip-text text-lg font-semibold tracking-tight text-transparent">
             DeFiCalc.io
           </span>
