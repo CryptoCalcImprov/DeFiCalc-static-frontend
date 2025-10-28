@@ -73,12 +73,35 @@ export async function requestNova(
       ...DEFAULT_BODY,
     });
 
-  console.log('[Nova] Request body:', body);
-  console.log('[Nova] Request details:', {
+  let bodyPreview = "";
+  let bodyLength: number | undefined;
+
+  if (typeof body === "string") {
+    bodyPreview = body;
+    bodyLength = new TextEncoder().encode(body).length;
+  } else if (body instanceof URLSearchParams) {
+    const serialized = body.toString();
+    bodyPreview = serialized;
+    bodyLength = new TextEncoder().encode(serialized).length;
+  } else if (body instanceof Blob) {
+    bodyPreview = `[Blob ${body.type || "unknown"}]`;
+    bodyLength = body.size;
+  } else if (body instanceof ArrayBuffer) {
+    bodyPreview = `[ArrayBuffer length=${body.byteLength}]`;
+    bodyLength = body.byteLength;
+  } else if (ArrayBuffer.isView(body)) {
+    bodyPreview = `[TypedArray length=${body.byteLength}]`;
+    bodyLength = body.byteLength;
+  } else {
+    bodyPreview = "[Body stream]";
+  }
+
+  console.log("[Nova] Request body:", bodyPreview);
+  console.log("[Nova] Request details:", {
     url: requestUrl,
-    method: 'POST',
+    method: "POST",
     headers: Object.fromEntries(headers.entries()),
-    bodyLength: body.length,
+    bodyLength,
   });
 
   const response = await fetch(requestUrl, {

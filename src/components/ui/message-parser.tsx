@@ -8,6 +8,13 @@ interface MessageParserProps {
   className?: string;
 }
 
+function normalizeMathContent(input: string) {
+  return input
+    .replace(/[\u2013\u2014\u2015\u2212]/g, "-")
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"');
+}
+
 export function MessageParser({ content, className = "" }: MessageParserProps) {
   const parseContent = () => {
     const parts: JSX.Element[] = [];
@@ -46,14 +53,14 @@ export function MessageParser({ content, className = "" }: MessageParserProps) {
         // Block math (group 4 from $$...$$)
         parts.push(
           <MathText key={`math-${key++}`} displayMode={true}>
-            {match[4].trim()}
+            {normalizeMathContent(match[4].trim())}
           </MathText>
         );
       } else if (match[5]) {
         // Inline math (group 5 from $...$)
         parts.push(
           <MathText key={`math-${key++}`} displayMode={false}>
-            {match[5].trim()}
+            {normalizeMathContent(match[5].trim())}
           </MathText>
         );
       }
@@ -74,4 +81,3 @@ export function MessageParser({ content, className = "" }: MessageParserProps) {
 
   return <div className={className}>{parseContent()}</div>;
 }
-
