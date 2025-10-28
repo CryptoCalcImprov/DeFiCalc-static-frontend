@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { NovaAvatar } from "@/components/ui/nova-avatar";
 import { MessageParser } from "@/components/ui/message-parser";
+import { NovaAvatar } from "@/components/ui/nova-avatar";
+import { publicAsset } from "@/lib/public-asset";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
@@ -23,7 +24,7 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
       ) : (
         <div className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 shrink-0 overflow-hidden">
           <Image
-            src="/assets/user-avatar.png"
+            src={publicAsset("/assets/user-avatar.png")}
             alt="User"
             width={32}
             height={32}
