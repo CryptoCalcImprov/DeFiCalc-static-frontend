@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "re
 import type { ChartConfiguration } from "chart.js";
 
 import { requestNova } from "@/lib/nova-client";
+import { MessageParser } from "@/components/ui/message-parser";
 
 type DcaDataPoint = {
   date: string;
@@ -360,7 +361,7 @@ export function DcaCalculatorSection() {
               {summaryLines.map((line, index) => (
                 <li key={index} className="flex items-start gap-2">
                   <span className="mt-1 inline-flex h-1.5 w-1.5 flex-shrink-0 rounded-full bg-mint" aria-hidden />
-                  <span>{line}</span>
+                  <MessageParser content={line} className="flex-1" />
                 </li>
               ))}
             </ul>
