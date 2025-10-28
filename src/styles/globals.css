@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "Goldman";
+  src: url("/fonts/Goldman-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
 }
@@ -15,7 +23,35 @@ body {
   font-family: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+h1, h2 {
+  font-family: "Goldman", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-weight: 700;
+  color: #B3E5FC;
+}
+
 ::selection {
   background: theme("colors.primary.DEFAULT");
   color: theme("colors.primary.foreground");
+}
+
+.nova-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
+}
+
+.nova-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.nova-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nova-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.25);
+  border-radius: 9999px;
+}
+
+.nova-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.4);
 }

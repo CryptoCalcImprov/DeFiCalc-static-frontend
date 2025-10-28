@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { heroStrategies, insightHighlights } from "@/lib/site-content";
 
 const riskToneClasses = {
-  low: "bg-mint/20 text-mint",
-  medium: "bg-primary/20 text-primary",
-  high: "bg-lavender/20 text-lavender"
+  low: "bg-mint/18 text-mint ring-1 ring-inset ring-mint/35",
+  medium: "bg-primary/18 text-primary ring-1 ring-inset ring-primary/35",
+  high: "bg-lavender/20 text-lavender ring-1 ring-inset ring-lavender/35"
 } as const;
 
 export function HeroSection() {
@@ -15,13 +15,14 @@ export function HeroSection() {
       id="overview"
       className="relative overflow-hidden border-b border-slate-900/60 bg-hero-grid"
     >
-      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-slate-900/40 via-background to-background" aria-hidden />
+      {/* Base gradient */}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-slate-900/40 via-background/90 to-background" aria-hidden />
       <div className="mx-auto flex max-w-6xl flex-col items-start gap-16 px-6 py-24 lg:flex-row lg:items-center">
         <div className="flex-1">
           <div className="inline-flex items-center gap-2 rounded-full border border-mint/30 bg-slate-900/60 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-mint">
             DeFi onboarding made friendly
           </div>
-          <h1 className="mt-6 text-4xl font-bold leading-tight text-white sm:text-5xl">
+          <h1 className="mt-6 text-4xl font-bold leading-tight sm:text-5xl">
             Make sharper DeFi moves with live market, protocol, and risk analytics in one place.
           </h1>
           <p className="mt-6 text-lg leading-relaxed text-slate-300">
@@ -49,7 +50,7 @@ export function HeroSection() {
           </div>
         </div>
         <div className="flex w-full flex-1 justify-end lg:justify-center">
-          <div className="w-full max-w-md rounded-3xl border border-slate-800/80 bg-surface/80 p-6 shadow-2xl shadow-cyan-500/10 backdrop-blur">
+          <div className="w-full max-w-md rounded-3xl border border-slate-800/80 bg-slate-950 p-6 shadow-2xl shadow-cyan-500/10">
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-widest text-slate-400">Strategy Monitor</p>
@@ -61,7 +62,7 @@ export function HeroSection() {
               {heroStrategies.map((strategy) => (
                 <li
                   key={strategy.name}
-                  className="rounded-2xl border border-slate-800/60 bg-slate-950/60 p-4 shadow-inner shadow-black/40"
+                  className="rounded-2xl border border-slate-800/60 bg-slate-900 p-4 shadow-inner shadow-black/40"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>

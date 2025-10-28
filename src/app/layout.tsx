@@ -17,13 +17,22 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title,
     description
-  }
+  },
+  icons: {
+    icon: [
+      { url: "/icons/favicon.svg", type: "image/svg+xml" },
+      { url: "/icons/favicon-96x96.png", type: "image/png", sizes: "96x96" }
+    ],
+    apple: { url: "/icons/apple-touch-icon.png", sizes: "180x180" },
+    shortcut: "/icons/favicon.ico"
+  },
+  manifest: "/icons/site.webmanifest"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-background text-slate-100 antialiased">
+      <body className="min-h-screen overflow-x-hidden bg-background text-slate-100 antialiased">
         {children}
       </body>
     </html>
