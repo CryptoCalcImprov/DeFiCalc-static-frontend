@@ -156,6 +156,12 @@ export function DcaCalculatorSection() {
                 backgroundColor: "rgba(54, 214, 195, 0.18)",
                 tension: 0.35,
                 fill: true,
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                pointBackgroundColor: "#3AC6FF",
+                pointBorderColor: "#061522",
+                pointBorderWidth: 2,
+                pointHitRadius: 12,
               },
             ],
           },
@@ -363,9 +369,9 @@ export function DcaCalculatorSection() {
       </div>
       <div className="rounded-2xl border border-slate-800/55 bg-surface/70 p-4 shadow-[0_10px_28px_rgba(6,21,34,0.22)] backdrop-blur-sm sm:rounded-3xl sm:p-6">
         <h4 className="text-xs font-semibold uppercase tracking-widest text-slate-400 sm:text-sm">Price trajectory</h4>
-        <div className="mt-3 h-56 sm:mt-4 sm:h-72 lg:h-96">
+        <div className="mt-3 h-56 min-w-0 overflow-hidden rounded-xl border border-slate-800/55 bg-background/70 sm:mt-4 sm:h-72 lg:h-96">
           {hasDataset ? (
-            <canvas ref={canvasRef} className="h-full w-full" />
+            <canvas ref={canvasRef} className="h-full w-full max-w-full" style={{ width: "100%", height: "100%" }} />
           ) : (
             <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-800/65 bg-background/60 text-center text-sm text-slate-500">
               {isLoading
