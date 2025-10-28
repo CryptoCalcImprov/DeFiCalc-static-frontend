@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { navigationLinks } from "@/lib/site-content";
+import { publicAsset } from "@/lib/public-asset";
 
 export function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -16,7 +17,7 @@ export function SiteHeader() {
         <Link href="/" className="flex items-center gap-2">
           <span className="relative h-8 w-[90px]">
             <Image
-              src="/assets/defi-calc-logo-transparent-mini.png"
+              src={publicAsset("/assets/defi-calc-logo-transparent-mini.png")}
               alt="DeFiCalc.io"
               fill
               sizes="90px"
