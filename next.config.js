@@ -6,13 +6,18 @@ const novaDevProxyTarget = process.env.NOVA_DEV_PROXY_TARGET?.trim();
 
 /** @type {(phase: string) => import('next').NextConfig} */
 module.exports = function nextConfig(phase) {
+  const basePath = isGitHubActions && repoName ? `/${repoName}` : "";
+
   const config = {
-    ...(isGitHubActions && repoName
+    ...(basePath
       ? {
-          basePath: `/${repoName}`,
-          assetPrefix: `/${repoName}/`
+          basePath,
+          assetPrefix: `${basePath}/`
         }
       : {}),
+    env: {
+      NEXT_PUBLIC_BASE_PATH: basePath
+    },
     output: "export",
     distDir: "out",
     images: {
