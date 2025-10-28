@@ -7,6 +7,9 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        goldman: ["Goldman", "ui-sans-serif", "system-ui", "-apple-system", "sans-serif"],
+      },
       colors: {
         background: "#061522",
         surface: "#0C2537",
