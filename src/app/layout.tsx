@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "../styles/globals.css";
+import { publicAsset } from "@/lib/public-asset";
 
 const title = "DeFiCalc.io";
 const description =
@@ -20,13 +21,13 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/icons/favicon.svg", type: "image/svg+xml" },
-      { url: "/icons/favicon-96x96.png", type: "image/png", sizes: "96x96" }
+      { url: publicAsset("/icons/favicon.svg"), type: "image/svg+xml" },
+      { url: publicAsset("/icons/favicon-96x96.png"), type: "image/png", sizes: "96x96" }
     ],
-    apple: { url: "/icons/apple-touch-icon.png", sizes: "180x180" },
-    shortcut: "/icons/favicon.ico"
+    apple: { url: publicAsset("/icons/apple-touch-icon.png"), sizes: "180x180" },
+    shortcut: publicAsset("/icons/favicon.ico")
   },
-  manifest: "/icons/site.webmanifest"
+  manifest: publicAsset("/icons/site.webmanifest")
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
