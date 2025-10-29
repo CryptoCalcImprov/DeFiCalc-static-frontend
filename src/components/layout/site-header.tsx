@@ -40,7 +40,7 @@ export function SiteHeader() {
           <Button href="#toolkit" variant="secondary" className="text-sm">
             View Toolkit
           </Button>
-          <Button href="/app" variant="gradient" className="text-sm shadow-primary/30">
+          <Button href="/main_app" variant="gradient" className="text-sm shadow-primary/30">
             Launch App
           </Button>
         </div>
@@ -83,7 +83,7 @@ export function SiteHeader() {
               <Button href="#toolkit" variant="secondary" className="w-full" onClick={() => setMenuOpen(false)}>
                 View Toolkit
               </Button>
-              <Button href="/app" variant="gradient" className="w-full" onClick={() => setMenuOpen(false)}>
+              <Button href="/main_app" variant="gradient" className="w-full" onClick={() => setMenuOpen(false)}>
                 Launch App
               </Button>
             </div>
