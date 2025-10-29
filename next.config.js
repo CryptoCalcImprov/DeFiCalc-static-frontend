@@ -39,7 +39,6 @@ module.exports = function nextConfig(phase) {
       NEXT_PUBLIC_BASE_PATH: basePath
     },
     output: "export",
-    distDir: "out",
     images: {
       unoptimized: true
     },
