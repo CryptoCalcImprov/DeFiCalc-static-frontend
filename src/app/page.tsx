@@ -1,13 +1,11 @@
 import { HeroSection } from "@/components/sections/hero";
 import { InsightsSection } from "@/components/sections/insights";
-import { DcaCalculatorSection } from "@/components/sections/dca-calculator";
 import { MarketPulseSection } from "@/components/sections/market-pulse";
 import { ProtocolLeadersSection } from "@/components/sections/protocol-leaders";
 import { ToolkitHighlightsSection } from "@/components/sections/toolkit-highlights";
 import { Section } from "@/components/layout/section";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
-import { NovaAssistant } from "@/components/ui/nova-assistant";
 import { Scene3D } from "@/components/ui/Scene3D";
 
 export default function HomePage() {
@@ -40,13 +38,6 @@ export default function HomePage() {
             <ToolkitHighlightsSection />
           </Section>
           <Section
-            id="dca"
-            title="Model DCA plays with Nova"
-            description="Experiment with recurring buys and let Nova explain cost basis shifts, risk factors, and price path assumptions."
-          >
-            <DcaCalculatorSection />
-          </Section>
-          <Section
             id="insights"
             title="Insights library that educates while you explore"
             description="Guided explainers and playbooks keep new users confident and give veterans deeper context for every move."
@@ -55,7 +46,6 @@ export default function HomePage() {
           </Section>
         </main>
         <SiteFooter />
-        <NovaAssistant />
       </div>
     </div>
   );
