@@ -5,16 +5,15 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { navigationLinks } from "@/lib/site-content";
 import { publicAsset } from "@/lib/public-asset";
 
-export function SiteHeader() {
+export function AppHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-800/70 bg-background/80 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2" onClick={() => setMenuOpen(false)}>
           <span className="relative h-8 w-[90px]">
             <Image
               src={publicAsset("/assets/defi-calc-logo-transparent-mini.png")}
@@ -29,19 +28,9 @@ export function SiteHeader() {
             DeFiCalc.io
           </span>
         </Link>
-        <nav className="hidden items-center gap-8 text-sm font-medium text-slate-200 lg:flex">
-          {navigationLinks.map((item) => (
-            <Link key={item.href} href={item.href} className="transition hover:text-white">
-              {item.label}
-            </Link>
-          ))}
-        </nav>
         <div className="hidden items-center gap-3 lg:flex">
-          <Button href="#toolkit" variant="secondary" className="text-sm">
-            View Toolkit
-          </Button>
-          <Button href="/main_app" variant="gradient" className="text-sm shadow-primary/30">
-            Launch App
+          <Button href="/" variant="ghost" className="text-sm text-slate-200 hover:text-white">
+            Exit App
           </Button>
         </div>
         <button
@@ -60,11 +49,7 @@ export function SiteHeader() {
             {menuOpen ? (
               <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
             ) : (
-              <path
-                d="M4 7h16M4 12h16M4 17h16"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+              <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" strokeLinejoin="round" />
             )}
           </svg>
         </button>
@@ -72,21 +57,9 @@ export function SiteHeader() {
       {menuOpen ? (
         <div className="border-t border-slate-800/70 bg-slate-950/95 py-6 lg:hidden">
           <div className="mx-auto flex max-w-6xl flex-col gap-5 px-6">
-            <nav className="grid gap-4 text-base font-medium text-slate-100">
-              {navigationLinks.map((item) => (
-                <Link key={item.href} href={item.href} className="transition hover:text-primary" onClick={() => setMenuOpen(false)}>
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-            <div className="flex flex-col gap-3">
-              <Button href="#toolkit" variant="secondary" className="w-full" onClick={() => setMenuOpen(false)}>
-                View Toolkit
-              </Button>
-              <Button href="/main_app" variant="gradient" className="w-full" onClick={() => setMenuOpen(false)}>
-                Launch App
-              </Button>
-            </div>
+            <Button href="/" variant="ghost" className="w-full" onClick={() => setMenuOpen(false)}>
+              Exit App
+            </Button>
           </div>
         </div>
       ) : null}
