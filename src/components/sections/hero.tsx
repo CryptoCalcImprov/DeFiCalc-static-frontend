@@ -1,13 +1,7 @@
-import clsx from "clsx";
+import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
-import { heroStrategies, insightHighlights } from "@/lib/site-content";
-
-const riskToneClasses = {
-  low: "bg-mint/18 text-mint ring-1 ring-inset ring-mint/35",
-  medium: "bg-primary/18 text-primary ring-1 ring-inset ring-primary/35",
-  high: "bg-lavender/20 text-lavender ring-1 ring-inset ring-lavender/35"
-} as const;
+import { insightHighlights } from "@/lib/site-content";
 
 export function HeroSection() {
   return (
@@ -50,63 +44,24 @@ export function HeroSection() {
           </div>
         </div>
         <div className="flex w-full flex-1 justify-end lg:justify-center">
-          <div className="w-full max-w-md rounded-3xl border border-slate-800/80 bg-slate-950 p-6 shadow-2xl shadow-cyan-500/10">
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-widest text-slate-400">Strategy Monitor</p>
-                <p className="text-xs text-slate-500">Live updates after wallet connection</p>
+          <div className="group relative w-full max-w-md">
+            <div
+              aria-hidden
+              className="absolute inset-0 -z-10 scale-100 rounded-full bg-[radial-gradient(circle,_rgba(59,212,220,0.4)_0%,transparent_68%)] opacity-85 blur-[95px] transition duration-500 group-hover:scale-[1.05] group-hover:opacity-100"
+            />
+            <div className="relative mx-auto aspect-square w-full overflow-hidden rounded-full border border-[#143E66]/45 bg-[conic-gradient(from_140deg_at_50%_50%,#020C16,#072240,#2A1D5F,#081C32,#020C16)] p-6 shadow-[0_0_85px_-28px_rgba(25,185,205,0.6)] ring-1 ring-inset ring-[#143E66]/55 transition duration-500 before:absolute before:inset-0 before:rounded-full before:bg-[radial-gradient(circle,_rgba(255,255,255,0.28)_0%,transparent_66%)] before:[mask-image:radial-gradient(circle_at_center,transparent_58%,black_70%,black)] before:opacity-65 before:transition before:duration-500 before:content-[''] group-hover:shadow-[0_0_120px_-20px_rgba(59,212,220,0.75)] group-hover:ring-[#1E68A5]/70 group-hover:before:opacity-85 sm:p-8">
+              <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle,_rgba(71,166,255,0.18)_0%,transparent_72%)] mix-blend-screen opacity-60 transition duration-500 group-hover:opacity-88" />
+              <div className="relative flex h-full w-full items-center justify-center rounded-full border border-[#1C5F93]/35 bg-gradient-to-b from-[#020E17] via-[#031726] to-[#020A11] p-5 ring-1 ring-inset ring-cyan-400/15 shadow-[inset_0_0_55px_-22px_rgba(16,102,176,0.7)] backdrop-blur-md">
+                <Image
+                  src="/assets/defi-calc-logo-transparent.png"
+                  alt="DeFiCalc logo"
+                  fill
+                  className="object-contain p-3 drop-shadow-[0_26px_60px_rgba(59,212,220,0.6)] transition duration-500 group-hover:scale-110"
+                  sizes="(min-width: 1024px) 380px, 100vw"
+                  priority
+                />
               </div>
-              <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-slate-300">Auto-refresh</span>
             </div>
-            <ul className="space-y-4">
-              {heroStrategies.map((strategy) => (
-                <li
-                  key={strategy.name}
-                  className="rounded-2xl border border-slate-800/60 bg-slate-900 p-4 shadow-inner shadow-black/40"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-white">{strategy.name}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                        {strategy.tags.map((tag) => (
-                          <span key={tag} className="rounded-full bg-slate-900/80 px-2.5 py-1">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <span
-                      className={clsx(
-                        "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
-                        riskToneClasses[strategy.riskTone]
-                      )}
-                    >
-                      {strategy.riskLevel}
-                    </span>
-                  </div>
-                  <dl className="mt-4 grid grid-cols-3 gap-4 text-xs text-slate-300">
-                    <div>
-                      <dt className="uppercase tracking-widest text-slate-500">Net APR</dt>
-                      <dd className="mt-1 text-base font-semibold text-mint">{strategy.netApr}</dd>
-                    </div>
-                    <div>
-                      <dt className="uppercase tracking-widest text-slate-500">Rewards</dt>
-                      <dd className="mt-1 text-sm text-white">{strategy.rewards}</dd>
-                    </div>
-                    <div>
-                      <dt className="uppercase tracking-widest text-slate-500">Health</dt>
-                      <dd className="mt-1 text-sm text-white">{strategy.health}</dd>
-                    </div>
-                  </dl>
-                  <div className="mt-4 h-2 w-full rounded-full bg-slate-900">
-                    <div
-                      className="h-full rounded-full bg-mint"
-                      style={{ width: `${strategy.health}%` }}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ul>
           </div>
         </div>
       </div>
