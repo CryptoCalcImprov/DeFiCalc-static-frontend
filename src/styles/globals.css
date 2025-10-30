@@ -55,3 +55,22 @@ h1, h2 {
 .nova-scroll::-webkit-scrollbar-thumb:hover {
   background-color: rgba(148, 163, 184, 0.4);
 }
+
+@layer utilities {
+  .card-surface {
+    @apply bg-slate-950/65 backdrop-blur-sm border border-slate-900/80;
+    box-shadow: 0 10px 32px rgba(6, 21, 34, 0.35);
+  }
+
+  .card-surface-muted {
+    @apply bg-slate-950/50 border border-slate-900/70 backdrop-blur-sm;
+  }
+
+  .text-muted {
+    @apply text-slate-300;
+  }
+
+  .pill {
+    @apply rounded-full border border-mint/30 bg-slate-900/60 text-mint;
+  }
+}
