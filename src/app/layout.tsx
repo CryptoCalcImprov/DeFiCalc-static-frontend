@@ -1,23 +1,53 @@
 import type { Metadata } from "next";
+
 import "../styles/globals.css";
 import { publicAsset } from "@/lib/public-asset";
 
 const title = "DeFiCalc.io";
 const description =
   "Make sharper DeFi moves with a modular analytics hub, strategy monitor, and collaborative toolkit.";
+const rawSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+const siteUrl = rawSiteUrl && /^https?:\/\//.test(rawSiteUrl) ? rawSiteUrl : "https://cryptocalc.io";
+const canonicalUrl = siteUrl.replace(/\/$/, "");
+const ogImage = publicAsset("/assets/defi-calc-logo.png");
 
 export const metadata: Metadata = {
   title,
   description,
+  metadataBase: new URL(canonicalUrl),
+  keywords: [
+    "DeFi analytics",
+    "crypto dashboards",
+    "Nova AI",
+    "yield strategies",
+    "governance insights",
+    "liquidity monitoring",
+    "calculator sandbox"
+  ],
+  authors: [{ name: "Nova Labs" }],
+  alternates: {
+    canonical: canonicalUrl
+  },
   openGraph: {
     title,
     description,
-    type: "website"
+    type: "website",
+    url: canonicalUrl,
+    siteName: "DeFiCalc.io",
+    images: [
+      {
+        url: ogImage,
+        width: 1080,
+        height: 1080,
+        alt: "DeFiCalc.io Nova-powered analytics workspace"
+      }
+    ]
   },
   twitter: {
     card: "summary_large_image",
     title,
-    description
+    description,
+    images: [ogImage]
   },
   icons: {
     icon: [
