@@ -1,7 +1,20 @@
 import type { Metadata } from "next";
+import localFont from "next/font/local";
 
 import "../styles/globals.css";
 import { publicAsset } from "@/lib/public-asset";
+
+const goldman = localFont({
+  src: [
+    {
+      path: "../../public/fonts/Goldman-Bold.ttf",
+      weight: "700",
+      style: "normal"
+    }
+  ],
+  display: "swap",
+  variable: "--font-goldman"
+});
 
 const title = "DeFiCalc.io";
 const description =
@@ -66,7 +79,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="min-h-screen overflow-x-hidden bg-background text-slate-100 antialiased">
+      <body className={`${goldman.variable} min-h-screen overflow-x-hidden bg-background text-slate-100 antialiased`}>
         {children}
       </body>
     </html>
