@@ -12,8 +12,8 @@ export function SiteFooter() {
           <div className="space-y-3 text-sm text-slate-300">
             <span className="text-lg font-semibold text-white">DeFiCalc.io</span>
             <p>
-              Community-built intelligence for the next wave of DeFi explorers. Not officially affiliated with the Stohn
-              ecosystem.
+              Nova-powered intelligence for desks modeling DeFi strategies with calculators, risk monitors, and AI
+              insights. Community-led and not officially affiliated with the Stohn ecosystem.
             </p>
             <div className="flex gap-4 text-sm text-slate-400">
               {socialLinks.map((link) => (

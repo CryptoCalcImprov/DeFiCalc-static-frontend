@@ -1,8 +1,8 @@
 export const navigationLinks = [
   { href: "#overview", label: "Overview" },
-  { href: "#toolkit", label: "Calculators" },
-  { href: "#toolkit", label: "Sandox" },
-  { href: "#markets", label: "Markets and DeFI" },
+  { href: "#workspace", label: "Calculator Lab" },
+  { href: "#workspace", label: "Sandbox" },
+  { href: "#markets", label: "Markets & DeFi" },
   { href: "#insights", label: "AI Insights by Nova" }
 ] as const;
 
@@ -55,7 +55,8 @@ export const marketPulse = {
   ],
   alerts: [
     { title: "Maker vault health", detail: "3 vaults below 160% collateral" },
-    { title: "Solana staking", detail: "Epoch 517 rewards posting in 2h" }
+    { title: "Solana staking", detail: "Epoch 517 rewards posting in 2h" },
+    { title: "Perps funding flips", detail: "ETH perpetuals turn positive on major venues" }
   ]
 } as const;
 
@@ -164,33 +165,38 @@ export const insightsLibrary = [
     title: "Risk Playbooks",
     description: "Scenario templates to stress-test positions across liquidation levels, volatility, and oracle shocks.",
     action: "Open playbooks"
+  },
+  {
+    title: "Nova Desk Briefs",
+    description: "Replay Nova’s daily AI briefings with governance alerts, liquidity moves, and action checklists for your desk.",
+    action: "Review briefs"
   }
 ] as const;
 
 export const footerColumns = [
   {
-    title: "Platform",
+    title: "Product",
     links: [
-      { href: "#overview", label: "Overview" },
-      { href: "#markets", label: "Markets" },
-      { href: "#protocols", label: "Protocols" },
-      { href: "#toolkit", label: "Toolkit" }
+      { href: "#workspace", label: "Calculator Lab" },
+      { href: "#markets", label: "Market Pulse" },
+      { href: "#defi", label: "Protocol Watch" },
+      { href: "#insights", label: "AI Insights" }
     ]
   },
   {
-    title: "Solutions",
+    title: "Nova AI",
     links: [
-      { href: "#strategies", label: "Strategy Monitor" },
-      { href: "#insights", label: "Insights Library" },
-      { href: "#nova", label: "Nova Assistant" }
+      { href: "#insights", label: "Education Hub" },
+      { href: "#nova", label: "Nova Assistant" },
+      { href: "/main_app", label: "Launch Nova Workspace" }
     ]
   },
   {
     title: "Resources",
     links: [
-      { href: "#toolkit", label: "Calculator Sandbox" },
-      { href: "#protocols", label: "Protocol Briefings" },
-      { href: "#community", label: "Community Updates" }
+      { href: "#workspace", label: "Module Sandbox" },
+      { href: "#markets", label: "Risk & Alert Monitor" },
+      { href: "#insights", label: "Nova Desk Briefs" }
     ]
   },
   {
@@ -204,7 +210,7 @@ export const footerColumns = [
 ] as const;
 
 export const socialLinks = [
-  { href: "https://twitter.com", label: "Twitter" },
+  { href: "https://twitter.com", label: "X (Twitter)" },
   { href: "https://discord.com", label: "Discord" },
   { href: "https://github.com", label: "GitHub" }
 ] as const;
