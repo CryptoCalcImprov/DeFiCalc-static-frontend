@@ -37,9 +37,6 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="hidden items-center gap-3 lg:flex">
-          <Button href="#toolkit" variant="secondary" className="text-sm">
-            View Toolkit
-          </Button>
           <Button href="/main_app" variant="gradient" className="text-sm shadow-primary/30">
             Launch App
           </Button>
@@ -80,9 +77,6 @@ export function SiteHeader() {
               ))}
             </nav>
             <div className="flex flex-col gap-3">
-              <Button href="#toolkit" variant="secondary" className="w-full" onClick={() => setMenuOpen(false)}>
-                View Toolkit
-              </Button>
               <Button href="/main_app" variant="gradient" className="w-full" onClick={() => setMenuOpen(false)}>
                 Launch App
               </Button>
