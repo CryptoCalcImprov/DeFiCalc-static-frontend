@@ -1,10 +1,49 @@
+import type { Metadata } from "next";
+
 import { HeroSection } from "@/components/sections/hero";
 import { InsightsSection } from "@/components/sections/insights";
 import { Section } from "@/components/layout/section";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Scene3D } from "@/components/ui/Scene3D";
+import { publicAsset } from "@/lib/public-asset";
 import { marketPulse, protocolLeaders } from "@/lib/site-content";
+
+const ogPreview = publicAsset("/assets/defi-calc-logo.png");
+
+export const metadata: Metadata = {
+  title: "DeFi Analytics Platform & Nova AI Insights | DeFiCalc.io",
+  description:
+    "Explore Nova-powered DeFi dashboards, risk alerts, protocol watchlists, and AI education modules designed for analysts and strategy teams.",
+  keywords: [
+    "DeFi dashboards",
+    "crypto market pulse",
+    "liquid staking strategies",
+    "Nova AI assistant",
+    "protocol governance alerts",
+    "yield playbooks"
+  ],
+  openGraph: {
+    title: "DeFi Analytics Platform & Nova AI Insights | DeFiCalc.io",
+    description:
+      "Discover calculator sandboxes, execution queues, and AI-generated insights to run your DeFi desk with Nova.",
+    images: [
+      {
+        url: ogPreview,
+        width: 1080,
+        height: 1080,
+        alt: "DeFiCalc.io landing experience powered by Nova AI"
+      }
+    ]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DeFi Analytics Platform & Nova AI Insights | DeFiCalc.io",
+    description:
+      "Nova AI keeps your desk aligned with live DeFi markets, risk monitors, and education modules in one workspace.",
+    images: [ogPreview]
+  }
+};
 
 export default function HomePage() {
   const totals = marketPulse.totals;
