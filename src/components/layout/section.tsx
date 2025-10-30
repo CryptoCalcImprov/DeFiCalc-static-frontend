@@ -9,8 +9,14 @@ interface SectionProps {
 }
 
 export function Section({ id, title, description, children, className }: SectionProps) {
+  const headingId = id ? `${id}-title` : undefined;
+
   return (
-    <section id={id} className={`relative scroll-mt-24 border-b border-slate-800/45 py-20 ${className ?? ""}`}>
+    <section
+      id={id}
+      aria-labelledby={headingId}
+      className={`relative scroll-mt-24 border-b border-slate-800/45 py-20 ${className ?? ""}`}
+    >
       <div
         className="absolute inset-0 -z-10"
         style={{
@@ -21,7 +27,9 @@ export function Section({ id, title, description, children, className }: Section
       />
       <div className="mx-auto max-w-6xl px-6">
         <header className="mb-12 max-w-3xl">
-          <h2 className="text-4xl font-semibold tracking-tight">{title}</h2>
+          <h2 id={headingId} className="text-4xl font-semibold tracking-tight">
+            {title}
+          </h2>
           {description ? <p className="mt-4 text-lg leading-relaxed text-slate-300">{description}</p> : null}
         </header>
         <div className="grid gap-8 text-slate-200">{children}</div>

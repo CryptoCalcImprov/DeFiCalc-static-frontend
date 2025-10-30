@@ -1,7 +1,45 @@
+import type { Metadata } from "next";
+
 import { AppHeader } from "@/components/layout/app-header";
 import { DcaCalculatorSection } from "@/components/sections/dca-calculator";
 import { Scene3D } from "@/components/ui/Scene3D";
 import { NovaAssistant } from "@/components/ui/nova-assistant";
+import { publicAsset } from "@/lib/public-asset";
+
+const ogPreview = publicAsset("/assets/defi-calc-logo.png");
+
+export const metadata: Metadata = {
+  title: "Nova Calculator Workspace | Run DeFi Strategy Models",
+  description:
+    "Launch the Nova Workspace to simulate DeFi strategies, stress-test DCA plans, and collaborate with the Nova AI assistant in real time.",
+  keywords: [
+    "DeFi calculator",
+    "dollar cost averaging tool",
+    "Nova workspace",
+    "crypto strategy modeling",
+    "DeFi risk simulator"
+  ],
+  openGraph: {
+    title: "Nova Calculator Workspace | Run DeFi Strategy Models",
+    description:
+      "Prototype, iterate, and review DeFi strategy outputs with Nova’s AI guidance inside the dedicated calculator workspace.",
+    images: [
+      {
+        url: ogPreview,
+        width: 1080,
+        height: 1080,
+        alt: "Nova calculator workspace interface"
+      }
+    ]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Nova Calculator Workspace | Run DeFi Strategy Models",
+    description:
+      "Model recurring buys, analyze price paths, and capture Nova’s AI summaries directly inside the workspace.",
+    images: [ogPreview]
+  }
+};
 
 export default function AppPage() {
   return (
