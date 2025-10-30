@@ -29,6 +29,9 @@ export function AppHeader() {
           </span>
         </Link>
         <div className="hidden items-center gap-3 lg:flex">
+          <Button href="#calculators" variant="ghost" className="text-sm text-slate-200 hover:text-white">
+            Calculators
+          </Button>
           <Button href="/" variant="ghost" className="text-sm text-slate-200 hover:text-white">
             Exit App
           </Button>
@@ -57,6 +60,9 @@ export function AppHeader() {
       {menuOpen ? (
         <div className="border-t border-slate-800/70 bg-slate-950/95 py-6 lg:hidden">
           <div className="mx-auto flex max-w-6xl flex-col gap-5 px-6">
+            <Button href="#calculators" variant="ghost" className="w-full" onClick={() => setMenuOpen(false)}>
+              Calculators
+            </Button>
             <Button href="/" variant="ghost" className="w-full" onClick={() => setMenuOpen(false)}>
               Exit App
             </Button>
