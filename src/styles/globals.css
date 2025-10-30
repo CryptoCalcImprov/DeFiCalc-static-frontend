@@ -2,14 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@font-face {
-  font-family: "Goldman";
-  src: url("/fonts/Goldman-Bold.ttf") format("truetype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
 :root {
   color-scheme: dark;
 }
@@ -24,7 +16,7 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: "Goldman", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family: var(--font-goldman), ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
 h1, h2 {
