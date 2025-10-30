@@ -193,7 +193,6 @@ export function DcaCalculatorSection() {
                 },
                 grid: {
                   color: "rgba(19, 44, 63, 0.45)",
-                  borderDash: [6, 6],
                 },
               },
               y: {
@@ -202,7 +201,6 @@ export function DcaCalculatorSection() {
                 },
                 grid: {
                   color: "rgba(19, 44, 63, 0.45)",
-                  borderDash: [6, 6],
                 },
               },
             },
