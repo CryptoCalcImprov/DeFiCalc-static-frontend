@@ -1,13 +1,63 @@
 import { HeroSection } from "@/components/sections/hero";
 import { InsightsSection } from "@/components/sections/insights";
-import { MarketPulseSection } from "@/components/sections/market-pulse";
-import { ProtocolLeadersSection } from "@/components/sections/protocol-leaders";
 import { Section } from "@/components/layout/section";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Scene3D } from "@/components/ui/Scene3D";
+import { marketPulse, protocolLeaders } from "@/lib/site-content";
 
 export default function HomePage() {
+  const totals = marketPulse.totals;
+  const trendingPairs = marketPulse.trending;
+  const alerts = marketPulse.alerts.concat({ title: "Perps funding flips", detail: "ETH perpetuals turn positive on major venues" });
+  const featuredProtocols = protocolLeaders.slice(0, 4);
+  const governanceSignals = protocolLeaders.slice(0, 3);
+  const yieldHighlights = [
+    { name: "ETH LSD ladder", apr: "7.4%", chain: "Ethereum", platform: "Lido → Pendle", risk: "Balanced" },
+    { name: "Stablecoin trident", apr: "12.1%", chain: "Arbitrum", platform: "Aave + GMX", risk: "Active" },
+    { name: "Liquid staking delta", apr: "5.9%", chain: "Solana", platform: "Marinade", risk: "Conservative" },
+    { name: "Real-yield vault", apr: "9.6%", chain: "Base", platform: "Aerodrome", risk: "Moderate" }
+  ] as const;
+  const executionQueue = [
+    {
+      title: "Trim ETH perp hedge",
+      desk: "Derivatives",
+      eta: "00:22",
+      window: "Execute before next funding reset",
+      priority: "High"
+    },
+    {
+      title: "Rotate LSD sleeve",
+      desk: "Yield Ops",
+      eta: "01:10",
+      window: "Shift 15% into sfrxETH vault",
+      priority: "Medium"
+    },
+    {
+      title: "Top up stable buffer",
+      desk: "Treasury",
+      eta: "02:45",
+      window: "Rebalance Base USDC reserves",
+      priority: "Low"
+    }
+  ] as const;
+  const flowSnapshots = [
+    {
+      venue: "Curve stETH/ETH",
+      flow: "+$6.2M",
+      note: "LST arb desks adding leverage",
+      pressure: "72%",
+      bias: "Inflow"
+    },
+    {
+      venue: "GMX perp vault",
+      flow: "-$2.8M",
+      note: "GLP redemptions after funding spike",
+      pressure: "48%",
+      bias: "Outflow"
+    }
+  ] as const;
+
   return (
     <div className="flex min-h-screen flex-col relative">
       <Scene3D />
@@ -235,22 +285,355 @@ export default function HomePage() {
           </Section>
           <Section
             id="markets"
-            title="Market pulse that surfaces what matters"
-            description="Monitor macro DeFi health, stablecoin flows, and the pairs gaining momentum across networks."
+            title="DeFi markets at analyst speed"
+            description="Surface liquidity moves, price momentum, and protocol yields without toggling across dashboards. Built for desks that live on-chain."
           >
-            <MarketPulseSection />
-          </Section>
-          <Section
-            id="protocols"
-            title="Protocol leaders and governance radar"
-            description="Rank strategies by TVL, growth, and on-chain governance signals so you never miss a pivotal update."
-          >
-            <ProtocolLeadersSection />
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-8">
+              <div className="flex flex-col gap-6">
+                <div className="card-surface flex flex-col gap-5 rounded-2xl bg-gradient-to-br from-slate-950/80 via-slate-950/55 to-slate-900/24 p-4 shadow-[0_18px_48px_rgba(5,17,28,0.36)] sm:gap-6 sm:rounded-3xl sm:p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">Global market pulse</h3>
+                      <p className="text-[11px] text-muted sm:text-xs">Aggregated across the top 12 DeFi networks.</p>
+                    </div>
+                    <span className="inline-flex items-center gap-2 rounded-full border border-mint/35 bg-mint/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-mint/85 sm:text-xs">
+                      Live feed
+                    </span>
+                  </div>
+                  <dl className="grid gap-4 sm:grid-cols-3">
+                    {totals.map((item) => {
+                      const isPositive = item.change.trim().startsWith("+");
+                      return (
+                        <div
+                          key={item.label}
+                          className="rounded-2xl border border-ocean/55 bg-surface/75 px-4 py-3 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)]"
+                        >
+                          <dt className="text-[11px] font-medium uppercase tracking-widest text-slate-300 sm:text-xs">
+                            {item.label}
+                          </dt>
+                          <dd className="mt-2 text-lg font-semibold text-slate-50 sm:text-xl">{item.value}</dd>
+                          <span className={`text-[11px] font-medium ${isPositive ? "text-mint" : "text-critical"}`}>
+                            {item.change}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </dl>
+                  <div className="rounded-2xl border border-ocean/60 bg-surface/70 p-4 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)] sm:p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h4 className="text-sm font-semibold text-slate-100 sm:text-base">Price momentum</h4>
+                      <span className="text-[11px] text-muted sm:text-xs">Nova highlights projected trendlines.</span>
+                    </div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                      {trendingPairs.map((pair) => {
+                        const positive = pair.change.trim().startsWith("+");
+                        return (
+                          <div
+                            key={pair.name}
+                            className="rounded-xl border border-ocean/60 bg-gradient-to-br from-slate-950/85 via-slate-900/60 to-slate-900/30 px-4 py-3 shadow-[0_12px_32px_rgba(6,21,34,0.28)]"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-slate-50">{pair.name}</p>
+                              <span
+                                className={`text-[11px] font-semibold ${positive ? "text-mint" : "text-critical"}`}
+                              >
+                                {pair.change}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-muted">{pair.metric}</p>
+                            <div className="mt-3 h-14 overflow-hidden rounded-lg border border-ocean/55 bg-[radial-gradient(circle_at_top,_rgba(58,198,255,0.25),transparent_70%)]">
+                              <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="h-full w-full">
+                                <defs>
+                                  <linearGradient id={`trend-${pair.name}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stopColor="#3AC6FF" />
+                                    <stop offset="60%" stopColor="#36D6C3" />
+                                    <stop offset="100%" stopColor="#7A40FF" />
+                                  </linearGradient>
+                                </defs>
+                                <path
+                                  d="M0 30 L10 26 L20 28 L30 22 L40 18 L50 20 L60 14 L70 16 L80 10 L90 14 L100 8"
+                                  stroke={`url(#trend-${pair.name})`}
+                                  strokeWidth="2.2"
+                                  fill="none"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                                <path
+                                  d="M0 30 L10 26 L20 28 L30 22 L40 18 L50 20 L60 14 L70 16 L80 10 L90 14 L100 8 L100 40 L0 40 Z"
+                                  fill="rgba(58,198,255,0.12)"
+                                  opacity="0.85"
+                                />
+                              </svg>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <div className="card-surface-muted flex flex-col gap-4 rounded-2xl bg-gradient-to-br from-slate-950/70 via-slate-950/45 to-slate-900/24 p-4 shadow-[0_16px_40px_rgba(6,21,34,0.32)] sm:gap-5 sm:rounded-3xl sm:p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">Risk &amp; alert monitor</h3>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/45 bg-amber-500/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100 sm:text-xs">
+                      Watchlist
+                    </span>
+                  </div>
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <ul className="space-y-3 text-sm text-slate-200">
+                      {alerts.map((alert) => (
+                        <li
+                          key={alert.title}
+                          className="flex items-start gap-3 rounded-2xl border border-ocean/60 bg-surface/80 p-4 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)]"
+                        >
+                          <span className="mt-1 inline-flex h-2.5 w-2.5 flex-shrink-0 rounded-full bg-amber-400 shadow-[0_0_10px_rgba(255,193,7,0.55)]" aria-hidden />
+                          <div className="flex-1">
+                            <p className="font-semibold text-slate-50">{alert.title}</p>
+                            <p className="mt-1 text-xs text-muted">{alert.detail}</p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="rounded-2xl border border-amber-400/45 bg-amber-500/10 p-4 shadow-inner shadow-[0_0_24px_rgba(255,193,7,0.18)]">
+                      <h4 className="text-sm font-semibold text-amber-100 sm:text-base">Liquidations heatmap</h4>
+                      <p className="mt-2 text-xs text-amber-50/80 sm:text-sm">
+                        Nova flags at‑risk positions.
+                      </p>
+                      <div className="mt-4 grid gap-3 text-xs text-slate-900 sm:text-sm">
+                        {[
+                          { market: "Aave ETH", ratio: "162%", threshold: "150%", status: "Caution" },
+                          { market: "Maker wBTC", ratio: "148%", threshold: "145%", status: "Critical" },
+                          { market: "GMX GLP", ratio: "136%", threshold: "125%", status: "Watching" }
+                        ].map((item) => (
+                          <div
+                            key={item.market}
+                            className="rounded-xl bg-white/15 px-3 py-2 text-left backdrop-blur"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-white/95">{item.market}</span>
+                              <span
+                                className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                                  item.status === "Critical"
+                                    ? "text-critical"
+                                    : item.status === "Caution"
+                                    ? "text-amber-200"
+                                    : "text-info"
+                                }`}
+                              >
+                                {item.status}
+                              </span>
+                            </div>
+                            <div className="mt-1 flex items-center justify-between text-[11px] text-white/80">
+                              <span>Current: {item.ratio}</span>
+                              <span>Trigger: {item.threshold}</span>
+                            </div>
+                            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">
+                              <div
+                                className={`h-full ${
+                                  item.status === "Critical"
+                                    ? "bg-critical"
+                                    : item.status === "Caution"
+                                    ? "bg-amber-300"
+                                    : "bg-info"
+                                }`}
+                                style={{ width: item.ratio.replace("%", "") }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="card-surface flex flex-col gap-4 rounded-2xl bg-gradient-to-br from-indigo-950/75 via-slate-950/50 to-slate-900/28 p-4 shadow-[0_18px_48px_rgba(5,17,28,0.36)] sm:gap-5 sm:rounded-3xl sm:p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">Execution queue</h3>
+                    <span className="inline-flex items-center gap-2 rounded-full border border-indigo-400/45 bg-indigo-500/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-100 sm:text-xs">
+                      Nova desk brief
+                    </span>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-[1.1fr_0.9fr]">
+                    <div className="space-y-2.5">
+                      {executionQueue.map((ticket) => (
+                        <div
+                          key={ticket.title}
+                          className="rounded-2xl border border-ocean/60 bg-surface/80 p-3.5 shadow-inner shadow-[0_0_20px_rgba(7,24,36,0.18)]"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-50">{ticket.title}</p>
+                              <p className="text-[11px] text-muted sm:text-xs">{ticket.window}</p>
+                            </div>
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] ${
+                                ticket.priority === "High"
+                                  ? "border border-critical/50 bg-critical/15 text-critical"
+                                  : ticket.priority === "Medium"
+                                  ? "border border-amber-400/45 bg-amber-500/15 text-amber-200"
+                                  : "border border-slate-500/35 bg-slate-500/15 text-slate-200"
+                              }`}
+                            >
+                              {ticket.priority}
+                            </span>
+                          </div>
+                          <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-300 sm:text-xs">
+                            <span className="font-medium text-slate-200">{ticket.desk}</span>
+                            <span className="inline-flex items-center gap-1 text-slate-200">
+                              <svg
+                                className="h-3.5 w-3.5 text-slate-400"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                aria-hidden
+                              >
+                                <circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="1.5" opacity="0.45" />
+                                <path d="M8 4.5V8l2.25 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                              </svg>
+                              {ticket.eta}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="rounded-2xl border border-ocean/60 bg-gradient-to-br from-slate-950/85 via-slate-900/65 to-slate-900/35 p-3.5 shadow-inner shadow-[0_0_20px_rgba(7,24,36,0.18)]">
+                      <h4 className="text-sm font-semibold text-slate-100 sm:text-base">Flow monitor</h4>
+                      <p className="mt-2 text-xs text-muted">Desk net flows across key venues.</p>
+                      <div className="mt-3 space-y-2.5">
+                        {flowSnapshots.map((flow) => (
+                          <div key={flow.venue} className="rounded-xl bg-surface/70 px-3 py-2 shadow-[0_0_14px_rgba(6,21,34,0.22)]">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-semibold text-slate-50">{flow.venue}</p>
+                              <span
+                                className={`text-xs font-semibold ${
+                                  flow.bias === "Inflow" ? "text-mint" : "text-critical"
+                                }`}
+                              >
+                                {flow.flow}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-[11px] text-muted sm:text-xs">{flow.note}</p>
+                            <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-white/10">
+                              <div
+                                className={`h-full rounded-full ${
+                                  flow.bias === "Inflow" ? "bg-mint" : "bg-critical"
+                                }`}
+                                style={{ width: flow.pressure }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div id="defi" className="flex scroll-mt-24 flex-col gap-6">
+                <div className="card-surface flex flex-col gap-5 rounded-2xl bg-gradient-to-br from-slate-950/78 via-slate-950/50 to-slate-900/28 p-4 shadow-[0_18px_48px_rgba(5,17,28,0.36)] sm:gap-6 sm:rounded-3xl sm:p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">Yield board</h3>
+                    <span className="text-[11px] text-muted sm:text-xs">Updated 5 minutes ago</span>
+                  </div>
+                  <div className="overflow-hidden rounded-2xl border border-ocean/55 bg-surface/75 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)]">
+                    <table className="w-full text-left text-xs text-slate-200 sm:text-sm">
+                      <thead className="bg-surface/85 text-[11px] uppercase tracking-[0.22em] text-slate-300">
+                        <tr>
+                          <th className="px-4 py-3 font-semibold">Strategy</th>
+                          <th className="px-4 py-3 font-semibold">APR</th>
+                          <th className="px-4 py-3 font-semibold">Chain</th>
+                          <th className="px-4 py-3 font-semibold">Stack</th>
+                          <th className="px-4 py-3 font-semibold text-right">Risk</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {yieldHighlights.map((item) => (
+                          <tr key={item.name} className="border-t border-slate-800/60">
+                            <td className="px-4 py-3 font-semibold text-slate-100">{item.name}</td>
+                            <td className="px-4 py-3 text-mint">{item.apr}</td>
+                            <td className="px-4 py-3">{item.chain}</td>
+                            <td className="px-4 py-3 text-slate-300/90">{item.platform}</td>
+                            <td className="px-4 py-3 text-right text-[11px] uppercase tracking-wide text-slate-300">
+                              {item.risk}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="card-surface-muted flex flex-col gap-4 rounded-2xl bg-gradient-to-br from-slate-950/65 via-slate-950/45 to-slate-900/24 p-4 shadow-[0_16px_40px_rgba(6,21,34,0.32)] sm:gap-5 sm:rounded-3xl sm:p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">Protocol watchlist</h3>
+                    <span className="inline-flex items-center gap-2 rounded-full border border-ocean/55 bg-surface/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-200 sm:text-xs">
+                      TVL + governance
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {featuredProtocols.map((protocol) => (
+                      <div
+                        key={protocol.name}
+                        className="rounded-2xl border border-ocean/60 bg-surface/80 p-4 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)]"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-50">{protocol.name}</p>
+                            <p className="text-[11px] text-muted sm:text-xs">
+                              {protocol.chain} · {protocol.category}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-semibold text-slate-50">{protocol.tvl}</span>
+                            <span
+                              className={`text-xs font-semibold ${
+                                protocol.changeDirection === "up" ? "text-mint" : "text-critical"
+                              }`}
+                            >
+                              {protocol.change24h}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="mt-3 text-xs text-muted">{protocol.governanceNote}</p>
+                        {"sponsored" in protocol && protocol.sponsored ? (
+                          <span className="mt-3 inline-flex items-center gap-1 rounded-full border border-lavender/45 bg-lavender/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-lavender">
+                            Spotlight
+                          </span>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="card-surface flex h-full flex-col gap-4 rounded-2xl bg-gradient-to-br from-slate-950/78 via-slate-950/48 to-slate-900/26 p-4 shadow-[0_18px_48px_rgba(5,17,28,0.36)] sm:h-full sm:gap-5 sm:rounded-3xl sm:p-6 lg:min-h-[300px]">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">Governance radar</h3>
+                    <span className="text-[11px] text-muted sm:text-xs">Auto-synced from Snapshot &amp; Tally.</span>
+                  </div>
+                  <ul className="flex-1 space-y-3 text-sm text-slate-200">
+                    {governanceSignals.map((signal) => (
+                      <li
+                        key={signal.name}
+                        className="rounded-2xl border border-ocean/60 bg-surface/80 p-4 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)]"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-semibold text-slate-50">
+                            {signal.name} · <span className="text-slate-300">{signal.category}</span>
+                          </p>
+                          <span
+                            className={`text-xs font-semibold ${
+                              signal.changeDirection === "up" ? "text-mint" : "text-critical"
+                            }`}
+                          >
+                            {signal.change24h}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs text-muted">{signal.governanceNote}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
           </Section>
           <Section
             id="insights"
-            title="Insights library that educates while you explore"
-            description="Guided explainers and playbooks keep new users confident and give veterans deeper context for every move."
+            title="AI insights by Nova"
+            description="Education tracks stay in lockstep with Nova’s data pipelines—pairing explainers, calculators, and governance context in one flow."
           >
             <InsightsSection />
           </Section>

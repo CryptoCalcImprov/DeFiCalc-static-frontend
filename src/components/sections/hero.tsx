@@ -28,14 +28,14 @@ export function HeroSection() {
             <Button href="/main_app" variant="gradient">
               Launch App
             </Button>
-            <Button href="#toolkit" variant="secondary">
-              Calculators
+            <Button href="#workspace" variant="secondary">
+              Calculator lab
             </Button>
-            <Button href="#toolkit" variant="secondary">
-              Sandox
+            <Button href="#workspace" variant="secondary">
+              Sandbox
             </Button>
             <Button href="#markets" variant="secondary">
-              Markets and DeFI
+              Markets &amp; DeFi
             </Button>
             <Button href="#insights" variant="secondary">
               AI Insights by Nova
