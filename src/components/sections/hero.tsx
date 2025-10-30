@@ -2,7 +2,7 @@ import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
 import { publicAsset } from "@/lib/public-asset";
-import { insightHighlights } from "@/lib/site-content";
+ 
 
 export function HeroSection() {
   return (
@@ -17,32 +17,31 @@ export function HeroSection() {
           <div className="inline-flex items-center gap-2 rounded-full border border-mint/30 bg-slate-900/60 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-mint">
             DeFi onboarding made friendly
           </div>
-          <h1 className="mt-6 text-4xl font-bold leading-tight sm:text-5xl">
-            Make sharper DeFi moves with live market, protocol, and risk analytics in one place.
+          <h1 className="mt-6 text-3xl font-bold leading-tight sm:text-4xl">
+            Your DeFi command center for aggregated markets, protocols, and on‑chain data.
           </h1>
           <p className="mt-6 text-lg leading-relaxed text-slate-300">
-            DeFiCalc distills on-chain noise into actionable signals for newcomers and power users alike. Compare
-            opportunities, monitor strategies, and collaborate on calculators without leaving your dashboard.
+            Explore consolidated market and DeFi intelligence, plan with pre‑built calculators, or design custom
+            models in the Sandbox — all powered and enhanced by Nova AI.
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-4">
-            <Button href="#markets" variant="gradient">
-              Explore Dashboard
+            <Button href="/main_app" variant="gradient">
+              Launch App
             </Button>
-            <Button href="#protocols" variant="secondary">
-              View Market Data
+            <Button href="#workspace" variant="secondary">
+              Calculator lab
+            </Button>
+            <Button href="#workspace" variant="secondary">
+              Sandbox
+            </Button>
+            <Button href="#markets" variant="secondary">
+              Markets &amp; DeFi
+            </Button>
+            <Button href="#insights" variant="secondary">
+              AI Insights by Nova
             </Button>
           </div>
-          <div className="mt-10 flex flex-wrap items-center gap-3 text-sm text-slate-300">
-            {insightHighlights.map((item) => (
-              <span
-                key={item}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-800/80 bg-slate-900/80 px-4 py-1"
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-mint" aria-hidden />
-                {item}
-              </span>
-            ))}
-          </div>
+          
         </div>
         <div className="flex w-full flex-1 justify-end lg:justify-center">
           <div className="group relative w-full max-w-md">
