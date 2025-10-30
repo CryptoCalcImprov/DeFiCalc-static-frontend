@@ -77,7 +77,7 @@ export function InsightsSection() {
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-lg font-semibold text-white">{insight.title}</h3>
                 <span className="inline-flex items-center rounded-full bg-mint/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-mint/80">
-                  Nova module
+                  Nova
                 </span>
               </div>
               <p className="mt-3 text-sm leading-relaxed text-slate-300">{insight.description}</p>
