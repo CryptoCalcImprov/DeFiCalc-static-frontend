@@ -1,9 +1,9 @@
 export const navigationLinks = [
   { href: "#overview", label: "Overview" },
-  { href: "#markets", label: "Markets" },
-  { href: "#protocols", label: "Protocols" },
-  { href: "#toolkit", label: "Toolkit" },
-  { href: "#insights", label: "Insights" }
+  { href: "#toolkit", label: "Calculators" },
+  { href: "#toolkit", label: "Sandox" },
+  { href: "#markets", label: "Markets and DeFI" },
+  { href: "#insights", label: "AI Insights by Nova" }
 ] as const;
 
 export const heroStrategies = [
