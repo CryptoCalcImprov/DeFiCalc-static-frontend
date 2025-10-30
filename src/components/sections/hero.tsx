@@ -1,6 +1,7 @@
 import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
+import { publicAsset } from "@/lib/public-asset";
 import { insightHighlights } from "@/lib/site-content";
 
 export function HeroSection() {
@@ -53,7 +54,7 @@ export function HeroSection() {
               <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle,_rgba(71,166,255,0.18)_0%,transparent_72%)] mix-blend-screen opacity-60 transition duration-500 group-hover:opacity-88" />
               <div className="relative flex h-full w-full items-center justify-center rounded-full border border-[#1C5F93]/35 bg-gradient-to-b from-[#020E17] via-[#031726] to-[#020A11] p-5 ring-1 ring-inset ring-cyan-400/15 shadow-[inset_0_0_55px_-22px_rgba(16,102,176,0.7)] backdrop-blur-md">
                 <Image
-                  src="/assets/defi-calc-logo-transparent.png"
+                  src={publicAsset("/assets/defi-calc-logo-transparent.png")}
                   alt="DeFiCalc logo"
                   fill
                   className="object-contain p-3 drop-shadow-[0_26px_60px_rgba(59,212,220,0.6)] transition duration-500 group-hover:scale-110"
