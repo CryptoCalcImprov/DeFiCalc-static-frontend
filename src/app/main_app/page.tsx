@@ -16,14 +16,17 @@ export default function AppPage() {
                 Nova Workspace
               </span>
               <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-                Model recurring buys with Nova&apos;s DCA lab
+                Model strategies with Nova&apos;s calculator library
               </h1>
               <p className="text-lg leading-relaxed text-slate-300">
-                Configure cadence, contribution size, and horizon to see how Nova projects accumulation over time.
-                Run the scenario, review the AI summary, and visualize the price path to stress-test your plan before putting capital to work.
+                Choose from pre‑built calculators—including DCA and more—to quickly project your strategy. Configure
+                cadence, contribution size, and horizon, then run the scenario to review Nova&apos;s summary and visualize
+                the modeled price path before committing capital.
               </p>
             </div>
-            <DcaCalculatorSection />
+            <div id="calculators">
+              <DcaCalculatorSection />
+            </div>
           </div>
         </main>
         <NovaAssistant />
