@@ -7,7 +7,10 @@ const title = "DeFiCalc.io";
 const description =
   "Make sharper DeFi moves with a modular analytics hub, strategy monitor, and collaborative toolkit.";
 const rawSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-const siteUrl = rawSiteUrl && /^https?:\/\//.test(rawSiteUrl) ? rawSiteUrl : "https://cryptocalc.io";
+const siteUrl =
+  rawSiteUrl && /^https?:\/\//.test(rawSiteUrl)
+    ? rawSiteUrl
+    : "https://cryptocalcimprov.github.io/DeFiCalc-static-frontend";
 const canonicalUrl = siteUrl.replace(/\/$/, "");
 const ogImage = publicAsset("/assets/defi-calc-logo.png");
 
