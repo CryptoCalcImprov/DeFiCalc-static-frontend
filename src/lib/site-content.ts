@@ -1,7 +1,6 @@
 export const navigationLinks = [
   { href: "#overview", label: "Overview" },
   { href: "#workspace", label: "Calculator Lab" },
-  { href: "#workspace", label: "Sandbox" },
   { href: "#markets", label: "Markets & DeFi" },
   { href: "#insights", label: "AI Insights by Nova" }
 ] as const;

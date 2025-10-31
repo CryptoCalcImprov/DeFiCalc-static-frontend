@@ -32,7 +32,7 @@ export function Section({ id, title, description, children, className }: Section
           </h2>
           {description ? <p className="mt-4 text-lg leading-relaxed text-slate-300">{description}</p> : null}
         </header>
-        <div className="grid gap-8 text-slate-200">{children}</div>
+        <div className="text-slate-200">{children}</div>
       </div>
     </section>
   );

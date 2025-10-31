@@ -48,7 +48,7 @@ export const metadata: Metadata = {
 export default function HomePage() {
   const totals = marketPulse.totals;
   const trendingPairs = marketPulse.trending;
-  const alerts = marketPulse.alerts.concat({ title: "Perps funding flips", detail: "ETH perpetuals turn positive on major venues" });
+  const alerts = marketPulse.alerts;
   const featuredProtocols = protocolLeaders.slice(0, 4);
   const governanceSignals = protocolLeaders.slice(0, 3);
   const yieldHighlights = [
@@ -327,8 +327,8 @@ export default function HomePage() {
             title="DeFi markets at analyst speed"
             description="Surface liquidity moves, price momentum, and protocol yields without toggling across dashboards. Built for desks that live on-chain."
           >
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-8">
-              <div className="flex flex-col gap-6">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-8">
+              <div className="flex min-w-0 flex-col gap-6">
                 <div className="card-surface flex flex-col gap-5 rounded-2xl bg-gradient-to-br from-slate-950/80 via-slate-950/55 to-slate-900/24 p-4 shadow-[0_18px_48px_rgba(5,17,28,0.36)] sm:gap-6 sm:rounded-3xl sm:p-6">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -339,7 +339,7 @@ export default function HomePage() {
                       Live feed
                     </span>
                   </div>
-                  <dl className="grid gap-4 sm:grid-cols-3">
+                  <dl className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
                     {totals.map((item) => {
                       const isPositive = item.change.trim().startsWith("+");
                       return (
@@ -363,7 +363,7 @@ export default function HomePage() {
                       <h4 className="text-sm font-semibold text-slate-100 sm:text-base">Price momentum</h4>
                       <span className="text-[11px] text-muted sm:text-xs">Nova highlights projected trendlines.</span>
                     </div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="mt-4 grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
                       {trendingPairs.map((pair) => {
                         const positive = pair.change.trim().startsWith("+");
                         return (
@@ -417,7 +417,7 @@ export default function HomePage() {
                       Watchlist
                     </span>
                   </div>
-                  <div className="grid gap-3 lg:grid-cols-2">
+                  <div className="grid gap-3 md:grid-cols-2">
                     <ul className="space-y-3 text-sm text-slate-200">
                       {alerts.map((alert) => (
                         <li
@@ -490,7 +490,7 @@ export default function HomePage() {
                       Nova desk brief
                     </span>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-[1.1fr_0.9fr]">
+                  <div className="grid gap-3 md:grid-cols-[1.1fr_0.9fr]">
                     <div className="space-y-2.5">
                       {executionQueue.map((ticket) => (
                         <div
@@ -564,7 +564,7 @@ export default function HomePage() {
                   </div>
                 </div>
               </div>
-              <div id="defi" className="flex scroll-mt-24 flex-col gap-6">
+              <div id="defi" className="flex min-w-0 scroll-mt-24 flex-col gap-6">
                 <div className="card-surface flex flex-col gap-5 rounded-2xl bg-gradient-to-br from-slate-950/78 via-slate-950/50 to-slate-900/28 p-4 shadow-[0_18px_48px_rgba(5,17,28,0.36)] sm:gap-6 sm:rounded-3xl sm:p-6">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">Yield board</h3>
