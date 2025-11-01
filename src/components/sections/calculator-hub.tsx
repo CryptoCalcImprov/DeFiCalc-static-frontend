@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 
 import { calculatorDefinitions, findCalculatorDefinition } from "@/components/calculators";
 import type { TimeSeriesPoint } from "@/components/calculators/types";
-import { CalculatorSwitcher } from "@/components/calculators/workspace/CalculatorSwitcher";
+import { CalculatorDeck } from "@/components/calculators/workspace/CalculatorDeck";
 import { CalculatorWorkspace } from "@/components/calculators/workspace/CalculatorWorkspace";
 import { PriceTrajectoryPanel } from "@/components/calculators/workspace/PriceTrajectoryPanel";
 import { SummaryPanel } from "@/components/calculators/workspace/SummaryPanel";
@@ -28,6 +28,11 @@ export function CalculatorHubSection() {
     });
     return initial;
   });
+  const [isDeckOpen, setIsDeckOpen] = useState(false);
+  const [recentCalculatorIds, setRecentCalculatorIds] = useState<string[]>(() =>
+    defaultCalculatorId ? [defaultCalculatorId] : [],
+  );
+  const [favoriteCalculatorIds, setFavoriteCalculatorIds] = useState<string[]>([]);
   const [summary, setSummary] = useState<string>(defaultSummary);
   const [dataset, setDataset] = useState<TimeSeriesPoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -116,11 +121,25 @@ export function CalculatorHubSection() {
   };
 
   const handleCalculatorChange = (nextId: string) => {
+    if (!nextId) {
+      return;
+    }
+
+    if (nextId === activeCalculatorId) {
+      setIsDeckOpen(false);
+      setRecentCalculatorIds((previous) => {
+        const filtered = previous.filter((id) => id !== nextId);
+        return [nextId, ...filtered].slice(0, 4);
+      });
+      return;
+    }
+
+    const nextDefinition = findCalculatorDefinition<any>(nextId);
+
     setActiveCalculatorId(nextId);
     setError(null);
     setDataset([]);
-
-    const nextDefinition = findCalculatorDefinition<any>(nextId);
+    setIsDeckOpen(false);
 
     setSummary(nextDefinition?.initialSummary ?? defaultSummary);
 
@@ -138,6 +157,20 @@ export function CalculatorHubSection() {
         [nextId]: nextDefinition.getInitialState(),
       };
     });
+
+    setRecentCalculatorIds((previous) => {
+      const filtered = previous.filter((id) => id !== nextId);
+      return [nextId, ...filtered].slice(0, 4);
+    });
+  };
+
+  const handleFavoriteToggle = (calculatorId: string) => {
+    setFavoriteCalculatorIds((previous) => {
+      if (previous.includes(calculatorId)) {
+        return previous.filter((id) => id !== calculatorId);
+      }
+      return [...previous, calculatorId];
+    });
   };
 
   const CalculatorFormComponent = activeDefinition?.Form ?? null;
@@ -145,13 +178,17 @@ export function CalculatorHubSection() {
   return (
     <CalculatorWorkspace
       controls={
-        calculatorDefinitions.length > 1 ? (
-          <CalculatorSwitcher
-            calculators={calculatorDefinitions.map(({ id, label, description }) => ({ id, label, description }))}
-            activeId={activeCalculatorId}
-            onChange={handleCalculatorChange}
-          />
-        ) : null
+        <CalculatorDeck
+          calculators={calculatorDefinitions.map(({ id, label, description }) => ({ id, label, description }))}
+          activeId={activeCalculatorId}
+          recentIds={recentCalculatorIds}
+          favoriteIds={favoriteCalculatorIds}
+          isOpen={isDeckOpen}
+          onOpen={() => setIsDeckOpen(true)}
+          onClose={() => setIsDeckOpen(false)}
+          onSelect={handleCalculatorChange}
+          onToggleFavorite={handleFavoriteToggle}
+        />
       }
       calculatorPanel={
         CalculatorFormComponent ? (

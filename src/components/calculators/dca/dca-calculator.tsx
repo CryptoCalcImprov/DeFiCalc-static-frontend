@@ -191,6 +191,7 @@ export function DcaCalculatorForm({
 export const dcaCalculatorDefinition: CalculatorDefinition<DcaFormState> = {
   id: "dca",
   label: "DCA",
+  description: "Automate recurring buys to average into a token over time.",
   Form: DcaCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
   getRequestConfig: (formState) => {
