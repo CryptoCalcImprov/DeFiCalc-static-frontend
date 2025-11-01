@@ -49,9 +49,9 @@ export function MessageWithMath({ content, className = "" }: MessageWithMathProp
     let key = 0;
 
     // Regex to find math expressions
-    // Block math: $$...$$
-    // Inline math: $...$
-    const mathRegex = /\$\$([^\$]+)\$\$|\$([^\$]+)\$/g;
+    // Block math: $$...$$ (supports escaped characters inside)
+    // Inline math: $...$ (supports escaped characters inside)
+    const mathRegex = /\$\$((?:\\.|[^$])+?)\$\$|\$((?:\\.|[^$])+?)\$/g;
     let match;
     let hasExplicitMath = false;
 
@@ -91,4 +91,3 @@ export function MessageWithMath({ content, className = "" }: MessageWithMathProp
 
   return <div className={className}>{parseContent()}</div>;
 }
-
