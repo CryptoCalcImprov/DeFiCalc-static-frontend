@@ -28,14 +28,17 @@ const defaultFormState: DcaFormState = {
   duration: "6 months",
 };
 
+const initialSummaryMessage = "Run the projection to see Nova's perspective on this plan.";
+const pendingSummaryMessage = "Generating Nova's latest projection...";
+
 function buildPrompt({ token, amount, interval, duration }: DcaFormState) {
   return (
-    `You are Nova, a DeFi research assistant helping an analyst evaluate a dollar-cost-averaging plan.\n` +
-    `You must respond in a single message without requesting clarification or follow-up details.\n` +
+    `Given your standing role as Nova's trading copilot, evaluate the following dollar-cost-averaging plan.\n` +
+    `Respond in a single message, do not request clarification, and do not ask any follow-up questions.\n` +
     `Plan details: invest ${amount} USD of ${token} on a ${interval} cadence for ${duration}.\n\n` +
     `Guidelines:\n` +
     `1. Determine the schedule start date automatically: call your date/time capability to retrieve today's UTC date and use it as the starting point. Do not ask the user.\n` +
-    `2. Generate a plausible synthetic price path that matches the cadence and duration. If historical context improves realism, silently call available data tools (e.g., CoinDesk history) without prompting the user; otherwise craft a consistent synthetic series.\n` +
+    `2. Generate a plausible synthetic price path that matches the cadence and duration. When real history improves realism, use the available data tools silently; otherwise craft a consistent synthetic series.\n` +
     `3. Summarize performance factors, expected cost basis shifts, and key risks in exactly three concise bullet points. State any assumptions directly inside the bullets.\n` +
     `4. After the summary, output a JSON array labeled DATA containing objects formatted as {"date":"YYYY-MM-DD","price":number}. Provide one entry per scheduled purchase date, ordered chronologically. Prices must be numbers, not strings.\n` +
     `5. Never ask questions, never defer the calculation, and always include both the SUMMARY section and the DATA array.\n\n` +
@@ -104,7 +107,7 @@ export function DcaCalculatorSection() {
   const [formState, setFormState] = useState<DcaFormState>(defaultFormState);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<string>("Run the projection to see Nova's perspective on this plan.");
+  const [summary, setSummary] = useState<string>(initialSummaryMessage);
   const [dataset, setDataset] = useState<DcaDataPoint[]>([]);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartInstance | null>(null);
@@ -227,6 +230,8 @@ export function DcaCalculatorSection() {
 
     setIsLoading(true);
     setError(null);
+    setDataset([]);
+    setSummary(pendingSummaryMessage);
 
     try {
       const prompt = buildPrompt(formState);
