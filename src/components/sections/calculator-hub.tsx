@@ -205,7 +205,13 @@ export function CalculatorHubSection() {
           </div>
         )
       }
-      summaryPanel={<SummaryPanel lines={summaryLines} />}
+      summaryPanel={
+        <SummaryPanel
+          lines={summaryLines}
+          isLoading={isLoading}
+          loadingMessage="Nova is compiling the summary and risk notes for this scenario."
+        />
+      }
       chartPanel={
         <PriceTrajectoryPanel
           dataset={dataset}
