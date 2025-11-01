@@ -6,8 +6,14 @@ import type {
   CalculatorDefinition,
   CalculatorFormProps,
   CalculatorResult,
-  TimeSeriesPoint,
 } from "@/components/calculators/types";
+import { buildFieldChangeHandler } from "@/components/calculators/utils/forms";
+import { joinPromptLines } from "@/components/calculators/utils/prompt";
+import {
+  formatSummaryLines,
+  parseSummaryAndDataset,
+} from "@/components/calculators/utils/summary";
+import { buildNovaRequestOptions } from "@/components/calculators/utils/request";
 
 export type DcaFormState = {
   token: string;
@@ -27,76 +33,33 @@ const initialSummaryMessage = "Run the projection to see Nova's perspective on t
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
 function buildPrompt({ token, amount, interval, duration }: DcaFormState) {
-  return (
-    `Given your standing role as Nova's trading copilot, evaluate the following dollar-cost-averaging plan.\n` +
-    `Respond in a single message, do not request clarification, and do not ask any follow-up questions.\n` +
-    `Plan details: invest ${amount} USD of ${token} on a ${interval} cadence for ${duration}.\n\n` +
-    `Guidelines:\n` +
-    `1. Determine the schedule start date automatically: call your date/time capability to retrieve today's UTC date and use it as the starting point. Do not ask the user.\n` +
-    `2. Generate a plausible synthetic price path that matches the cadence and duration. When real history improves realism, use the available data tools silently; otherwise craft a consistent synthetic series.\n` +
-    `3. Summarize performance factors, expected cost basis shifts, and key risks in exactly three concise bullet points. State any assumptions directly inside the bullets.\n` +
-    `4. After the summary, output a JSON array labeled DATA containing objects formatted as {"date":"YYYY-MM-DD","price":number}. Provide one entry per scheduled purchase date, ordered chronologically. Prices must be numbers, not strings.\n` +
-    `5. Never ask questions, never defer the calculation, and always include both the SUMMARY section and the DATA array.\n\n` +
-    `Use the following structure exactly:\nSUMMARY:\n- bullet point one\n- bullet point two\n- bullet point three\nDATA:\n[{"date":"2024-01-01","price":123.45}, ...]`
-  );
+  return joinPromptLines([
+    `Using your coindesk tool, evaluate the following dollar-cost-averaging plan.`,
+    `Respond in a single message, DO NOT request clarification, and DO NOT ask any follow-up questions.`,
+    `Plan details: invest ${amount} USD of ${token} on a ${interval} cadence for ${duration}.`,
+    "",
+    "Guidelines:",
+    "1. Determine the schedule start date automatically: call your date/time capability to retrieve today's UTC date and use it as the starting point. Do not ask the user.",
+    "2. Generate a plausible synthetic price path that matches the cadence and duration. When real history improves realism, use the available data tools silently; otherwise craft a consistent synthetic series.",
+    "3. Summarize performance factors, expected cost basis shifts, and key risks in exactly three concise bullet points. State any assumptions directly inside the bullets.",
+    "4. After the summary, output a JSON array labeled DATA containing objects formatted as {\"date\":\"YYYY-MM-DD\",\"price\":number}. Provide one entry per scheduled purchase date, ordered chronologically. Prices must be numbers, not strings.",
+    "5. Never ask questions, never defer the calculation, and always include both the SUMMARY section and the DATA array.",
+    "",
+    "Use the following structure exactly:",
+    "SUMMARY:",
+    "- bullet point one",
+    "- bullet point two",
+    "- bullet point three",
+    "DATA:",
+    "[{\"date\":\"2024-01-01\",\"price\":123.45}, ...]",
+  ]);
 }
 
 function parseNovaReply(reply: string): CalculatorResult {
-  const normalizedReply = reply ?? "";
-  const jsonStart = normalizedReply.indexOf("[");
-  const jsonEnd = normalizedReply.lastIndexOf("]");
-
-  let summary = normalizedReply.trim();
-  let dataset: TimeSeriesPoint[] = [];
-
-  if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-    summary = normalizedReply.slice(0, jsonStart).replace(/DATA:\s*$/i, "").replace(/SUMMARY:\s*/i, "").trim();
-    const jsonString = normalizedReply.slice(jsonStart, jsonEnd + 1);
-
-    try {
-      const parsed = JSON.parse(jsonString);
-      if (Array.isArray(parsed)) {
-        dataset = parsed
-          .map((item) => {
-            const date = typeof item?.date === "string" ? item.date : "";
-            const priceValue = typeof item?.price === "number" ? item.price : Number(item?.price);
-
-            if (!date || Number.isNaN(priceValue)) {
-              return null;
-            }
-
-            return { date, price: priceValue } satisfies TimeSeriesPoint;
-          })
-          .filter(Boolean) as TimeSeriesPoint[];
-      }
-    } catch (error) {
-      console.warn("Failed to parse Nova DCA dataset", error);
-    }
-  }
-
-  if (!summary) {
-    summary = "Nova did not return a summary for this scenario.";
-  }
-
-  return { summary, dataset };
+  return parseSummaryAndDataset(reply);
 }
 
-function formatSummary(summary: string) {
-  if (!summary) {
-    return ["Nova didn't provide a written summary for this run."];
-  }
-
-  const lines = summary
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (lines.length === 0) {
-    return [summary];
-  }
-
-  return lines.map((line) => line.replace(/^[-•]\s*/, ""));
-}
+const formatSummary = formatSummaryLines;
 
 export function DcaCalculatorForm({
   formState,
@@ -105,10 +68,12 @@ export function DcaCalculatorForm({
   isLoading,
   error,
 }: CalculatorFormProps<DcaFormState>) {
+  const handleFieldChangeBuilder = buildFieldChangeHandler<DcaFormState>(onFormStateChange);
+
   const handleFieldChange =
     (field: keyof DcaFormState) =>
     (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-      onFormStateChange(field, event.target.value as DcaFormState[typeof field]);
+      handleFieldChangeBuilder(field)(event.target.value);
     };
 
   return (
@@ -197,21 +162,7 @@ export const dcaCalculatorDefinition: CalculatorDefinition<DcaFormState> = {
   getRequestConfig: (formState) => {
     const prompt = buildPrompt(formState);
 
-    return {
-      prompt,
-      options: {
-        body: JSON.stringify({
-          input: prompt.trim(),
-          model: "gpt-5-mini",
-          temperature: 0.0,
-          verbosity: "low",
-          max_tokens: 50000,
-          reasoning: true,
-          reasoning_params: {},
-          image_urls: [],
-        }),
-      },
-    };
+    return buildNovaRequestOptions(prompt, { max_tokens: 18000 });
   },
   parseReply: parseNovaReply,
   formatSummary,

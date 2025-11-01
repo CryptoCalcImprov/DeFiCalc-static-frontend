@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { ChartConfiguration } from "chart.js";
 
 import type { TimeSeriesPoint } from "@/components/calculators/types";
+import { CalculatorSpinner } from "@/components/calculators/workspace/CalculatorSpinner";
 
 type ChartConstructor = typeof import("chart.js/auto") extends { default: infer T } ? T : never;
 type ChartInstance = ChartConstructor extends new (...args: any[]) => infer R ? R : never;
@@ -139,8 +140,18 @@ export function PriceTrajectoryPanel({
         {hasDataset ? (
           <canvas ref={canvasRef} className="h-full w-full max-w-full" style={{ width: "100%", height: "100%" }} />
         ) : (
-          <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-ocean/55 bg-surface/65 text-center text-sm text-muted">
-            {isLoading ? loadingMessage : emptyMessage}
+          <div className="flex h-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-ocean/55 bg-surface/65 px-6 text-center">
+            {isLoading ? (
+              <>
+                <CalculatorSpinner size={56} />
+                <p className="text-xs font-semibold uppercase tracking-widest text-mint/80 sm:text-sm">
+                  Rendering price path…
+                </p>
+                <p className="text-xs text-muted sm:text-sm">{loadingMessage}</p>
+              </>
+            ) : (
+              <p className="text-sm text-muted">{emptyMessage}</p>
+            )}
           </div>
         )}
       </div>
