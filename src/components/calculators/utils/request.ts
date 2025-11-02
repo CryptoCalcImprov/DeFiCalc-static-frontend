@@ -7,6 +7,7 @@ type NovaRequestOverrides = Partial<{
   reasoning_params: Record<string, unknown>;
   image_urls: string[];
   bodyExtras: Record<string, unknown>;
+  refId: string;
 }>;
 
 const DEFAULT_NOVA_PAYLOAD = {
@@ -29,6 +30,7 @@ export function buildNovaRequestOptions(prompt: string, overrides: NovaRequestOv
     reasoning_params,
     image_urls,
     bodyExtras,
+    refId,
   } = overrides;
 
   const payload = {
@@ -41,6 +43,7 @@ export function buildNovaRequestOptions(prompt: string, overrides: NovaRequestOv
     ...(reasoning !== undefined ? { reasoning } : {}),
     ...(reasoning_params !== undefined ? { reasoning_params } : {}),
     ...(image_urls !== undefined ? { image_urls } : {}),
+    ...(refId ? { ref_id: refId } : {}),
     ...bodyExtras,
   };
 
