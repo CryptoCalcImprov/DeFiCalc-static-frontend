@@ -1,12 +1,13 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ChatMessage } from "@/components/ui/chat-message";
 import { StarterPrompts } from "@/components/ui/starter-prompts";
 import { ThinkingIndicator } from "@/components/ui/thinking-indicator";
-import { requestNova } from "@/lib/nova-client";
+import { clearNovaHistory, requestNova } from "@/lib/nova-client";
+import { ensureNovaRefId, resetNovaRefId } from "@/lib/nova-session";
 
 const starterPrompts = [
   "How can I calculate yield?",
@@ -30,7 +31,32 @@ export function NovaAssistant() {
     },
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [assistantRefId, setAssistantRefId] = useState<string | null>(null);
+  const [isResettingChat, setIsResettingChat] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setAssistantRefId(ensureNovaRefId("assistant"));
+  }, []);
+
+  const resolveAssistantRefId = () => {
+    const existing = assistantRefId ?? ensureNovaRefId("assistant");
+    if (!assistantRefId) {
+      setAssistantRefId(existing);
+    }
+    return existing;
+  };
+
+  const resetConversationState = () => {
+    setMessages([
+      {
+        role: "assistant",
+        content:
+          "Hi! Ask me about strategy health, projected yields, or how to model a position in the Calculator Sandbox.\n\nI can explain formulas with proper math notation and show you charts or images when helpful!",
+      },
+    ]);
+    setInput("");
+  };
 
   const processPrompt = async (rawPrompt: string) => {
     const prompt = rawPrompt.trim();
@@ -43,7 +69,8 @@ export function NovaAssistant() {
     setIsLoading(true);
 
     try {
-      const { reply, rawBody, status, headers } = await requestNova(prompt);
+      const refId = resolveAssistantRefId();
+      const { reply, rawBody, status, headers } = await requestNova(prompt, undefined, { refId });
       const trimmedReply = reply.trim();
 
       if (!trimmedReply) {
@@ -72,6 +99,36 @@ export function NovaAssistant() {
       ]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleNewChat = async () => {
+    if (isResettingChat) {
+      return;
+    }
+
+    setIsResettingChat(true);
+
+    const currentRefId = resolveAssistantRefId();
+
+    try {
+      await clearNovaHistory(currentRefId);
+      const nextRefId = resetNovaRefId("assistant");
+      setAssistantRefId(nextRefId);
+      resetConversationState();
+    } catch (error) {
+      console.error("[NovaAssistant] Failed to reset chat:", error);
+      const message =
+        error instanceof Error ? error.message : "I couldn't reset the conversation right now. Please try again.";
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `I ran into an issue resetting the conversation: ${message}`,
+        },
+      ]);
+    } finally {
+      setIsResettingChat(false);
     }
   };
 
@@ -115,16 +172,27 @@ export function NovaAssistant() {
                   Friendly, context-aware guidance to demystify DeFi concepts and help you ship strategies faster.
                 </p>
               </div>
-              <button
-                type="button"
-                className="rounded-full border border-slate-800/70 bg-slate-900/60 p-2 text-slate-400 transition hover:text-white"
-                onClick={() => setOpen(false)}
-                aria-label="Close Nova assistant"
-              >
-                <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={isLoading || isResettingChat}
+                  onClick={handleNewChat}
+                  className="px-4 py-2 text-xs"
+                >
+                  {isResettingChat ? "Resetting…" : "New Chat"}
+                </Button>
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-800/70 bg-slate-900/60 p-2 text-slate-400 transition hover:text-white"
+                  onClick={() => setOpen(false)}
+                  aria-label="Close Nova assistant"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div className="mt-6 flex flex-1 min-h-0 flex-col rounded-2xl border border-slate-800/70 bg-slate-950/70 p-4 text-sm text-slate-200">
               <div className="flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto pr-1 nova-scroll">
