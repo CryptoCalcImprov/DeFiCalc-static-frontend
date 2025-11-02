@@ -7,6 +7,10 @@ export type RequestNovaResult = {
   headers: Record<string, string>;
 };
 
+export type RequestNovaOptions = {
+  refId?: string;
+};
+
 const DEFAULT_BODY = {
   model: DEFAULT_MODEL,
   temperature: 0.7,
@@ -58,20 +62,71 @@ function buildHeaders(options?: Partial<RequestInit>) {
   return headers;
 }
 
+function appendRefIdToBody(body: BodyInit, refId: string): BodyInit {
+  if (typeof body === "string") {
+    try {
+      const parsed = body ? JSON.parse(body) : {};
+      if (parsed && typeof parsed === "object") {
+        (parsed as Record<string, unknown>).ref_id = refId;
+        return JSON.stringify(parsed);
+      }
+    } catch (error) {
+      console.warn("[Nova] Failed to parse request body while appending ref_id:", error);
+    }
+    return body;
+  }
+
+  if (body instanceof URLSearchParams) {
+    const params = new URLSearchParams(body.toString());
+    params.set("ref_id", refId);
+    return params;
+  }
+
+  if (typeof FormData !== "undefined" && body instanceof FormData) {
+    const clone = new FormData();
+    body.forEach((value, key) => {
+      clone.append(key, value);
+    });
+    clone.set("ref_id", refId);
+    return clone;
+  }
+
+  return body;
+}
+
+async function executeNovaFetch(
+  requestUrl: string,
+  options: Partial<RequestInit>,
+  headers: Headers,
+  body: BodyInit,
+) {
+  return fetch(requestUrl, {
+    method: "POST",
+    ...options,
+    headers,
+    body,
+  });
+}
+
 export async function requestNova(
   prompt: string,
   options: Partial<RequestInit> = {},
+  { refId }: RequestNovaOptions = {},
 ): Promise<RequestNovaResult> {
   const trimmedPrompt = prompt.trim();
   const requestUrl = createRequestUrl();
   const headers = buildHeaders(options);
 
-  const body =
+  let body: BodyInit =
     options.body ??
     JSON.stringify({
       input: trimmedPrompt,
       ...DEFAULT_BODY,
     });
+
+  if (refId) {
+    body = appendRefIdToBody(body, refId);
+  }
 
   let bodyPreview = "";
   let bodyLength: number | undefined;
@@ -104,12 +159,7 @@ export async function requestNova(
     bodyLength,
   });
 
-  const response = await fetch(requestUrl, {
-    method: "POST",
-    ...options,
-    headers,
-    body,
-  });
+  const response = await executeNovaFetch(requestUrl, options, headers, body);
 
   const contentType = response.headers.get("content-type") ?? "";
   const rawBody = await response.text();
@@ -176,4 +226,38 @@ export async function requestNova(
     status: response.status,
     headers: Object.fromEntries(response.headers.entries()),
   };
+}
+
+export async function clearNovaHistory(refId: string, options: Partial<RequestInit> = {}): Promise<void> {
+  const requestUrl = createRequestUrl();
+  const headers = buildHeaders(options);
+  let deleteUrl: string;
+
+  try {
+    const parsed = new URL(
+      requestUrl,
+      requestUrl.startsWith("http")
+        ? undefined
+        : typeof window !== "undefined"
+          ? window.location.origin
+          : undefined,
+    );
+    parsed.searchParams.set("ref_id", refId);
+    deleteUrl = parsed.toString();
+  } catch (error) {
+    console.warn("[Nova] Failed to build DELETE URL via URL API, falling back to manual construction:", error);
+    const separator = requestUrl.includes("?") ? "&" : "?";
+    deleteUrl = `${requestUrl}${separator}ref_id=${encodeURIComponent(refId)}`;
+  }
+
+  const response = await fetch(deleteUrl, {
+    method: "DELETE",
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Failed to clear Nova history (status ${response.status})`);
+  }
 }

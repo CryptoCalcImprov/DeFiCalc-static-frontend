@@ -9,7 +9,9 @@ import { CalculatorDeck } from "@/components/calculators/workspace/CalculatorDec
 import { CalculatorWorkspace } from "@/components/calculators/workspace/CalculatorWorkspace";
 import { PriceTrajectoryPanel } from "@/components/calculators/workspace/PriceTrajectoryPanel";
 import { SummaryPanel } from "@/components/calculators/workspace/SummaryPanel";
-import { requestNova } from "@/lib/nova-client";
+import { Button } from "@/components/ui/button";
+import { clearNovaHistory, requestNova } from "@/lib/nova-client";
+import { ensureNovaRefId, resetNovaRefId } from "@/lib/nova-session";
 
 const defaultCalculatorId = calculatorDefinitions[0]?.id ?? "";
 const defaultDefinition = defaultCalculatorId ? findCalculatorDefinition<any>(defaultCalculatorId) : undefined;
@@ -37,6 +39,7 @@ export function CalculatorHubSection() {
   const [dataset, setDataset] = useState<TimeSeriesPoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isClearingHistory, setIsClearingHistory] = useState(false);
 
   const activeDefinition = findCalculatorDefinition<any>(activeCalculatorId);
 
@@ -95,7 +98,8 @@ export function CalculatorHubSection() {
 
     try {
       const { prompt, options } = activeDefinition.getRequestConfig(currentState as any);
-      const { reply } = await requestNova(prompt, options);
+      const refId = ensureNovaRefId("calculator");
+      const { reply } = await requestNova(prompt, options, { refId });
 
       const { summary: parsedSummary, dataset: parsedDataset } = activeDefinition.parseReply(reply);
 
@@ -117,6 +121,33 @@ export function CalculatorHubSection() {
       setSummary("Nova couldn't complete this request. Please adjust your inputs and try again.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleClearHistory = async () => {
+    if (isClearingHistory) {
+      return;
+    }
+
+    setIsClearingHistory(true);
+    setError(null);
+
+    const refId = ensureNovaRefId("calculator");
+
+    try {
+      await clearNovaHistory(refId);
+      void resetNovaRefId("calculator");
+      setDataset([]);
+      setSummary(activeDefinition?.initialSummary ?? defaultSummary);
+    } catch (historyError) {
+      console.error("[CalculatorHub] Failed to clear Nova history:", historyError);
+      const message =
+        historyError instanceof Error
+          ? historyError.message
+          : "Unable to clear Nova history right now. Please try again.";
+      setError(message);
+    } finally {
+      setIsClearingHistory(false);
     }
   };
 
@@ -178,17 +209,28 @@ export function CalculatorHubSection() {
   return (
     <CalculatorWorkspace
       controls={
-        <CalculatorDeck
-          calculators={calculatorDefinitions.map(({ id, label, description }) => ({ id, label, description }))}
-          activeId={activeCalculatorId}
-          recentIds={recentCalculatorIds}
-          favoriteIds={favoriteCalculatorIds}
-          isOpen={isDeckOpen}
-          onOpen={() => setIsDeckOpen(true)}
-          onClose={() => setIsDeckOpen(false)}
-          onSelect={handleCalculatorChange}
-          onToggleFavorite={handleFavoriteToggle}
-        />
+        <>
+          <CalculatorDeck
+            calculators={calculatorDefinitions.map(({ id, label, description }) => ({ id, label, description }))}
+            activeId={activeCalculatorId}
+            recentIds={recentCalculatorIds}
+            favoriteIds={favoriteCalculatorIds}
+            isOpen={isDeckOpen}
+            onOpen={() => setIsDeckOpen(true)}
+            onClose={() => setIsDeckOpen(false)}
+            onSelect={handleCalculatorChange}
+            onToggleFavorite={handleFavoriteToggle}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleClearHistory}
+            disabled={isLoading || isClearingHistory}
+            className="ml-auto"
+          >
+            {isClearingHistory ? "Clearing…" : "Clear History"}
+          </Button>
+        </>
       }
       calculatorPanel={
         CalculatorFormComponent ? (
