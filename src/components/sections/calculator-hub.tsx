@@ -12,6 +12,8 @@ import { SummaryPanel } from "@/components/calculators/workspace/SummaryPanel";
 import { Button } from "@/components/ui/button";
 import { clearNovaHistory, requestNova } from "@/lib/nova-client";
 import { ensureNovaRefId, resetNovaRefId } from "@/lib/nova-session";
+import { TrendFollowingChart, type TrendFollowingDataPoint } from "@/components/calculators/trend-following/trend-following-chart";
+import { parseTrendFollowingReply } from "@/components/calculators/trend-following/parser";
 
 const defaultCalculatorId = calculatorDefinitions[0]?.id ?? "";
 const defaultDefinition = defaultCalculatorId ? findCalculatorDefinition<any>(defaultCalculatorId) : undefined;
@@ -37,6 +39,7 @@ export function CalculatorHubSection() {
   const [favoriteCalculatorIds, setFavoriteCalculatorIds] = useState<string[]>([]);
   const [summary, setSummary] = useState<string>(defaultSummary);
   const [dataset, setDataset] = useState<TimeSeriesPoint[]>([]);
+  const [trendFollowingDataset, setTrendFollowingDataset] = useState<TrendFollowingDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
@@ -94,6 +97,7 @@ export function CalculatorHubSection() {
     setIsLoading(true);
     setError(null);
     setDataset([]);
+    setTrendFollowingDataset([]);
     setSummary(pendingSummary);
 
     try {
@@ -105,6 +109,12 @@ export function CalculatorHubSection() {
 
       setSummary(parsedSummary);
       setDataset(parsedDataset);
+
+      // If this is the trend-following calculator, parse the extended data
+      if (activeCalculatorId === "trend-following") {
+        const trendFollowingResult = parseTrendFollowingReply(reply);
+        setTrendFollowingDataset(trendFollowingResult.dataset);
+      }
 
       if (!parsedDataset.length) {
         setError("Nova didn't return price history data for this run. Showing the textual summary instead.");
@@ -118,6 +128,7 @@ export function CalculatorHubSection() {
 
       setError(message);
       setDataset([]);
+      setTrendFollowingDataset([]);
       setSummary("Nova couldn't complete this request. Please adjust your inputs and try again.");
     } finally {
       setIsLoading(false);
@@ -138,6 +149,7 @@ export function CalculatorHubSection() {
       await clearNovaHistory(refId);
       void resetNovaRefId("calculator");
       setDataset([]);
+      setTrendFollowingDataset([]);
       setSummary(activeDefinition?.initialSummary ?? defaultSummary);
     } catch (historyError) {
       console.error("[CalculatorHub] Failed to clear Nova history:", historyError);
@@ -170,6 +182,7 @@ export function CalculatorHubSection() {
     setActiveCalculatorId(nextId);
     setError(null);
     setDataset([]);
+    setTrendFollowingDataset([]);
     setIsDeckOpen(false);
 
     setSummary(nextDefinition?.initialSummary ?? defaultSummary);
@@ -255,11 +268,19 @@ export function CalculatorHubSection() {
         />
       }
       chartPanel={
-        <PriceTrajectoryPanel
-          dataset={dataset}
-          isLoading={isLoading}
-          seriesLabel={seriesLabel}
-        />
+        activeCalculatorId === "trend-following" ? (
+          <TrendFollowingChart
+            dataset={trendFollowingDataset}
+            isLoading={isLoading}
+            token={(formState as any).token ?? "BTC"}
+          />
+        ) : (
+          <PriceTrajectoryPanel
+            dataset={dataset}
+            isLoading={isLoading}
+            seriesLabel={seriesLabel}
+          />
+        )
       }
     />
   );
