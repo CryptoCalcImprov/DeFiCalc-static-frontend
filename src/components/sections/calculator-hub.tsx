@@ -3,7 +3,10 @@
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 
-import { calculatorDefinitions, findCalculatorDefinition } from "@/components/calculators";
+import {
+  calculatorDefinitions,
+  findCalculatorDefinition,
+} from "@/components/calculators";
 import type { TimeSeriesPoint } from "@/components/calculators/types";
 import { CalculatorDeck } from "@/components/calculators/workspace/CalculatorDeck";
 import { CalculatorWorkspace } from "@/components/calculators/workspace/CalculatorWorkspace";
@@ -12,34 +15,47 @@ import { SummaryPanel } from "@/components/calculators/workspace/SummaryPanel";
 import { Button } from "@/components/ui/button";
 import { clearNovaHistory, requestNova } from "@/lib/nova-client";
 import { ensureNovaRefId, resetNovaRefId } from "@/lib/nova-session";
-import { TrendFollowingChart, type TrendFollowingDataPoint } from "@/components/calculators/trend-following/trend-following-chart";
+import {
+  TrendFollowingChart,
+  type TrendFollowingDataPoint,
+} from "@/components/calculators/trend-following/trend-following-chart";
 import { parseTrendFollowingReply } from "@/components/calculators/trend-following/parser";
 
 const defaultCalculatorId = calculatorDefinitions[0]?.id ?? "";
-const defaultDefinition = defaultCalculatorId ? findCalculatorDefinition<any>(defaultCalculatorId) : undefined;
+const defaultDefinition = defaultCalculatorId
+  ? findCalculatorDefinition<any>(defaultCalculatorId)
+  : undefined;
 
 const defaultSummary =
-  defaultDefinition?.initialSummary ?? "Run a projection to see Nova’s perspective on this plan.";
+  defaultDefinition?.initialSummary ??
+  "Run a projection to see Nova’s perspective on this plan.";
 
 type CalculatorStateMap = Record<string, unknown>;
 
 export function CalculatorHubSection() {
-  const [activeCalculatorId, setActiveCalculatorId] = useState(defaultCalculatorId);
-  const [calculatorStates, setCalculatorStates] = useState<CalculatorStateMap>(() => {
-    const initial: CalculatorStateMap = {};
-    calculatorDefinitions.forEach((definition) => {
-      initial[definition.id] = definition.getInitialState();
-    });
-    return initial;
-  });
+  const [activeCalculatorId, setActiveCalculatorId] =
+    useState(defaultCalculatorId);
+  const [calculatorStates, setCalculatorStates] = useState<CalculatorStateMap>(
+    () => {
+      const initial: CalculatorStateMap = {};
+      calculatorDefinitions.forEach((definition) => {
+        initial[definition.id] = definition.getInitialState();
+      });
+      return initial;
+    }
+  );
   const [isDeckOpen, setIsDeckOpen] = useState(false);
   const [recentCalculatorIds, setRecentCalculatorIds] = useState<string[]>(() =>
-    defaultCalculatorId ? [defaultCalculatorId] : [],
+    defaultCalculatorId ? [defaultCalculatorId] : []
   );
-  const [favoriteCalculatorIds, setFavoriteCalculatorIds] = useState<string[]>([]);
+  const [favoriteCalculatorIds, setFavoriteCalculatorIds] = useState<string[]>(
+    []
+  );
   const [summary, setSummary] = useState<string>(defaultSummary);
   const [dataset, setDataset] = useState<TimeSeriesPoint[]>([]);
-  const [trendFollowingDataset, setTrendFollowingDataset] = useState<TrendFollowingDataPoint[]>([]);
+  const [trendFollowingDataset, setTrendFollowingDataset] = useState<
+    TrendFollowingDataPoint[]
+  >([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
@@ -68,11 +84,16 @@ export function CalculatorHubSection() {
   }, [activeDefinition, summary]);
 
   const seriesLabel =
-    (activeDefinition?.getSeriesLabel ? activeDefinition.getSeriesLabel(formState as any) : undefined) ?? "Modeled price";
+    (activeDefinition?.getSeriesLabel
+      ? activeDefinition.getSeriesLabel(formState as any)
+      : undefined) ?? "Modeled price";
 
   const handleFormStateChange = (field: string, value: unknown): void => {
     setCalculatorStates((previous) => {
-      const existingState = (previous[activeCalculatorId] ?? {}) as Record<string, unknown>;
+      const existingState = (previous[activeCalculatorId] ?? {}) as Record<
+        string,
+        unknown
+      >;
       return {
         ...previous,
         [activeCalculatorId]: {
@@ -87,12 +108,16 @@ export function CalculatorHubSection() {
     event.preventDefault();
 
     if (!activeDefinition) {
-      console.warn("Attempted to submit without an active calculator definition.");
+      console.warn(
+        "Attempted to submit without an active calculator definition."
+      );
       return;
     }
 
     const currentState = formState;
-    const pendingSummary = activeDefinition.pendingSummary ?? "Generating Nova’s latest projection...";
+    const pendingSummary =
+      activeDefinition.pendingSummary ??
+      "Generating Nova’s latest projection...";
 
     setIsLoading(true);
     setError(null);
@@ -101,14 +126,20 @@ export function CalculatorHubSection() {
     setSummary(pendingSummary);
 
     try {
-      const { prompt, options } = activeDefinition.getRequestConfig(currentState as any);
+      const { prompt, options } = activeDefinition.getRequestConfig(
+        currentState as any
+      );
       const refId = ensureNovaRefId("calculator");
       const { reply } = await requestNova(prompt, options, { refId });
 
-      const { summary: parsedSummary, dataset: parsedDataset } = activeDefinition.parseReply(reply);
+      console.log("reply", reply);
 
-      setSummary(parsedSummary);
-      setDataset(parsedDataset);
+      const calculatorResult = activeDefinition.parseReply(reply);
+
+      console.log("calculatorResult", calculatorResult);
+
+      setSummary(calculatorResult.summary);
+      setDataset(calculatorResult.dataset);
 
       // If this is the trend-following calculator, parse the extended data
       if (activeCalculatorId === "trend-following") {
@@ -116,8 +147,10 @@ export function CalculatorHubSection() {
         setTrendFollowingDataset(trendFollowingResult.dataset);
       }
 
-      if (!parsedDataset.length) {
-        setError("Nova didn't return price history data for this run. Showing the textual summary instead.");
+      if (!calculatorResult.dataset.length) {
+        setError(
+          "Nova didn't return price history data for this run. Showing the textual summary instead."
+        );
       }
     } catch (novaError) {
       console.error("[CalculatorHub] Request error:", novaError);
@@ -129,7 +162,9 @@ export function CalculatorHubSection() {
       setError(message);
       setDataset([]);
       setTrendFollowingDataset([]);
-      setSummary("Nova couldn't complete this request. Please adjust your inputs and try again.");
+      setSummary(
+        "Nova couldn't complete this request. Please adjust your inputs and try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -152,7 +187,10 @@ export function CalculatorHubSection() {
       setTrendFollowingDataset([]);
       setSummary(activeDefinition?.initialSummary ?? defaultSummary);
     } catch (historyError) {
-      console.error("[CalculatorHub] Failed to clear Nova history:", historyError);
+      console.error(
+        "[CalculatorHub] Failed to clear Nova history:",
+        historyError
+      );
       const message =
         historyError instanceof Error
           ? historyError.message
@@ -224,7 +262,9 @@ export function CalculatorHubSection() {
       controls={
         <>
           <CalculatorDeck
-            calculators={calculatorDefinitions.map(({ id, label, description }) => ({ id, label, description }))}
+            calculators={calculatorDefinitions.map(
+              ({ id, label, description }) => ({ id, label, description })
+            )}
             activeId={activeCalculatorId}
             recentIds={recentCalculatorIds}
             favoriteIds={favoriteCalculatorIds}
