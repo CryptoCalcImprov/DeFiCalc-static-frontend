@@ -13,7 +13,6 @@ export type RequestNovaOptions = {
 
 const DEFAULT_BODY = {
   model: DEFAULT_MODEL,
-  temperature: 0.7,
   verbosity: "medium",
   max_tokens: 2000,
   reasoning: false,

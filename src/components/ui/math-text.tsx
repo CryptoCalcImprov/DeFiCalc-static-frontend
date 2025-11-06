@@ -21,6 +21,7 @@ export function MathText({ children, displayMode = false, className = "" }: Math
         displayMode,
         throwOnError: false,
         output: "html",
+        strict: "ignore",
       });
     } catch (error) {
       console.error("KaTeX rendering error:", error);

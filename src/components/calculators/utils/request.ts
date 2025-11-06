@@ -1,6 +1,5 @@
 type NovaRequestOverrides = Partial<{
   model: string;
-  temperature: number;
   verbosity: string;
   max_tokens: number;
   reasoning: boolean;
@@ -12,7 +11,6 @@ type NovaRequestOverrides = Partial<{
 
 const DEFAULT_NOVA_PAYLOAD = {
   model: "gpt-5-mini",
-  temperature: 0.0,
   verbosity: "low",
   max_tokens: 50000,
   reasoning: true,
@@ -23,7 +21,6 @@ const DEFAULT_NOVA_PAYLOAD = {
 export function buildNovaRequestOptions(prompt: string, overrides: NovaRequestOverrides = {}) {
   const {
     model,
-    temperature,
     verbosity,
     max_tokens,
     reasoning,
@@ -37,7 +34,6 @@ export function buildNovaRequestOptions(prompt: string, overrides: NovaRequestOv
     input: prompt.trim(),
     ...DEFAULT_NOVA_PAYLOAD,
     ...(model !== undefined ? { model } : {}),
-    ...(temperature !== undefined ? { temperature } : {}),
     ...(verbosity !== undefined ? { verbosity } : {}),
     ...(max_tokens !== undefined ? { max_tokens } : {}),
     ...(reasoning !== undefined ? { reasoning } : {}),

@@ -3,30 +3,37 @@
 import { useEffect, useRef } from "react";
 import type { ChartConfiguration } from "chart.js";
 
-import type { TimeSeriesPoint } from "@/components/calculators/types";
 import { CalculatorSpinner } from "@/components/calculators/workspace/CalculatorSpinner";
 import { LoadingDots } from "@/components/ui/loading-dots";
 
 type ChartConstructor = typeof import("chart.js/auto") extends { default: infer T } ? T : never;
 type ChartInstance = ChartConstructor extends new (...args: any[]) => infer R ? R : never;
 
-type PriceTrajectoryPanelProps = {
-  title?: string;
-  dataset: TimeSeriesPoint[];
-  isLoading: boolean;
-  seriesLabel: string;
-  loadingMessage?: string;
-  emptyMessage?: string;
+export type TrendFollowingDataPoint = {
+  date: string;
+  price: number;
+  ma: number;
+  portfolioEquity: number;
+  hodlValue: number;
 };
 
-export function PriceTrajectoryPanel({
-  title = "Price trajectory",
+type TrendFollowingChartProps = {
+  title?: string;
+  dataset: TrendFollowingDataPoint[];
+  isLoading: boolean;
+  loadingMessage?: string;
+  emptyMessage?: string;
+  token: string;
+};
+
+export function TrendFollowingChart({
+  title = "Price trajectory & portfolio equity",
   dataset,
   isLoading,
-  seriesLabel,
   loadingMessage = "Asking Nova for price history...",
   emptyMessage = "Run the projection to visualize Nova's modeled price path.",
-}: PriceTrajectoryPanelProps) {
+  token,
+}: TrendFollowingChartProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartInstance | null>(null);
 
@@ -63,24 +70,63 @@ export function PriceTrajectoryPanel({
             labels: dataset.map((point) => point.date),
             datasets: [
               {
-                label: seriesLabel,
+                label: `${token} Price`,
                 data: dataset.map((point) => point.price),
                 borderColor: "rgba(58, 198, 255, 0.95)",
                 backgroundColor: "rgba(58, 198, 255, 0.14)",
                 tension: 0.32,
-                fill: true,
-                pointRadius: 5,
+                fill: false,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                yAxisID: "y",
+              },
+              {
+                label: `Moving Average`,
+                data: dataset.map((point) => point.ma),
+                borderColor: "rgba(147, 197, 253, 0.7)",
+                backgroundColor: "rgba(147, 197, 253, 0.1)",
+                tension: 0.32,
+                fill: false,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                borderDash: [5, 5],
+                yAxisID: "y",
+              },
+              {
+                label: "Strategy Portfolio Equity",
+                data: dataset.map((point) => point.portfolioEquity),
+                borderColor: "rgba(54, 214, 195, 0.95)",
+                backgroundColor: "rgba(54, 214, 195, 0.14)",
+                tension: 0.32,
+                fill: false,
+                pointRadius: 3,
                 pointHoverRadius: 8,
                 pointBackgroundColor: "#36D6C3",
                 pointBorderColor: "#041A2A",
                 pointBorderWidth: 2,
-                pointHitRadius: 12,
+                yAxisID: "y1",
+              },
+              {
+                label: "HODL Baseline",
+                data: dataset.map((point) => point.hodlValue),
+                borderColor: "rgba(148, 163, 184, 0.6)",
+                backgroundColor: "rgba(148, 163, 184, 0.08)",
+                tension: 0.32,
+                fill: false,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                borderDash: [3, 3],
+                yAxisID: "y1",
               },
             ],
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+              mode: "index",
+              intersect: false,
+            },
             plugins: {
               legend: {
                 labels: {
@@ -108,11 +154,35 @@ export function PriceTrajectoryPanel({
                 },
               },
               y: {
+                type: "linear",
+                display: true,
+                position: "left",
                 ticks: {
                   color: "#94A3B8",
                 },
                 grid: {
                   color: "rgba(19, 44, 63, 0.45)",
+                },
+                title: {
+                  display: true,
+                  text: "Price (USD)",
+                  color: "#94A3B8",
+                },
+              },
+              y1: {
+                type: "linear",
+                display: true,
+                position: "right",
+                ticks: {
+                  color: "#94A3B8",
+                },
+                grid: {
+                  drawOnChartArea: false,
+                },
+                title: {
+                  display: true,
+                  text: "Portfolio Value (USD)",
+                  color: "#94A3B8",
                 },
               },
             },
@@ -121,7 +191,7 @@ export function PriceTrajectoryPanel({
 
         chartRef.current = new ChartJs(canvas, config);
       } catch (error) {
-        console.error("Failed to render price trajectory chart", error);
+        console.error("Failed to render trend-following chart", error);
       }
     };
 
@@ -132,7 +202,7 @@ export function PriceTrajectoryPanel({
       chartRef.current?.destroy();
       chartRef.current = null;
     };
-  }, [dataset, hasDataset, seriesLabel]);
+  }, [dataset, hasDataset, token]);
 
   return (
     <div className="card-surface rounded-2xl bg-gradient-to-br from-slate-950/70 via-slate-950/50 to-slate-900/25 p-4 sm:rounded-3xl sm:p-6">
