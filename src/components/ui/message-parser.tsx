@@ -74,7 +74,97 @@ function normalizePlainText(input: string) {
 function sanitizeMathExpression(input: string) {
   return normalizeMathContent(input)
     .replace(/\u202f/g, " ")
+    .replace(/(^|[^\\])%/g, (_match, prefix: string) => `${prefix}\\%`)
     .trim();
+}
+
+const allowedKaTeXCommands = new Set([
+  "frac",
+  "dfrac",
+  "tfrac",
+  "sum",
+  "prod",
+  "sqrt",
+  "left",
+  "right",
+  "times",
+  "cdot",
+  "div",
+  "pm",
+  "mp",
+  "approx",
+  "sim",
+  "geq",
+  "leq",
+  "neq",
+  "infty",
+  "pi",
+  "theta",
+  "mu",
+  "sigma",
+  "log",
+  "ln",
+  "exp",
+  "mathrm",
+  "operatorname",
+  "text",
+  "bar",
+  "overline",
+  "underline",
+  "hat",
+  "vec",
+  "sin",
+  "cos",
+  "tan",
+  "arcsin",
+  "arccos",
+  "arctan",
+  "max",
+  "min",
+]);
+
+function containsUnsupportedKaTeXCommand(input: string) {
+  const commandRegex = /\\([a-zA-Z]+)/g;
+  let match;
+
+  while ((match = commandRegex.exec(input)) !== null) {
+    const commandName = match[1];
+    if (!allowedKaTeXCommands.has(commandName)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isLikelyPlainTextMath(input: string) {
+  const trimmed = input.trim();
+
+  if (!trimmed) {
+    return true;
+  }
+
+  if (/\\[a-zA-Z]+/.test(trimmed)) {
+    return false;
+  }
+
+  const words = trimmed.match(/\b[a-zA-Z]{3,}\b/g) ?? [];
+
+  if (words.length < 2) {
+    return false;
+  }
+
+  const mathTokens = trimmed.match(/[=+\\^_{}]/g) ?? [];
+
+  if (trimmed.length > 48 && (mathTokens.length === 0 || words.length > mathTokens.length * 2)) {
+    return true;
+  }
+
+  if (words.length >= 3 && mathTokens.length === 0) {
+    return true;
+  }
+
+  return false;
 }
 
 export function MessageParser({ content, className = "" }: MessageParserProps) {
@@ -87,7 +177,7 @@ export function MessageParser({ content, className = "" }: MessageParserProps) {
     // HTML anchor pattern: <a href="(image-url)">...</a>
     // Math patterns: $$...$$ or $...$
     const combinedRegex =
-      /@(https?:\/\/[^\s]+)|<a\s+href=["']([^"']+\.(png|jpg|jpeg|gif|webp|svg))["'][^>]*>[^<]*<\/a>|\$\$((?:\\.|[^$])+?)\$\$|\$((?:\\.|[^$])+?)\$/g;
+      /@(https?:\/\/[^\s]+)|<a\s+href=["']([^"']+\.(png|jpg|jpeg|gif|webp|svg))["'][^>]*>[^<]*<\/a>|\$\$((?:\\.|[^$])+?)\$\$|\$((?:\\.|[^$])+?)\$(?=[\s,.;:!?)}\]"'-]|$)/g;
     
     let lastIndex = 0;
     let match;
@@ -98,7 +188,7 @@ export function MessageParser({ content, className = "" }: MessageParserProps) {
         const textBefore = content.substring(lastIndex, match.index);
         const normalizedText = normalizePlainText(textBefore);
         if (normalizedText.trim()) {
-          parts.push(<span key={`text-${key++}`}>{normalizedText}</span>);
+          parts.push(<span key={`text-${key++}`} className="break-words">{normalizedText}</span>);
         }
       }
 
@@ -115,12 +205,26 @@ export function MessageParser({ content, className = "" }: MessageParserProps) {
         );
       } else if (match[4] || match[5]) {
         // Math expression (block or inline)
-        const mathContent = match[4] ?? match[5] ?? "";
-        parts.push(
-          <MathText key={`math-${key++}`} displayMode={Boolean(match[4])}>
-            {sanitizeMathExpression(mathContent)}
-          </MathText>
-        );
+        const rawMathContent = match[4] ?? match[5] ?? "";
+        const isBlockMath = Boolean(match[4]);
+        const sanitizedMath = sanitizeMathExpression(rawMathContent);
+
+        const shouldFallbackToText =
+          (!isBlockMath && isLikelyPlainTextMath(rawMathContent)) ||
+          containsUnsupportedKaTeXCommand(sanitizedMath);
+
+        if (shouldFallbackToText) {
+          const normalized = normalizePlainText(match[0]);
+          if (normalized.trim()) {
+            parts.push(<span key={`text-${key++}`}>{normalized}</span>);
+          }
+        } else {
+          parts.push(
+            <MathText key={`math-${key++}`} displayMode={isBlockMath}>
+              {sanitizedMath}
+            </MathText>
+          );
+        }
       }
 
       lastIndex = match.index + match[0].length;
@@ -131,14 +235,14 @@ export function MessageParser({ content, className = "" }: MessageParserProps) {
       const remainingText = content.substring(lastIndex);
       const normalizedText = normalizePlainText(remainingText);
       if (normalizedText.trim()) {
-        parts.push(<span key={`text-${key++}`}>{normalizedText}</span>);
+        parts.push(<span key={`text-${key++}`} className="break-words">{normalizedText}</span>);
       }
     }
 
     return parts.length > 0
       ? parts
-      : [<span key="original">{normalizePlainText(content)}</span>];
+      : [<span key="original" className="break-words">{normalizePlainText(content)}</span>];
   };
 
-  return <div className={className}>{parseContent()}</div>;
+  return <div className={`${className} break-words min-w-0 overflow-hidden`}>{parseContent()}</div>;
 }
