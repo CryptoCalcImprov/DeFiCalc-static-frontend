@@ -188,7 +188,7 @@ export function MessageParser({ content, className = "" }: MessageParserProps) {
         const textBefore = content.substring(lastIndex, match.index);
         const normalizedText = normalizePlainText(textBefore);
         if (normalizedText.trim()) {
-          parts.push(<span key={`text-${key++}`}>{normalizedText}</span>);
+          parts.push(<span key={`text-${key++}`} className="break-words">{normalizedText}</span>);
         }
       }
 
@@ -235,14 +235,14 @@ export function MessageParser({ content, className = "" }: MessageParserProps) {
       const remainingText = content.substring(lastIndex);
       const normalizedText = normalizePlainText(remainingText);
       if (normalizedText.trim()) {
-        parts.push(<span key={`text-${key++}`}>{normalizedText}</span>);
+        parts.push(<span key={`text-${key++}`} className="break-words">{normalizedText}</span>);
       }
     }
 
     return parts.length > 0
       ? parts
-      : [<span key="original">{normalizePlainText(content)}</span>];
+      : [<span key="original" className="break-words">{normalizePlainText(content)}</span>];
   };
 
-  return <div className={className}>{parseContent()}</div>;
+  return <div className={`${className} break-words min-w-0 overflow-hidden`}>{parseContent()}</div>;
 }

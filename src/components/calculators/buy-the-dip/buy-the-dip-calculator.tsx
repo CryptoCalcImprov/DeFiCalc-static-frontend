@@ -9,10 +9,7 @@ import type {
 } from "@/components/calculators/types";
 import { buildFieldChangeHandler } from "@/components/calculators/utils/forms";
 import { joinPromptLines } from "@/components/calculators/utils/prompt";
-import {
-  formatSummaryLines,
-  parseSummaryAndDataset,
-} from "@/components/calculators/utils/summary";
+import { parseCalculatorReply } from "@/components/calculators/utils/summary";
 import { buildNovaRequestOptions } from "@/components/calculators/utils/request";
 
 export type BuyTheDipFormState = {
@@ -42,25 +39,77 @@ function buildPrompt({ token, budget, dipThreshold, duration }: BuyTheDipFormSta
     "1. Determine the schedule start date automatically: call your date/time capability to retrieve today's UTC date and use it as the starting point. Do not ask the user.",
     "2. Generate a plausible synthetic price path that matches the duration and includes realistic dip opportunities. When real history improves realism, use the available data tools silently; otherwise craft a consistent synthetic series with volatility.",
     "3. Identify dip opportunities: when price falls by the threshold percentage or more from a recent high (e.g., 7-day or 30-day high), simulate a purchase. Track remaining budget and show when funds would be deployed.",
-    "4. Summarize performance factors, timing of dip purchases, remaining budget utilization, and key risks in exactly three concise bullet points. State any assumptions directly inside the bullets.",
-    "5. After the summary, output a JSON array labeled DATA containing objects formatted as {\"date\":\"YYYY-MM-DD\",\"price\":number}. Provide one entry per day or key date showing the price trajectory. Mark purchase dates clearly in your summary. Prices must be numbers, not strings.",
-    "6. Never ask questions, never defer the calculation, and always include both the SUMMARY section and the DATA array.",
+    "4. Summarize performance factors, deployment pacing, and residual risks using the structured schema below. Keep each section summary to at most two sentences (~220 characters) and avoid enumerating every individual buy. Focus on aggregate stats.",
+    "   - Do not include per-trade logs or date-by-date breakdowns inside summaries, metrics, assumptions, or risks.",
+    "5. Limit metrics arrays to at most three entries each, highlight totals/averages only, and keep assumptions/risk lists to at most three concise bullets.",
+    "6. Provide one entry per trading day or per event date in the modeled price path. Dates must be chronological in YYYY-MM-DD format. Prices must be numeric.",
+    "7. Never ask questions, never defer the calculation, and respond with a single JSON object—no prose or markdown framing.",
+    "Populate metric values with actual calculations; replace illustrative numbers shown in the template.",
     "",
-    "Use the following structure exactly:",
-    "SUMMARY:",
-    "- bullet point one",
-    "- bullet point two",
-    "- bullet point three",
-    "DATA:",
-    "[{\"date\":\"2024-01-01\",\"price\":123.45}, ...]",
+    "Return JSON only, shaped exactly like:",
+    "{",
+    '  "insight": {',
+    '    "calculator": {',
+    '      "id": "buy-the-dip",',
+    '      "label": "Buy the Dip",',
+    '      "category": "opportunistic_entry",',
+    '      "version": "v1"',
+    "    },",
+    '    "context": {',
+    '      "as_of": "YYYY-MM-DD",',
+    `      "asset": "${token}",`,
+    '      "inputs": {',
+    `        "budget_usd": ${budget},`,
+    `        "dip_threshold_percent": ${dipThreshold},`,
+    `        "duration": "${duration}"`,
+    "      },",
+    '      "assumptions": ["Capture major modeling assumptions here."]',
+    "    },",
+    '    "sections": [',
+    "      {",
+    '        "type": "deployment_plan",',
+    '        "headline": "How the budget deploys",',
+    '        "summary": "Outline cadence of purchases triggered by dip conditions.",',
+    '        "metrics": [',
+    '          { "label": "Total budget (USD)", "value": 5000 },',
+    '          { "label": "Budget deployed (USD)", "value": 3800 },',
+    '          { "label": "Purchases triggered", "value": 7 }',
+    "        ],",
+    '        "assumptions": ["Clarify rebound thresholds, cooling periods, etc."]',
+    "      },",
+    "      {",
+    '        "type": "performance_driver",',
+    '        "headline": "Price dynamics & opportunity set",',
+    '        "summary": "Explain the path of highs, dips, and modeled execution prices.",',
+    '        "risks": ["Note slippage, liquidity, or volatility risks."]',
+    "      },",
+    "      {",
+    '        "type": "risk_assumption",',
+    '        "headline": "Key risks & monitoring",',
+    '        "summary": "Highlight conditions that could break the plan.",',
+    '        "risks": ["List each risk plainly."]',
+    "      }",
+    "    ],",
+    '    "notes": ["Optional closing reminders or next steps."]',
+    "  },",
+    '  "series": [',
+    "    {",
+    '      "id": "price_path",',
+    '      "label": "Modeled price path",',
+    '      "points": [',
+    '        { "date": "YYYY-MM-DD", "price": 123.45 }',
+    "      ]",
+    "    }",
+    "  ]",
+    "}",
+    "",
+    "Strictly follow the schema. Do not emit trailing text or additional keys.",
   ]);
 }
 
 function parseNovaReply(reply: string): CalculatorResult {
-  return parseSummaryAndDataset(reply);
+  return parseCalculatorReply(reply);
 }
-
-const formatSummary = formatSummaryLines;
 
 export function BuyTheDipCalculatorForm({
   formState,
@@ -168,9 +217,7 @@ export const buyTheDipCalculatorDefinition: CalculatorDefinition<BuyTheDipFormSt
     return buildNovaRequestOptions(prompt, { max_tokens: 18000 });
   },
   parseReply: parseNovaReply,
-  formatSummary,
   getSeriesLabel: (formState) => `${formState.token} price`,
   initialSummary: initialSummaryMessage,
   pendingSummary: pendingSummaryMessage,
 };
-

@@ -9,7 +9,7 @@ import type {
 } from "@/components/calculators/types";
 import { buildFieldChangeHandler } from "@/components/calculators/utils/forms";
 import { joinPromptLines } from "@/components/calculators/utils/prompt";
-import { formatSummaryLines } from "@/components/calculators/utils/summary";
+import { parseCalculatorReply } from "@/components/calculators/utils/summary";
 import { buildNovaRequestOptions } from "@/components/calculators/utils/request";
 import { parseTrendFollowingReply } from "./parser";
 
@@ -41,31 +41,76 @@ function buildPrompt({ token, initialCapital, maPeriod, duration }: TrendFollowi
     `2. Generate a synthetic price path for ${token} covering ${duration}. When real history improves realism, use the available data tools silently; otherwise craft a consistent synthetic series with volatility. Include the ${maPeriod}-day moving average at each point.`,
     `3. Simulate the strategy: track when you'd be in ${token} (price > MA) vs. stablecoin (price <= MA), calculate portfolio value and a HODL baseline at each date.`,
     `4. Estimate performance: approximate Sharpe ratio and maximum drawdown for both strategy and HODL. Note any key trades and risk factors.`,
-    "5. Summarize the strategy performance, trade timing, and key risks in exactly three concise bullet points. Include Sharpe ratio and drawdown metrics in the first bullet. State assumptions.",
-    `6. After the summary, output a JSON array labeled DATA with objects: {\"date\":\"YYYY-MM-DD\",\"price\":number,\"ma\":number,\"portfolioEquity\":number,\"hodlValue\":number}. Provide daily or representative entries across the ${duration}. All values must be numbers, not strings.`,
-    "7. Never ask questions, never defer, always include both SUMMARY and DATA.",
+    "5. Produce a structured summary using the JSON schema below. Focus on three concise sections that capture performance metrics, trade cadence, and risks. Keep assumptions explicit inside the sections.",
+    `6. Provide a modeled series with one entry per trading day across ${duration}. Each point must include price, moving average, portfolio equity, and HODL baseline values. All values must be numbers.`,
+    "7. Never ask questions, never defer, and respond with a single JSON object—no prose or markdown framing.",
     "",
-    "Use the following structure exactly:",
-    "SUMMARY:",
-    "- bullet point one (include Sharpe and drawdown metrics)",
-    "- bullet point two",
-    "- bullet point three",
-    "DATA:",
-    "[{\"date\":\"2024-01-01\",\"price\":123.45,\"ma\":120.00,\"portfolioEquity\":10000,\"hodlValue\":10000}, ...]",
+    "Return JSON only, shaped exactly like:",
+    "{",
+    '  "insight": {',
+    '    "calculator": {',
+    '      "id": "trend-following",',
+    '      "label": "Trend-Following",',
+    '      "category": "momentum_strategy",',
+    '      "version": "v1"',
+    "    },",
+    '    "context": {',
+    '      "as_of": "YYYY-MM-DD",',
+    `      "asset": "${token}",`,
+    '      "inputs": {',
+    `        "initial_capital_usd": ${initialCapital},`,
+    `        "moving_average_period": ${maPeriod},`,
+    `        "duration": "${duration}"`,
+    "      },",
+    '      "assumptions": ["State the key modeling assumptions clearly."]',
+    "    },",
+    '    "sections": [',
+    "      {",
+    '        "type": "performance",',
+    '        "headline": "Performance snapshot",',
+    '        "summary": "Highlight Sharpe ratio, drawdown, and total return for strategy vs. HODL.",',
+    '        "metrics": [',
+    '          { "label": "Strategy total return (%)", "value": 12.5 },',
+    '          { "label": "Strategy Sharpe", "value": 0.92 },',
+    '          { "label": "Strategy max drawdown (%)", "value": -18.4 }',
+    "        ]",
+    "      },",
+    "      {",
+    '        "type": "trade_flow",',
+    '        "headline": "Trade cadence & positioning",',
+    '        "summary": "Explain how often price crosses the moving average and resulting position changes.",',
+    '        "metrics": [',
+    '          { "label": "Time in market (%)", "value": 64 },',
+    '          { "label": "Major crossover count", "value": 14 }',
+    "        ]",
+    "      },",
+    "      {",
+    '        "type": "risk",',
+    '        "headline": "Risks to monitor",',
+    '        "summary": "Outline sensitivity to volatility regimes, whipsaws, or liquidity constraints.",',
+    '        "risks": ["List each material risk in plain language."]',
+    "      }",
+    "    ],",
+    '    "notes": ["Optional reminders or next steps if they help interpret the model."]',
+    "  },",
+    '  "series": [',
+    "    {",
+    '      "id": "trend_price_equity",',
+    '      "label": "Modeled price & equity",',
+    '      "points": [',
+    '        { "date": "YYYY-MM-DD", "price": 123.45, "ma": 120.01, "portfolioEquity": 10050.25, "hodlValue": 9950.75 }',
+    "      ]",
+    "    }",
+    "  ]",
+    "}",
+    "",
+    "Populate metric values with actual calculations; replace template numbers before responding. Do not emit trailing commentary.",
   ]);
 }
 
 function parseNovaReply(reply: string): CalculatorResult {
-  // For compatibility with CalculatorResult, we map the extended data to the standard format
-  // The extended data will be stored separately in the calculator hub
-  const result = parseTrendFollowingReply(reply);
-  return {
-    summary: result.summary,
-    dataset: result.dataset.map((point) => ({ date: point.date, price: point.price })),
-  };
+  return parseCalculatorReply(reply);
 }
-
-const formatSummary = formatSummaryLines;
 
 export function TrendFollowingCalculatorForm({
   formState,
@@ -171,9 +216,7 @@ export const trendFollowingCalculatorDefinition: CalculatorDefinition<TrendFollo
     return buildNovaRequestOptions(prompt, { max_tokens: 18000 });
   },
   parseReply: parseNovaReply,
-  formatSummary,
   getSeriesLabel: (formState) => `${formState.token} price`,
   initialSummary: initialSummaryMessage,
   pendingSummary: pendingSummaryMessage,
 };
-

@@ -9,10 +9,7 @@ import type {
 } from "@/components/calculators/types";
 import { buildFieldChangeHandler } from "@/components/calculators/utils/forms";
 import { joinPromptLines } from "@/components/calculators/utils/prompt";
-import {
-  formatSummaryLines,
-  parseSummaryAndDataset,
-} from "@/components/calculators/utils/summary";
+import { parseCalculatorReply } from "@/components/calculators/utils/summary";
 import { buildNovaRequestOptions } from "@/components/calculators/utils/request";
 
 export type DcaFormState = {
@@ -41,25 +38,69 @@ function buildPrompt({ token, amount, interval, duration }: DcaFormState) {
     "Guidelines:",
     "1. Determine the schedule start date automatically: call your date/time capability to retrieve today's UTC date and use it as the starting point. Do not ask the user.",
     "2. Generate a plausible synthetic price path that matches the cadence and duration. When real history improves realism, use the available data tools silently; otherwise craft a consistent synthetic series.",
-    "3. Summarize performance factors, expected cost basis shifts, and key risks in exactly three concise bullet points. State any assumptions directly inside the bullets.",
-    "4. After the summary, output a JSON array labeled DATA containing objects formatted as {\"date\":\"YYYY-MM-DD\",\"price\":number}. Provide one entry per scheduled purchase date, ordered chronologically. Prices must be numbers, not strings.",
-    "5. Never ask questions, never defer the calculation, and always include both the SUMMARY section and the DATA array.",
+    "3. Summarize performance drivers, expected cost basis shifts, and risks using the structured schema below. Keep assumptions explicit.",
+    "4. Provide one entry per scheduled purchase date in a modeled price path. Dates must be chronological and use YYYY-MM-DD. Prices must be numbers.",
+    "5. Never ask questions, never defer the calculation, and respond with a single JSON object—no prose or markdown framing.",
+    "Populate metric values with actual calculations; replace illustrative numbers shown in the template.",
     "",
-    "Use the following structure exactly:",
-    "SUMMARY:",
-    "- bullet point one",
-    "- bullet point two",
-    "- bullet point three",
-    "DATA:",
-    "[{\"date\":\"2024-01-01\",\"price\":123.45}, ...]",
+    "Return JSON only, shaped exactly like:",
+    "{",
+    '  "insight": {',
+    '    "calculator": {',
+    '      "id": "dca",',
+    '      "label": "Dollar-Cost Averaging",',
+    '      "category": "accumulation",',
+    '      "version": "v1"',
+    "    },",
+    '    "context": {',
+    '      "as_of": "YYYY-MM-DD",',
+    `      "asset": "${token}",`,
+    '      "inputs": {',
+    `        "amount_usd": ${amount},`,
+    `        "interval": "${interval}",`,
+    `        "duration": "${duration}"`,
+    "      },",
+    '      "assumptions": ["Describe key assumptions explicitly."]',
+    "    },",
+    '    "sections": [',
+    "      {",
+    '        "type": "performance_driver",',
+    '        "headline": "Concise label for core performance factor",',
+    '        "summary": "1-2 sentence explanation of what drives the modeled outcome.",',
+    '        "metrics": [',
+    '          { "label": "Total USD invested", "value": 1300 },',
+    '          { "label": "Estimated cost basis (USD)", "value": 1.91 }',
+    "        ],",
+    '        "assumptions": ["Note any assumptions specific to this driver."],',
+    '        "risks": ["Highlight sensitivities or risk factors."]',
+    "      },",
+    "      {",
+    '        "type": "risk_assumption",',
+    '        "headline": "Key risks & sensitivities",',
+    '        "summary": "Explain how drift, volatility, or operational constraints could change the result.",',
+    '        "risks": ["List each material risk in plain language."]',
+    "      }",
+    "    ],",
+    '    "notes": ["Include optional closing reminders or action items when helpful."]',
+    "  },",
+    '  "series": [',
+    "    {",
+    '      "id": "price_path",',
+    '      "label": "Modeled price path",',
+    '      "points": [',
+    '        { "date": "YYYY-MM-DD", "price": 123.45 }',
+    "      ]",
+    "    }",
+    "  ]",
+    "}",
+    "",
+    "Strictly follow the schema. Do not emit trailing text or additional keys.",
   ]);
 }
 
 function parseNovaReply(reply: string): CalculatorResult {
-  return parseSummaryAndDataset(reply);
+  return parseCalculatorReply(reply);
 }
-
-const formatSummary = formatSummaryLines;
 
 export function DcaCalculatorForm({
   formState,
@@ -165,7 +206,6 @@ export const dcaCalculatorDefinition: CalculatorDefinition<DcaFormState> = {
     return buildNovaRequestOptions(prompt, { max_tokens: 18000 });
   },
   parseReply: parseNovaReply,
-  formatSummary,
   getSeriesLabel: (formState) => `${formState.token} price`,
   initialSummary: initialSummaryMessage,
   pendingSummary: pendingSummaryMessage,

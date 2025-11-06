@@ -8,12 +8,115 @@ export type TrendFollowingResult = {
   dataset: TrendFollowingDataPoint[];
 };
 
+function parseNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function parsePoint(candidate: unknown): TrendFollowingDataPoint | null {
+  if (!candidate || typeof candidate !== "object") {
+    return null;
+  }
+
+  const item = candidate as Record<string, unknown>;
+
+  const date = typeof item.date === "string" ? item.date : "";
+  const price = parseNumber(item.price);
+  const ma = parseNumber(item.ma ?? item.movingAverage);
+  const portfolioEquity = parseNumber(item.portfolioEquity ?? item.portfolio_equity);
+  const hodlValue = parseNumber(item.hodlValue ?? item.hodl_value);
+
+  if (!date || price == null || ma == null || portfolioEquity == null || hodlValue == null) {
+    return null;
+  }
+
+  return {
+    date,
+    price,
+    ma,
+    portfolioEquity,
+    hodlValue,
+  };
+}
+
+function parseSeriesCollection(series: unknown): TrendFollowingDataPoint[] {
+  if (!Array.isArray(series)) {
+    return [];
+  }
+
+  for (const entry of series) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+
+    const record = entry as Record<string, unknown>;
+    const rawPoints = Array.isArray(record.points)
+      ? record.points
+      : Array.isArray(record.data)
+        ? record.data
+        : null;
+
+    if (!rawPoints) {
+      continue;
+    }
+
+    const points = rawPoints.map((point) => parsePoint(point)).filter(Boolean) as TrendFollowingDataPoint[];
+    if (points.length) {
+      return points;
+    }
+  }
+
+  return [];
+}
+
+function parseStructuredReply(reply: string): TrendFollowingResult | null {
+  try {
+    const parsed = JSON.parse(reply) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+
+    const dataset = parseSeriesCollection(parsed.series);
+    const summary = typeof parsed.summary === "string" ? parsed.summary.trim() : "";
+
+    if (dataset.length === 0) {
+      return { summary, dataset: [] };
+    }
+
+    return { summary, dataset };
+  } catch (error) {
+    return null;
+  }
+}
+
 /**
- * Extracts the SUMMARY section and DATA array from Nova's reply for trend-following calculator.
- * The DATA array contains extended fields: date, price, ma, portfolioEquity, hodlValue
+ * Extracts structured trend-following data from Nova's reply. Supports both the new JSON insight schema
+ * and the legacy SUMMARY/DATA response.
  */
 export function parseTrendFollowingReply(reply: string): TrendFollowingResult {
-  const normalizedReply = reply ?? "";
+  const normalizedReply = reply?.trim() ?? "";
+
+  if (!normalizedReply) {
+    return {
+      summary: "",
+      dataset: [],
+    };
+  }
+
+  const structured = parseStructuredReply(normalizedReply);
+  if (structured) {
+    return structured;
+  }
+
+  // Legacy fallback: SUMMARY/DATA format
   const jsonStart = normalizedReply.indexOf("[");
   const jsonEnd = normalizedReply.lastIndexOf("]");
 
@@ -31,34 +134,7 @@ export function parseTrendFollowingReply(reply: string): TrendFollowingResult {
     try {
       const parsed = JSON.parse(jsonString);
       if (Array.isArray(parsed)) {
-        dataset = parsed
-          .map((item) => {
-            const date = typeof item?.date === "string" ? item.date : "";
-            const priceValue = typeof item?.price === "number" ? item.price : Number(item?.price);
-            const maValue = typeof item?.ma === "number" ? item.ma : Number(item?.ma);
-            const portfolioEquityValue =
-              typeof item?.portfolioEquity === "number" ? item.portfolioEquity : Number(item?.portfolioEquity);
-            const hodlValueValue = typeof item?.hodlValue === "number" ? item.hodlValue : Number(item?.hodlValue);
-
-            if (
-              !date ||
-              Number.isNaN(priceValue) ||
-              Number.isNaN(maValue) ||
-              Number.isNaN(portfolioEquityValue) ||
-              Number.isNaN(hodlValueValue)
-            ) {
-              return null;
-            }
-
-            return {
-              date,
-              price: priceValue,
-              ma: maValue,
-              portfolioEquity: portfolioEquityValue,
-              hodlValue: hodlValueValue,
-            } satisfies TrendFollowingDataPoint;
-          })
-          .filter(Boolean) as TrendFollowingDataPoint[];
+        dataset = parsed.map((item) => parsePoint(item)).filter(Boolean) as TrendFollowingDataPoint[];
       }
     } catch (error) {
       console.warn("[trend-following-parser] Failed to parse DATA block", error);
@@ -71,4 +147,3 @@ export function parseTrendFollowingReply(reply: string): TrendFollowingResult {
 
   return { summary, dataset };
 }
-
