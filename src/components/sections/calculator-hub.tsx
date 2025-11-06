@@ -82,7 +82,6 @@ export function CalculatorHubSection() {
     setIsLoading(true);
     setError(null);
     setDataset([]);
-    setTrendFollowingDataset([]);
     setInsight(null);
     setFallbackLines([]);
     setSummaryMessage(pendingSummary);
@@ -102,12 +101,6 @@ export function CalculatorHubSection() {
       setInsight(parsedInsight ?? null);
       setDataset(parsedDataset);
 
-      // If this is the trend-following calculator, parse the extended data
-      if (activeCalculatorId === "trend-following") {
-        const trendFollowingResult = parseTrendFollowingReply(reply);
-        setTrendFollowingDataset(trendFollowingResult.dataset);
-      }
-
       if (parsedInsight) {
         setSummaryMessage("");
         setFallbackLines([]);
@@ -118,6 +111,12 @@ export function CalculatorHubSection() {
           parsedFallbackSummary ??
           (fallbackSummaryLines.length ? "" : "Nova did not return a structured summary for this run.");
         setSummaryMessage(summaryText);
+      }
+
+      // If this is the trend-following calculator, parse the extended data
+      if (activeCalculatorId === "trend-following") {
+        const trendFollowingResult = parseTrendFollowingReply(reply);
+        setTrendFollowingDataset(trendFollowingResult.dataset);
       }
 
       if (!parsedDataset.length) {
@@ -132,7 +131,6 @@ export function CalculatorHubSection() {
 
       setError(message);
       setDataset([]);
-      setTrendFollowingDataset([]);
       setInsight(null);
       setFallbackLines([]);
       setSummaryMessage("Nova couldn't complete this request. Please adjust your inputs and try again.");
@@ -155,7 +153,6 @@ export function CalculatorHubSection() {
       await clearNovaHistory(refId);
       void resetNovaRefId("calculator");
       setDataset([]);
-      setTrendFollowingDataset([]);
       setInsight(null);
       setFallbackLines([]);
       setSummaryMessage(activeDefinition?.initialSummary ?? defaultSummary);
