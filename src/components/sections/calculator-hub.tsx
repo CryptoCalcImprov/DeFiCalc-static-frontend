@@ -1,10 +1,10 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { calculatorDefinitions, findCalculatorDefinition } from "@/components/calculators";
-import type { TimeSeriesPoint } from "@/components/calculators/types";
+import type { CalculatorInsight, TimeSeriesPoint } from "@/components/calculators/types";
 import { CalculatorDeck } from "@/components/calculators/workspace/CalculatorDeck";
 import { CalculatorWorkspace } from "@/components/calculators/workspace/CalculatorWorkspace";
 import { PriceTrajectoryPanel } from "@/components/calculators/workspace/PriceTrajectoryPanel";
@@ -37,7 +37,9 @@ export function CalculatorHubSection() {
     defaultCalculatorId ? [defaultCalculatorId] : [],
   );
   const [favoriteCalculatorIds, setFavoriteCalculatorIds] = useState<string[]>([]);
-  const [summary, setSummary] = useState<string>(defaultSummary);
+  const [summaryMessage, setSummaryMessage] = useState<string>(defaultSummary);
+  const [insight, setInsight] = useState<CalculatorInsight | null>(null);
+  const [fallbackLines, setFallbackLines] = useState<string[]>([]);
   const [dataset, setDataset] = useState<TimeSeriesPoint[]>([]);
   const [trendFollowingDataset, setTrendFollowingDataset] = useState<TrendFollowingDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -49,23 +51,6 @@ export function CalculatorHubSection() {
   const formState = (calculatorStates[activeCalculatorId] ??
     activeDefinition?.getInitialState?.() ??
     {}) as Record<string, unknown>;
-
-  const summaryLines = useMemo(() => {
-    if (!activeDefinition) {
-      return [];
-    }
-
-    if (activeDefinition.formatSummary) {
-      return activeDefinition.formatSummary(summary);
-    }
-
-    return summary
-      ? summary
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean)
-      : [];
-  }, [activeDefinition, summary]);
 
   const seriesLabel =
     (activeDefinition?.getSeriesLabel ? activeDefinition.getSeriesLabel(formState as any) : undefined) ?? "Modeled price";
@@ -98,16 +83,23 @@ export function CalculatorHubSection() {
     setError(null);
     setDataset([]);
     setTrendFollowingDataset([]);
-    setSummary(pendingSummary);
+    setInsight(null);
+    setFallbackLines([]);
+    setSummaryMessage(pendingSummary);
 
     try {
       const { prompt, options } = activeDefinition.getRequestConfig(currentState as any);
       const refId = ensureNovaRefId("calculator");
       const { reply } = await requestNova(prompt, options, { refId });
 
-      const { summary: parsedSummary, dataset: parsedDataset } = activeDefinition.parseReply(reply);
+      const {
+        insight: parsedInsight,
+        dataset: parsedDataset,
+        fallbackSummary: parsedFallbackSummary,
+        fallbackLines: parsedFallbackLines,
+      } = activeDefinition.parseReply(reply);
 
-      setSummary(parsedSummary);
+      setInsight(parsedInsight ?? null);
       setDataset(parsedDataset);
 
       // If this is the trend-following calculator, parse the extended data
@@ -116,8 +108,20 @@ export function CalculatorHubSection() {
         setTrendFollowingDataset(trendFollowingResult.dataset);
       }
 
+      if (parsedInsight) {
+        setSummaryMessage("");
+        setFallbackLines([]);
+      } else {
+        const fallbackSummaryLines = parsedFallbackLines ?? [];
+        setFallbackLines(fallbackSummaryLines);
+        const summaryText =
+          parsedFallbackSummary ??
+          (fallbackSummaryLines.length ? "" : "Nova did not return a structured summary for this run.");
+        setSummaryMessage(summaryText);
+      }
+
       if (!parsedDataset.length) {
-        setError("Nova didn't return price history data for this run. Showing the textual summary instead.");
+        setError("Nova didn't return price history data for this run. Displaying the structured insight instead.");
       }
     } catch (novaError) {
       console.error("[CalculatorHub] Request error:", novaError);
@@ -129,7 +133,9 @@ export function CalculatorHubSection() {
       setError(message);
       setDataset([]);
       setTrendFollowingDataset([]);
-      setSummary("Nova couldn't complete this request. Please adjust your inputs and try again.");
+      setInsight(null);
+      setFallbackLines([]);
+      setSummaryMessage("Nova couldn't complete this request. Please adjust your inputs and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -150,7 +156,9 @@ export function CalculatorHubSection() {
       void resetNovaRefId("calculator");
       setDataset([]);
       setTrendFollowingDataset([]);
-      setSummary(activeDefinition?.initialSummary ?? defaultSummary);
+      setInsight(null);
+      setFallbackLines([]);
+      setSummaryMessage(activeDefinition?.initialSummary ?? defaultSummary);
     } catch (historyError) {
       console.error("[CalculatorHub] Failed to clear Nova history:", historyError);
       const message =
@@ -185,7 +193,9 @@ export function CalculatorHubSection() {
     setTrendFollowingDataset([]);
     setIsDeckOpen(false);
 
-    setSummary(nextDefinition?.initialSummary ?? defaultSummary);
+    setInsight(null);
+    setFallbackLines([]);
+    setSummaryMessage(nextDefinition?.initialSummary ?? defaultSummary);
 
     setCalculatorStates((previous) => {
       if (previous[nextId]) {
@@ -262,7 +272,9 @@ export function CalculatorHubSection() {
       }
       summaryPanel={
         <SummaryPanel
-          lines={summaryLines}
+          insight={insight}
+          fallbackLines={fallbackLines}
+          fallbackMessage={summaryMessage}
           isLoading={isLoading}
           loadingMessage="Nova is compiling the summary and risk notes for this scenario."
         />

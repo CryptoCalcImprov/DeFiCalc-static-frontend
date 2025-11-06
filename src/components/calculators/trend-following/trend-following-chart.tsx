@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { ChartConfiguration } from "chart.js";
 
 import { CalculatorSpinner } from "@/components/calculators/workspace/CalculatorSpinner";
+import { LoadingDots } from "@/components/ui/loading-dots";
 
 type ChartConstructor = typeof import("chart.js/auto") extends { default: infer T } ? T : never;
 type ChartInstance = ChartConstructor extends new (...args: any[]) => infer R ? R : never;
@@ -214,9 +215,10 @@ export function TrendFollowingChart({
             {isLoading ? (
               <>
                 <CalculatorSpinner size={56} />
-                <p className="text-xs font-semibold uppercase tracking-widest text-mint/80 sm:text-sm">
-                  Rendering price path…
-                </p>
+                <LoadingDots
+                  text="Rendering price path"
+                  className="text-xs font-semibold uppercase tracking-widest text-mint/80 sm:text-sm"
+                />
                 <p className="text-xs text-muted sm:text-sm">{loadingMessage}</p>
               </>
             ) : (
@@ -228,4 +230,3 @@ export function TrendFollowingChart({
     </div>
   );
 }
-

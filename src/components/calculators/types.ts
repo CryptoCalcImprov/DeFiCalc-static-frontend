@@ -5,9 +5,48 @@ export type TimeSeriesPoint = {
   price: number;
 };
 
+export type CalculatorSummaryMetric = {
+  label: string;
+  value: string | number;
+  unit?: string;
+};
+
+export type CalculatorSummarySection = {
+  type: string;
+  headline?: string;
+  summary?: string;
+  details?: string;
+  metrics?: CalculatorSummaryMetric[];
+  bullets?: string[];
+  assumptions?: string[];
+  risks?: string[];
+};
+
+export type CalculatorContext = {
+  as_of?: string;
+  asset?: string;
+  inputs?: Record<string, unknown>;
+  assumptions?: string[];
+  [key: string]: unknown;
+};
+
+export type CalculatorInsight = {
+  calculator?: {
+    id?: string;
+    label?: string;
+    category?: string;
+    version?: string;
+  };
+  context?: CalculatorContext;
+  sections: CalculatorSummarySection[];
+  notes?: string[];
+};
+
 export type CalculatorResult = {
-  summary: string;
+  insight: CalculatorInsight | null;
   dataset: TimeSeriesPoint[];
+  fallbackSummary?: string;
+  fallbackLines?: string[];
 };
 
 export type CalculatorFormChangeHandler<FormState> = <Field extends keyof FormState>(
@@ -36,7 +75,6 @@ export type CalculatorDefinition<FormState> = {
   getInitialState: () => FormState;
   getRequestConfig: (formState: FormState) => CalculatorRequestConfig;
   parseReply: (reply: string) => CalculatorResult;
-  formatSummary?: (summary: string) => string[];
   getSeriesLabel?: (formState: FormState) => string;
   initialSummary?: string;
   pendingSummary?: string;
