@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const { PHASE_DEVELOPMENT_SERVER } = require("next/constants");
 
 const isGitHubActions = process.env.GITHUB_ACTIONS === "true";
@@ -12,12 +14,24 @@ function normalizeBasePath(path) {
   return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
 
+function hasCustomDomain() {
+  try {
+    const cnamePath = path.join(__dirname, "CNAME");
+    if (!fs.existsSync(cnamePath)) {
+      return false;
+    }
+    return Boolean(fs.readFileSync(cnamePath, "utf8").trim());
+  } catch {
+    return false;
+  }
+}
+
 function resolveBasePath() {
   const explicit = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH ?? process.env.BASE_PATH);
   if (explicit) {
     return explicit;
   }
-  if (isGitHubActions && repoName) {
+  if (isGitHubActions && repoName && !hasCustomDomain()) {
     return `/${repoName}`;
   }
   return "";
