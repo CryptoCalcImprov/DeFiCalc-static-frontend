@@ -26,6 +26,7 @@ const FALLBACK_ASSETS: CoindeskAsset[] = [
 
 const SEARCH_ENDPOINT = "https://production.api.coindesk.com/v2/search/asset";
 const DEBOUNCE_MS = 300;
+const COINDESK_API_KEY = process.env.NEXT_PUBLIC_COINDESK_API_KEY;
 
 function normaliseAsset(entry: unknown): CoindeskAsset | null {
   if (typeof entry !== "object" || entry === null) {
@@ -126,6 +127,17 @@ export function useCoindeskAssetSearch(query: string): UseCoindeskAssetSearchRes
       return;
     }
 
+    if (!COINDESK_API_KEY) {
+      if (abortController.current) {
+        abortController.current.abort();
+        abortController.current = null;
+      }
+      setAssets(FALLBACK_ASSETS);
+      setIsLoading(false);
+      setError("Token search requires a CoinDesk API key. Showing popular tokens instead.");
+      return;
+    }
+
     const controller = new AbortController();
     abortController.current = controller;
     setIsLoading(true);
@@ -136,10 +148,17 @@ export function useCoindeskAssetSearch(query: string): UseCoindeskAssetSearchRes
     fetch(requestUrl, {
       headers: {
         Accept: "application/json",
+        "X-CoinDesk-API-Key": COINDESK_API_KEY,
       },
       signal: controller.signal,
     })
       .then((response) => {
+        if (response.status === 401 || response.status === 403) {
+          const authError = new Error("CoinDeskAuthError");
+          authError.name = "CoinDeskAuthError";
+          throw authError;
+        }
+
         if (!response.ok) {
           throw new Error(`Coindesk search failed (${response.status})`);
         }
@@ -158,7 +177,13 @@ export function useCoindeskAssetSearch(query: string): UseCoindeskAssetSearchRes
         if ((requestError as Error)?.name === "AbortError") {
           return;
         }
-        setError("We couldn't reach CoinDesk right now. Showing popular tokens instead.");
+
+        if ((requestError as Error)?.name === "CoinDeskAuthError") {
+          setError("Token search requires a CoinDesk API key. Showing popular tokens instead.");
+        } else {
+          setError("We couldn't reach CoinDesk right now. Showing popular tokens instead.");
+        }
+
         setAssets(FALLBACK_ASSETS);
       })
       .finally(() => {
