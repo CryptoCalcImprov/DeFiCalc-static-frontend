@@ -21,9 +21,20 @@ component-driven architecture to help you assemble marketing pages quickly while
 
    ```bash
    npm run dev
-   ```
+ ```
 
 3. Open [http://localhost:3000](http://localhost:3000) to view the site.
+
+### CoinDesk Asset Search
+
+The calculator workspace token selector can surface live results from the CoinDesk API. To enable this during development,
+create a `.env.local` file and add your API key:
+
+```bash
+NEXT_PUBLIC_COINDESK_API_KEY=your_api_key_here
+```
+
+Without a key the selector will continue to work using a curated list of popular assets.
 
 ## Static Export for GitHub Pages
 
