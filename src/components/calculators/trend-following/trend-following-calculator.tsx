@@ -12,6 +12,7 @@ import { joinPromptLines } from "@/components/calculators/utils/prompt";
 import { parseCalculatorReply } from "@/components/calculators/utils/summary";
 import { buildNovaRequestOptions } from "@/components/calculators/utils/request";
 import { parseTrendFollowingReply } from "./parser";
+import { TokenSelector } from "@/components/calculators/workspace/TokenSelector";
 
 export type TrendFollowingFormState = {
   token: string;
@@ -141,11 +142,9 @@ export function TrendFollowingCalculatorForm({
       <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
         <label className="flex flex-col gap-1.5 text-xs font-medium text-slate-200 sm:gap-2 sm:text-sm">
           Token
-          <input
-            type="text"
+          <TokenSelector
             value={formState.token}
-            onChange={handleFieldChange("token")}
-            className="rounded-xl border border-ocean/60 bg-surface/90 px-3 py-1.5 text-sm text-slate-50 placeholder:text-slate-500 shadow-inner focus:border-mint focus:bg-surface/95 focus:outline-none focus:ring-1 focus:ring-mint/35 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
+            onSelect={(nextValue) => handleFieldChangeBuilder("token")(nextValue)}
             placeholder="e.g. BTC"
             required
           />
