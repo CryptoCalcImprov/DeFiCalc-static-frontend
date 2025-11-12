@@ -144,14 +144,29 @@ export function YourCalculatorForm({
 }
 
 // 8. Export Definition
-export const yourCalculatorDefinition: CalculatorDefinition<YourCalculatorFormState> = {
+type YourAnalysisPackage = ReturnType<typeof buildYourAnalysisPackage>;
+
+export const yourCalculatorDefinition: CalculatorDefinition<
+  YourCalculatorFormState,
+  YourAnalysisPackage
+> = {
   id: "your-calculator",
   label: "Your Calculator",
   description: "Brief description of what this calculator does.",
   Form: YourCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: (formState) => {
-    const prompt = buildPrompt(formState);
+  prepareAnalysis: async (formState) => {
+    // Validate inputs and assemble deterministic analysis package
+    const analysisPackage = buildYourAnalysisPackage(formState);
+
+    return {
+      analysisPackage,
+      dataset: analysisPackage.projection.path,
+      summary: buildDeterministicSummary(formState, analysisPackage),
+    };
+  },
+  getRequestConfig: (formState, prepared) => {
+    const prompt = buildPrompt(formState, prepared.analysisPackage);
     return buildNovaRequestOptions(prompt, { max_tokens: 18000 });
   },
   parseReply: parseNovaReply,

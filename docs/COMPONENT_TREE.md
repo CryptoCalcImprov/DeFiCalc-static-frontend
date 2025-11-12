@@ -63,11 +63,14 @@ CalculatorHubSection (Entry Point)
 │              CalculatorHubSection.handleSubmit()                │
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │ 1. Extract formState from calculatorStates map          │  │
-│  │ 2. Call definition.getRequestConfig(formState)           │  │
-│  │    └── buildPrompt(formState)                            │  │
-│  │    └── buildNovaRequestOptions(prompt)                    │  │
-│  │ 3. Set loading state                                     │  │
-│  │ 4. Call requestNova(prompt, options)                     │  │
+│  │ 2. Call definition.prepareAnalysis(formState) → preview  │  │
+│  │    ├── Validates inputs / simulates projection           │  │
+│  │    └── Returns { analysisPackage, dataset, summary }     │  │
+│  │ 3. Call definition.getRequestConfig(formState, prepared) │  │
+│  │    ├── buildPrompt(prepared.analysisPackage)             │  │
+│  │    └── buildNovaRequestOptions(prompt)                   │  │
+│  │ 4. Set loading state                                     │  │
+│  │ 5. Call requestNova(prompt, options)                     │  │
 │  └──────────────────────┬─────────────────────────────────────┘  │
 └─────────────────────────┼─────────────────────────────────────────┘
                           │ reply: string
@@ -75,12 +78,12 @@ CalculatorHubSection (Entry Point)
 ┌─────────────────────────────────────────────────────────────────┐
 │              CalculatorHubSection.handleSubmit()                 │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │ 5. Call definition.parseReply(reply)                     │  │
+│  │ 6. Call definition.parseReply(reply)                     │  │
 │  │    └── parseSummaryAndDataset(reply)                      │  │
 │  │        ├── Extract SUMMARY section → summary string      │  │
 │  │        └── Parse DATA JSON array → TimeSeriesPoint[]     │  │
-│  │ 6. Update state: setSummary(parsedSummary)              │  │
-│  │ 7. Update state: setDataset(parsedDataset)                │  │
+│  │ 7. Update state: setSummary(parsedSummary)               │  │
+│  │ 8. Update state: setDataset(parsedDataset)                │  │
 │  └──────────────────────┬─────────────────────────────────────┘  │
 └─────────────────────────┼─────────────────────────────────────────┘
                           │

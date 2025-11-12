@@ -4,8 +4,11 @@ import type { ChangeEvent } from "react";
 
 import type {
   CalculatorDefinition,
+  CalculatorDeterministicSummary,
   CalculatorFormProps,
+  CalculatorPreparedAnalysis,
   CalculatorResult,
+  CalculatorSummaryMetric,
 } from "@/components/calculators/types";
 import { buildFieldChangeHandler } from "@/components/calculators/utils/forms";
 import { joinPromptLines } from "@/components/calculators/utils/prompt";
@@ -94,7 +97,9 @@ function sampleTrendStates(states: TrendFollowingAnalysisPackage["projection"]["
   return sampled.slice(0, target);
 }
 
-function buildPrompt(
+type TrendFollowingPromptAnalysisPackage = ReturnType<typeof createAnalysisPackage>;
+
+function createAnalysisPackage(
   { token, tokenName, initialCapital, maPeriod, duration }: TrendFollowingFormState,
   history: CoindeskHistoryResult,
   clock: UtcClockInfo,
@@ -111,7 +116,7 @@ function buildPrompt(
     projectionWindowDays,
   } = modeling;
 
-  const analysisPackage = {
+  return {
     context: {
       calculator: {
         id: "trend-following",
@@ -172,7 +177,10 @@ function buildPrompt(
       ...(metric.unit ? { unit: metric.unit } : {}),
     })),
   };
+}
 
+function buildPrompt(formState: TrendFollowingFormState, analysisPackage: TrendFollowingPromptAnalysisPackage) {
+  const { token, initialCapital, maPeriod, duration } = formState;
   const analysisJson = JSON.stringify(analysisPackage, null, 2);
 
   return joinPromptLines([
@@ -262,6 +270,72 @@ function buildPrompt(
 
 function parseNovaReply(reply: string): CalculatorResult {
   return parseCalculatorReply(reply);
+}
+
+const trendCurrencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 2,
+});
+
+const trendNumberFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 4,
+});
+
+function formatTrendMetric(metric: CalculatorSummaryMetric & { id?: string }): CalculatorSummaryMetric {
+  const rawValue = metric.value;
+  if (typeof rawValue !== "number") {
+    return metric;
+  }
+
+  if (metric.id === "signal_bias") {
+    return {
+      ...metric,
+      value: rawValue >= 1 ? "Long bias" : "Flat bias",
+    };
+  }
+
+  const isCurrency = metric.label.toLowerCase().includes("equity");
+  const formatted = isCurrency ? trendCurrencyFormatter.format(rawValue) : trendNumberFormatter.format(rawValue);
+
+  return {
+    ...metric,
+    value: formatted,
+  };
+}
+
+function buildTrendSummary(
+  formState: TrendFollowingFormState,
+  analysisPackage: TrendFollowingPromptAnalysisPackage,
+): CalculatorDeterministicSummary {
+  const resolvedTokenName = analysisPackage.context.market.token_name ?? formState.token;
+  const capitalValue = Number.parseFloat(formState.initialCapital);
+  const formattedCapital = Number.isFinite(capitalValue)
+    ? trendCurrencyFormatter.format(capitalValue)
+    : formState.initialCapital;
+
+  const inputContext = analysisPackage.context.inputs as Record<string, unknown> | undefined;
+  const longWindow =
+    typeof inputContext?.long_window_days === "number" ? inputContext.long_window_days : undefined;
+  const shortWindow =
+    typeof inputContext?.short_window_days === "number" ? inputContext.short_window_days : undefined;
+  const windowLabel =
+    longWindow && shortWindow ? `${shortWindow}/${longWindow}-day` : `${formState.maPeriod}-day`;
+
+  const metrics = analysisPackage.metrics.map((metric) =>
+    formatTrendMetric({ id: metric.id, label: metric.label, value: metric.value, unit: metric.unit }),
+  );
+
+  const description = `Simulating ${windowLabel} trend windows on ${resolvedTokenName} with ${formattedCapital} over ${formState.duration}.`;
+
+  const footnotes = analysisPackage.history.summary ? [analysisPackage.history.summary] : undefined;
+
+  return {
+    headline: `${resolvedTokenName} trend model ready`,
+    description,
+    metrics,
+    footnotes,
+  };
 }
 
 export function TrendFollowingCalculatorForm({
@@ -362,48 +436,68 @@ export function TrendFollowingCalculatorForm({
   );
 }
 
-export const trendFollowingCalculatorDefinition: CalculatorDefinition<TrendFollowingFormState> = {
+export const trendFollowingCalculatorDefinition: CalculatorDefinition<
+  TrendFollowingFormState,
+  TrendFollowingPromptAnalysisPackage
+> = {
   id: "trend-following",
   label: "Trend-Following",
   description: "Trade on momentum: go long when price exceeds moving average, hold stablecoin otherwise.",
   Form: TrendFollowingCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: async (formState) => {
+  prepareAnalysis: async (formState) => {
     if (!formState.token?.trim()) {
       throw new Error("Select a token before running the trend-following projection.");
     }
 
     const durationDays = resolveDurationDays(formState.duration, DURATION_TO_DAYS, DEFAULT_DURATION_DAYS);
-    const clock = getCurrentUtcClockInfo();
     const history = await fetchCoindeskHistoryWithSummary({
       symbol: formState.token,
       market: formState.market,
       durationDays,
     });
     const capitalInput = Number.parseFloat(formState.initialCapital);
-    const initialCapitalUsd = Number.isFinite(capitalInput) && capitalInput > 0 ? capitalInput : 0;
+    if (!Number.isFinite(capitalInput) || capitalInput <= 0) {
+      throw new Error("Enter an initial capital amount greater than zero.");
+    }
+    const initialCapitalUsd = capitalInput;
     const maInput = Number.parseInt(formState.maPeriod, 10);
     const normalizedMaPeriod = Number.isFinite(maInput) && maInput > 0 ? maInput : 50;
     const shortWindow = Math.max(5, Math.round(normalizedMaPeriod / 2));
     const longWindow = Math.max(shortWindow + 1, normalizedMaPeriod);
     const projectionWindowDays = durationDays;
 
-    const projection = simulateTrendFollowing(history, {
+    const analysis = simulateTrendFollowing(history, {
       initialCapitalUsd,
       shortWindow,
       longWindow,
       projectionWindowDays,
     });
 
-    const prompt = buildPrompt(formState, history, clock, {
-      historyHighlights: projection.history,
-      projectionSeries: projection.projection,
-      strategyMetrics: projection.metrics,
+    const clock = getCurrentUtcClockInfo();
+    const modeling: TrendModelingArtifacts = {
+      historyHighlights: analysis.history,
+      projectionSeries: analysis.projection,
+      strategyMetrics: analysis.metrics,
       initialCapitalUsd,
       shortWindow,
       longWindow,
       projectionWindowDays,
-    });
+    };
+
+    const analysisPackage = createAnalysisPackage(formState, history, clock, modeling);
+    const summary = buildTrendSummary(formState, analysisPackage);
+
+    const prepared: CalculatorPreparedAnalysis<TrendFollowingPromptAnalysisPackage> = {
+      analysisPackage,
+      dataset: analysis.projection.path,
+      summary,
+    };
+
+    return prepared;
+  },
+  getRequestConfig: async (formState, analysis) => {
+    const prompt = buildPrompt(formState, analysis.analysisPackage);
 
     return buildNovaRequestOptions(prompt, { max_tokens: 9000 });
   },

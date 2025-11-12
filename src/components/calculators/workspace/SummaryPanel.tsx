@@ -2,13 +2,19 @@
 
 import { useState } from "react";
 
-import type { CalculatorInsight, CalculatorSummarySection } from "@/components/calculators/types";
+import type {
+  CalculatorDeterministicSummary,
+  CalculatorInsight,
+  CalculatorSummarySection,
+} from "@/components/calculators/types";
 import { CalculatorSpinner } from "@/components/calculators/workspace/CalculatorSpinner";
 import { LoadingDots } from "@/components/ui/loading-dots";
 import { MessageParser } from "@/components/ui/message-parser";
 
 type SummaryPanelProps = {
   title?: string;
+  deterministicSummary?: CalculatorDeterministicSummary;
+  aiStatus?: "idle" | "pending" | "success" | "error";
   insight?: CalculatorInsight | null;
   fallbackLines?: string[];
   fallbackMessage?: string;
@@ -51,6 +57,92 @@ function renderList(items: string[] | undefined, bulletClassName = "bg-mint") {
         </li>
       ))}
     </ul>
+  );
+}
+
+type StatusBadgeConfig = {
+  label: string;
+  className: string;
+};
+
+function resolveStatusBadge(aiStatus: SummaryPanelProps["aiStatus"]): StatusBadgeConfig | null {
+  switch (aiStatus) {
+    case "pending":
+      return {
+        label: "Nova insight pending",
+        className: "border-amber-400/40 bg-amber-500/10 text-amber-200",
+      };
+    case "error":
+      return {
+        label: "Nova insight unavailable",
+        className: "border-critical/40 bg-critical/10 text-critical",
+      };
+    case "success":
+      return {
+        label: "Nova insight ready",
+        className: "border-mint/40 bg-mint/10 text-mint",
+      };
+    case "idle":
+      return {
+        label: "Deterministic preview",
+        className: "border-slate-500/40 bg-slate-500/10 text-slate-300",
+      };
+    default:
+      return null;
+  }
+}
+
+function DeterministicSummaryCard({
+  summary,
+  aiStatus,
+}: {
+  summary: CalculatorDeterministicSummary;
+  aiStatus?: SummaryPanelProps["aiStatus"];
+}) {
+  const { headline, description, metrics, footnotes } = summary;
+  const statusBadge = resolveStatusBadge(aiStatus);
+
+  return (
+    <div className="rounded-2xl border border-ocean/45 bg-slate-950/50 p-4 shadow-inner shadow-[0_0_18px_rgba(7,24,36,0.18)] sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        {headline ? <h4 className="text-sm font-semibold text-slate-100 sm:text-base">{headline}</h4> : null}
+        {statusBadge ? (
+          <span
+            className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-wide sm:text-xs ${statusBadge.className}`}
+          >
+            {statusBadge.label}
+          </span>
+        ) : null}
+      </div>
+      {description ? (
+        <p className="mt-2 text-xs text-slate-300 sm:text-sm">{description}</p>
+      ) : null}
+      {metrics?.length ? (
+        <dl className="mt-4 grid gap-3 rounded-xl border border-ocean/35 bg-slate-950/55 p-3 sm:grid-cols-2 sm:p-4">
+          {metrics.map((metric, index) => {
+            const value = typeof metric.value === "string" ? metric.value : formatValue(metric.value);
+            const unit = metric.unit ? ` ${metric.unit}` : "";
+            return (
+              <div key={`${metric.label}-${index}`}>
+                <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400 sm:text-xs">
+                  {metric.label}
+                </dt>
+                <dd className="text-sm font-semibold text-slate-100 sm:text-base">
+                  {value}
+                  {unit}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      ) : null}
+      {footnotes?.length ? (
+        <div className="mt-4">
+          <h5 className="text-[11px] font-medium uppercase tracking-wide text-slate-400 sm:text-xs">Context</h5>
+          <div className="mt-2">{renderList(footnotes, "bg-slate-400")}</div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -211,6 +303,8 @@ function FallbackCard({ text }: { text: string }) {
 
 export function SummaryPanel({
   title = "Nova’s takeaway",
+  deterministicSummary,
+  aiStatus = "idle",
   insight = null,
   fallbackLines = [],
   fallbackMessage,
@@ -266,62 +360,69 @@ export function SummaryPanel({
         )
       : extraFallbackLines.length > 0;
 
+  const insightContent = isLoading ? (
+    <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+      <CalculatorSpinner />
+      <LoadingDots
+        text="Nova is modeling"
+        className="text-xs font-semibold uppercase tracking-widest text-mint/80 sm:text-sm"
+      />
+      <p className="max-w-xs text-xs text-slate-300 sm:text-sm">{loadingMessage}</p>
+    </div>
+  ) : (
+    <div className="flex h-full flex-col gap-4 overflow-hidden">
+      {hasInsight ? (
+        <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+          <InsightContext insight={insight as CalculatorInsight} showDetails={showDetails} />
+          {(showDetails ? allSections : primarySections).map((section, index) => (
+            <SectionCard key={`${section.type}-${index}`} section={section} showDetails={showDetails} />
+          ))}
+          {showDetails && insight?.notes?.length ? (
+            <div className="rounded-xl border border-mint/35 bg-slate-950/45 p-3 sm:p-4">
+              <h5 className="text-[11px] font-medium uppercase tracking-wide text-mint sm:text-xs">Notes</h5>
+              <div className="mt-2">{renderList(insight.notes, "bg-mint")}</div>
+            </div>
+          ) : null}
+        </div>
+      ) : primaryFallbackLines.length ? (
+        <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+          {primaryFallbackLines.map((line, index) => (
+            <FallbackCard key={`${line}-${index}`} text={line} />
+          ))}
+          {showDetails &&
+            extraFallbackLines.map((line, index) => (
+              <FallbackCard key={`${line}-extra-${index}`} text={line} />
+            ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted sm:text-sm">{resolvedMessage || emptyMessage}</p>
+      )}
+      {showToggle ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowDetails((previous) => !previous)}
+            className="inline-flex items-center gap-2 rounded-full border border-mint/35 bg-slate-950/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-mint transition hover:border-mint hover:bg-slate-900/60 sm:text-xs"
+          >
+            {showDetails ? "Hide details" : "View full insight"}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+
   return (
     <div className="card-surface-muted flex h-full flex-col gap-4 rounded-2xl bg-gradient-to-br from-slate-950/65 via-slate-950/45 to-slate-900/24 p-4 shadow-[0_10px_32px_rgba(6,21,34,0.32)] sm:gap-5 sm:rounded-3xl sm:p-6 min-w-0 overflow-hidden">
       <div className="flex h-full flex-col min-w-0 overflow-hidden">
         <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">{title}</h3>
         <div className="mt-3 flex flex-1 min-w-0 sm:mt-4">
-          <div className="flex-1 rounded-2xl border border-ocean/65 bg-surface/80 p-4 shadow-inner shadow-[0_0_28px_rgba(7,24,36,0.22)] sm:p-5 min-w-0 overflow-hidden">
-            {isLoading ? (
-              <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-                <CalculatorSpinner />
-                <LoadingDots
-                  text="Nova is modeling"
-                  className="text-xs font-semibold uppercase tracking-widest text-mint/80 sm:text-sm"
-                />
-                <p className="max-w-xs text-xs text-slate-300 sm:text-sm">{loadingMessage}</p>
-              </div>
-            ) : (
-              <div className="flex h-full flex-col gap-4 overflow-hidden">
-                {hasInsight ? (
-                  <div className="flex-1 space-y-4 overflow-y-auto pr-1">
-                    <InsightContext insight={insight as CalculatorInsight} showDetails={showDetails} />
-                    {(showDetails ? allSections : primarySections).map((section, index) => (
-                      <SectionCard key={`${section.type}-${index}`} section={section} showDetails={showDetails} />
-                    ))}
-                    {showDetails && insight?.notes?.length ? (
-                      <div className="rounded-xl border border-mint/35 bg-slate-950/45 p-3 sm:p-4">
-                        <h5 className="text-[11px] font-medium uppercase tracking-wide text-mint sm:text-xs">Notes</h5>
-                        <div className="mt-2">{renderList(insight.notes, "bg-mint")}</div>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : primaryFallbackLines.length ? (
-                  <div className="flex-1 space-y-3 overflow-y-auto pr-1">
-                    {primaryFallbackLines.map((line, index) => (
-                      <FallbackCard key={`${line}-${index}`} text={line} />
-                    ))}
-                    {showDetails &&
-                      extraFallbackLines.map((line, index) => (
-                        <FallbackCard key={`${line}-extra-${index}`} text={line} />
-                      ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted sm:text-sm">{resolvedMessage || emptyMessage}</p>
-                )}
-                {showToggle ? (
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setShowDetails((previous) => !previous)}
-                      className="inline-flex items-center gap-2 rounded-full border border-mint/35 bg-slate-950/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-mint transition hover:border-mint hover:bg-slate-900/60 sm:text-xs"
-                    >
-                      {showDetails ? "Hide details" : "View full insight"}
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            )}
+          <div className="flex min-w-0 flex-1 flex-col gap-4 rounded-2xl border border-ocean/65 bg-surface/80 p-4 shadow-inner shadow-[0_0_28px_rgba(7,24,36,0.22)] sm:p-5">
+            {deterministicSummary ? (
+              <DeterministicSummaryCard summary={deterministicSummary} aiStatus={aiStatus} />
+            ) : null}
+            <div className="flex-1 rounded-xl border border-ocean/30 bg-slate-950/45 p-3 sm:p-4">
+              {insightContent}
+            </div>
           </div>
         </div>
       </div>

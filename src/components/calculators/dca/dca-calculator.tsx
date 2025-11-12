@@ -4,8 +4,11 @@ import type { ChangeEvent } from "react";
 
 import type {
   CalculatorDefinition,
+  CalculatorDeterministicSummary,
   CalculatorFormProps,
+  CalculatorPreparedAnalysis,
   CalculatorResult,
+  CalculatorSummaryMetric,
 } from "@/components/calculators/types";
 import { buildFieldChangeHandler } from "@/components/calculators/utils/forms";
 import { joinPromptLines } from "@/components/calculators/utils/prompt";
@@ -99,7 +102,9 @@ function sampleScheduleEntries(schedule: DcaAnalysisPackage["projection"]["sched
   return sampled.slice(0, target);
 }
 
-function buildPrompt(
+type DcaPromptAnalysisPackage = ReturnType<typeof createAnalysisPackage>;
+
+function createAnalysisPackage(
   { token, tokenName, amount, interval, duration }: DcaFormState,
   history: CoindeskHistoryResult,
   clock: UtcClockInfo,
@@ -115,7 +120,7 @@ function buildPrompt(
     durationDays,
   } = modeling;
 
-  const analysisPackage = {
+  return {
     context: {
       calculator: {
         id: "dca",
@@ -180,7 +185,10 @@ function buildPrompt(
       ...(metric.unit ? { unit: metric.unit } : {}),
     })),
   };
+}
 
+function buildPrompt(formState: DcaFormState, analysisPackage: DcaPromptAnalysisPackage) {
+  const { token, amount, interval, duration } = formState;
   const analysisJson = JSON.stringify(analysisPackage, null, 2);
 
   return joinPromptLines([
@@ -262,6 +270,58 @@ function resolveIntervalDays(interval: string) {
 
 function parseNovaReply(reply: string): CalculatorResult {
   return parseCalculatorReply(reply);
+}
+
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 2,
+});
+
+const numberFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 4,
+});
+
+function formatMetricForDisplay(metric: CalculatorSummaryMetric): CalculatorSummaryMetric {
+  const rawValue = metric.value;
+  if (typeof rawValue !== "number") {
+    return metric;
+  }
+
+  const label = metric.label.toLowerCase();
+  const isCurrency = label.includes("usd") || label.includes("value");
+  const formatted = isCurrency ? currencyFormatter.format(rawValue) : numberFormatter.format(rawValue);
+
+  return {
+    ...metric,
+    value: formatted,
+  };
+}
+
+function buildDeterministicSummary(
+  formState: DcaFormState,
+  analysisPackage: DcaPromptAnalysisPackage,
+): CalculatorDeterministicSummary {
+  const resolvedTokenName = analysisPackage.context.market.token_name ?? formState.token;
+  const contribution = Number.parseFloat(formState.amount);
+  const formattedContribution = Number.isFinite(contribution)
+    ? currencyFormatter.format(contribution)
+    : formState.amount;
+
+  const metrics = analysisPackage.metrics.map((metric) =>
+    formatMetricForDisplay({ label: metric.label, value: metric.value, unit: metric.unit }),
+  );
+
+  const description = `Deploying ${formattedContribution} ${formState.interval.replace(/-/g, " ")} over ${formState.duration}.`;
+
+  const footnotes = analysisPackage.history.summary ? [analysisPackage.history.summary] : undefined;
+
+  return {
+    headline: `${resolvedTokenName} DCA projection ready`,
+    description,
+    metrics,
+    footnotes,
+  };
 }
 
 export function DcaCalculatorForm({
@@ -362,41 +422,58 @@ export function DcaCalculatorForm({
   );
 }
 
-export const dcaCalculatorDefinition: CalculatorDefinition<DcaFormState> = {
+export const dcaCalculatorDefinition: CalculatorDefinition<DcaFormState, DcaPromptAnalysisPackage> = {
   id: "dca",
   label: "DCA",
   description: "Automate recurring buys to average into a token over time.",
   Form: DcaCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: async (formState) => {
+  prepareAnalysis: async (formState) => {
     if (!formState.token?.trim()) {
       throw new Error("Select a token before running the DCA projection.");
     }
 
     const durationDays = resolveDurationDays(formState.duration, DURATION_TO_DAYS, DEFAULT_DURATION_DAYS);
-    const clock = getCurrentUtcClockInfo();
     const history = await fetchCoindeskHistoryWithSummary({
       symbol: formState.token,
       market: formState.market,
       durationDays,
     });
     const contributionUsd = Number.parseFloat(formState.amount);
-    const normalizedContribution = Number.isFinite(contributionUsd) && contributionUsd > 0 ? contributionUsd : 0;
+    if (!Number.isFinite(contributionUsd) || contributionUsd <= 0) {
+      throw new Error("Enter a contribution amount greater than zero.");
+    }
+    const normalizedContribution = contributionUsd;
     const intervalDays = resolveIntervalDays(formState.interval);
-    const projection = simulateDcaProjection(history, {
+    const analysis = simulateDcaProjection(history, {
       contributionUsd: normalizedContribution,
       intervalDays,
       durationDays,
     });
 
-    const prompt = buildPrompt(formState, history, clock, {
-      historyHighlights: projection.history,
-      projectionSeries: projection.projection,
-      strategyMetrics: projection.metrics,
+    const clock = getCurrentUtcClockInfo();
+    const modeling: DcaModelingArtifacts = {
+      historyHighlights: analysis.history,
+      projectionSeries: analysis.projection,
+      strategyMetrics: analysis.metrics,
       contributionUsd: normalizedContribution,
       intervalDays,
       durationDays,
-    });
+    };
+
+    const analysisPackage = createAnalysisPackage(formState, history, clock, modeling);
+    const summary = buildDeterministicSummary(formState, analysisPackage);
+
+    const prepared: CalculatorPreparedAnalysis<DcaPromptAnalysisPackage> = {
+      analysisPackage,
+      dataset: analysis.projection.path,
+      summary,
+    };
+
+    return prepared;
+  },
+  getRequestConfig: async (formState, analysis) => {
+    const prompt = buildPrompt(formState, analysis.analysisPackage);
 
     return buildNovaRequestOptions(prompt, { max_tokens: 9000 });
   },

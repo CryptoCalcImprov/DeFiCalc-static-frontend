@@ -4,7 +4,12 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 
 import { calculatorDefinitions, findCalculatorDefinition } from "@/components/calculators";
-import type { CalculatorInsight, TimeSeriesPoint } from "@/components/calculators/types";
+import type {
+  CalculatorDeterministicSummary,
+  CalculatorInsight,
+  CalculatorPreparedAnalysis,
+  TimeSeriesPoint,
+} from "@/components/calculators/types";
 import { CalculatorDeck } from "@/components/calculators/workspace/CalculatorDeck";
 import { CalculatorWorkspace } from "@/components/calculators/workspace/CalculatorWorkspace";
 import { PriceTrajectoryPanel } from "@/components/calculators/workspace/PriceTrajectoryPanel";
@@ -22,6 +27,12 @@ const defaultSummary =
   defaultDefinition?.initialSummary ?? "Run a projection to see Nova’s perspective on this plan.";
 
 type CalculatorStateMap = Record<string, unknown>;
+type CalculatorAnalysisEntry = {
+  inputHash: string;
+  prepared: CalculatorPreparedAnalysis<any>;
+};
+
+type AiStatus = "idle" | "pending" | "success" | "error";
 
 export function CalculatorHubSection() {
   const [activeCalculatorId, setActiveCalculatorId] = useState(defaultCalculatorId);
@@ -45,6 +56,10 @@ export function CalculatorHubSection() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
+  const [analysisCache, setAnalysisCache] = useState<Record<string, CalculatorAnalysisEntry>>({});
+  const [activeAnalysis, setActiveAnalysis] = useState<CalculatorPreparedAnalysis<any> | null>(null);
+  const [deterministicSummary, setDeterministicSummary] = useState<CalculatorDeterministicSummary | null>(null);
+  const [aiStatus, setAiStatus] = useState<AiStatus>("idle");
 
   const activeDefinition = findCalculatorDefinition<any>(activeCalculatorId);
 
@@ -54,6 +69,15 @@ export function CalculatorHubSection() {
 
   const seriesLabel =
     (activeDefinition?.getSeriesLabel ? activeDefinition.getSeriesLabel(formState as any) : undefined) ?? "Modeled price";
+
+  const pricePanelStatus =
+    aiStatus === "pending"
+      ? { label: "Nova insight pending", tone: "pending" as const }
+      : aiStatus === "error"
+      ? { label: "Nova insight unavailable", tone: "error" as const }
+      : activeAnalysis
+      ? { label: "Deterministic projection", tone: "info" as const }
+      : undefined;
 
   const handleFormStateChange = (field: string, value: unknown): void => {
     setCalculatorStates((previous) => {
@@ -78,16 +102,65 @@ export function CalculatorHubSection() {
 
     const currentState = formState;
     const pendingSummary = activeDefinition.pendingSummary ?? "Generating Nova’s latest projection...";
+    const stateKey = JSON.stringify(currentState);
 
     setIsLoading(true);
     setError(null);
-    setDataset([]);
     setInsight(null);
     setFallbackLines([]);
     setSummaryMessage(pendingSummary);
+    setAiStatus("pending");
+
+    let preparedAnalysis: CalculatorPreparedAnalysis<any> | null = null;
 
     try {
-      const { prompt, options } = await activeDefinition.getRequestConfig(currentState as any);
+      const cachedEntry = analysisCache[activeCalculatorId];
+      if (cachedEntry && cachedEntry.inputHash === stateKey) {
+        preparedAnalysis = cachedEntry.prepared;
+      } else {
+        const prepared = await activeDefinition.prepareAnalysis(currentState as any);
+        preparedAnalysis = prepared;
+        setAnalysisCache((previous) => ({
+          ...previous,
+          [activeCalculatorId]: { inputHash: stateKey, prepared },
+        }));
+      }
+    } catch (preparationError) {
+      console.error("[CalculatorHub] Preparation error:", preparationError);
+      const message =
+        preparationError instanceof Error
+          ? preparationError.message
+          : "Unable to model this scenario. Please review your inputs.";
+
+      setError(message);
+      setAiStatus("idle");
+      setIsLoading(false);
+      setActiveAnalysis(null);
+      setDeterministicSummary(null);
+      setDataset([]);
+      setSummaryMessage(activeDefinition.initialSummary ?? defaultSummary);
+      return;
+    }
+
+    if (!preparedAnalysis) {
+      setIsLoading(false);
+      setAiStatus("idle");
+      setError("Unable to prepare the calculator run. Please try again.");
+      return;
+    }
+
+    setActiveAnalysis(preparedAnalysis);
+    setDeterministicSummary(preparedAnalysis.summary);
+    setDataset(preparedAnalysis.dataset ?? []);
+    if (activeCalculatorId === "trend-following") {
+      setTrendFollowingDataset([]);
+    }
+
+    try {
+      const { prompt, options } = await activeDefinition.getRequestConfig(
+        currentState as any,
+        preparedAnalysis,
+      );
       const refId = ensureNovaRefId("calculator");
       const { reply } = await requestNova(prompt, options, { refId });
 
@@ -99,7 +172,7 @@ export function CalculatorHubSection() {
       } = activeDefinition.parseReply(reply);
 
       setInsight(parsedInsight ?? null);
-      setDataset(parsedDataset);
+      setDataset(parsedDataset.length ? parsedDataset : preparedAnalysis.dataset ?? []);
 
       if (parsedInsight) {
         setSummaryMessage("");
@@ -122,6 +195,8 @@ export function CalculatorHubSection() {
       if (!parsedDataset.length) {
         setError("Nova didn't return price history data for this run. Displaying the structured insight instead.");
       }
+
+      setAiStatus("success");
     } catch (novaError) {
       console.error("[CalculatorHub] Request error:", novaError);
       const message =
@@ -130,10 +205,11 @@ export function CalculatorHubSection() {
           : "Something went wrong when requesting the calculator output.";
 
       setError(message);
-      setDataset([]);
+      setDataset(preparedAnalysis.dataset ?? []);
       setInsight(null);
       setFallbackLines([]);
       setSummaryMessage("Nova couldn't complete this request. Please adjust your inputs and try again.");
+      setAiStatus("error");
     } finally {
       setIsLoading(false);
     }
@@ -152,10 +228,15 @@ export function CalculatorHubSection() {
     try {
       await clearNovaHistory(refId);
       void resetNovaRefId("calculator");
-      setDataset([]);
+      setDataset(activeAnalysis?.dataset ?? []);
       setInsight(null);
       setFallbackLines([]);
       setSummaryMessage(activeDefinition?.initialSummary ?? defaultSummary);
+      setDeterministicSummary(activeAnalysis?.summary ?? deterministicSummary);
+      setAiStatus("idle");
+      if (activeCalculatorId === "trend-following") {
+        setTrendFollowingDataset([]);
+      }
     } catch (historyError) {
       console.error("[CalculatorHub] Failed to clear Nova history:", historyError);
       const message =
@@ -186,13 +267,25 @@ export function CalculatorHubSection() {
 
     setActiveCalculatorId(nextId);
     setError(null);
-    setDataset([]);
-    setTrendFollowingDataset([]);
     setIsDeckOpen(false);
 
     setInsight(null);
     setFallbackLines([]);
     setSummaryMessage(nextDefinition?.initialSummary ?? defaultSummary);
+    setAiStatus("idle");
+
+    const cachedEntry = analysisCache[nextId];
+    if (cachedEntry) {
+      setActiveAnalysis(cachedEntry.prepared);
+      setDeterministicSummary(cachedEntry.prepared.summary);
+      setDataset(cachedEntry.prepared.dataset ?? []);
+    } else {
+      setActiveAnalysis(null);
+      setDeterministicSummary(null);
+      setDataset([]);
+    }
+
+    setTrendFollowingDataset([]);
 
     setCalculatorStates((previous) => {
       if (previous[nextId]) {
@@ -269,6 +362,8 @@ export function CalculatorHubSection() {
       }
       summaryPanel={
         <SummaryPanel
+          deterministicSummary={deterministicSummary ?? undefined}
+          aiStatus={aiStatus}
           insight={insight}
           fallbackLines={fallbackLines}
           fallbackMessage={summaryMessage}
@@ -277,7 +372,7 @@ export function CalculatorHubSection() {
         />
       }
       chartPanel={
-        activeCalculatorId === "trend-following" ? (
+        activeCalculatorId === "trend-following" && trendFollowingDataset.length > 0 ? (
           <TrendFollowingChart
             dataset={trendFollowingDataset}
             isLoading={isLoading}
@@ -288,6 +383,7 @@ export function CalculatorHubSection() {
             dataset={dataset}
             isLoading={isLoading}
             seriesLabel={seriesLabel}
+            status={pricePanelStatus}
           />
         )
       }
