@@ -17,6 +17,10 @@ type PriceTrajectoryPanelProps = {
   seriesLabel: string;
   loadingMessage?: string;
   emptyMessage?: string;
+  status?: {
+    label: string;
+    tone?: "info" | "pending" | "error";
+  };
 };
 
 export function PriceTrajectoryPanel({
@@ -26,6 +30,7 @@ export function PriceTrajectoryPanel({
   seriesLabel,
   loadingMessage = "Asking Nova for price history...",
   emptyMessage = "Run the projection to visualize Nova's modeled price path.",
+  status,
 }: PriceTrajectoryPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartInstance | null>(null);
@@ -134,9 +139,32 @@ export function PriceTrajectoryPanel({
     };
   }, [dataset, hasDataset, seriesLabel]);
 
+  const statusStyles = (() => {
+    if (!status) {
+      return null;
+    }
+
+    switch (status.tone) {
+      case "pending":
+        return "border-amber-400/40 bg-amber-500/10 text-amber-200";
+      case "error":
+        return "border-critical/40 bg-critical/10 text-critical";
+      case "info":
+      default:
+        return "border-mint/40 bg-mint/10 text-mint";
+    }
+  })();
+
   return (
     <div className="card-surface rounded-2xl bg-gradient-to-br from-slate-950/70 via-slate-950/50 to-slate-900/25 p-4 sm:rounded-3xl sm:p-6">
-      <h4 className="text-xs font-semibold uppercase tracking-widest text-slate-100 sm:text-sm">{title}</h4>
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="text-xs font-semibold uppercase tracking-widest text-slate-100 sm:text-sm">{title}</h4>
+        {status && statusStyles ? (
+          <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-wide sm:text-xs ${statusStyles}`}>
+            {status.label}
+          </span>
+        ) : null}
+      </div>
       <div className="mt-3 h-56 min-w-0 overflow-hidden rounded-2xl border border-ocean/60 bg-surface/75 sm:mt-4 sm:h-72 lg:h-96">
         {hasDataset ? (
           <canvas ref={canvasRef} className="h-full w-full max-w-full" style={{ width: "100%", height: "100%" }} />

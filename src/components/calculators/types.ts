@@ -22,6 +22,13 @@ export type CalculatorSummarySection = {
   risks?: string[];
 };
 
+export type CalculatorDeterministicSummary = {
+  headline?: string;
+  description?: string;
+  metrics?: CalculatorSummaryMetric[];
+  footnotes?: string[];
+};
+
 export type CalculatorContext = {
   as_of?: string;
   asset?: string;
@@ -49,6 +56,12 @@ export type CalculatorResult = {
   fallbackLines?: string[];
 };
 
+export type CalculatorPreparedAnalysis<AnalysisPackage = unknown> = {
+  analysisPackage: AnalysisPackage;
+  dataset: TimeSeriesPoint[];
+  summary: CalculatorDeterministicSummary;
+};
+
 export type CalculatorFormChangeHandler<FormState> = <Field extends keyof FormState>(
   field: Field,
   value: FormState[Field],
@@ -67,13 +80,19 @@ export type CalculatorRequestConfig = {
   options?: Partial<RequestInit>;
 };
 
-export type CalculatorDefinition<FormState> = {
+export type CalculatorDefinition<FormState, AnalysisPackage = unknown> = {
   id: string;
   label: string;
   description?: string;
   Form: (props: CalculatorFormProps<FormState>) => JSX.Element;
   getInitialState: () => FormState;
-  getRequestConfig: (formState: FormState) => Promise<CalculatorRequestConfig> | CalculatorRequestConfig;
+  prepareAnalysis: (
+    formState: FormState,
+  ) => Promise<CalculatorPreparedAnalysis<AnalysisPackage>> | CalculatorPreparedAnalysis<AnalysisPackage>;
+  getRequestConfig: (
+    formState: FormState,
+    analysis: CalculatorPreparedAnalysis<AnalysisPackage>,
+  ) => Promise<CalculatorRequestConfig> | CalculatorRequestConfig;
   parseReply: (reply: string) => CalculatorResult;
   getSeriesLabel?: (formState: FormState) => string;
   initialSummary?: string;

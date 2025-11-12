@@ -4,8 +4,11 @@ import type { ChangeEvent } from "react";
 
 import type {
   CalculatorDefinition,
+  CalculatorDeterministicSummary,
   CalculatorFormProps,
+  CalculatorPreparedAnalysis,
   CalculatorResult,
+  CalculatorSummaryMetric,
 } from "@/components/calculators/types";
 import { buildFieldChangeHandler } from "@/components/calculators/utils/forms";
 import { joinPromptLines } from "@/components/calculators/utils/prompt";
@@ -105,7 +108,9 @@ function sampleWindows(windows: BuyTheDipAnalysisPackage["projection"]["projecte
   return windows.slice(0, target);
 }
 
-function buildPrompt(
+type BuyTheDipPromptAnalysisPackage = ReturnType<typeof createAnalysisPackage>;
+
+function createAnalysisPackage(
   { token, tokenName, budget, dipThreshold, duration }: BuyTheDipFormState,
   history: CoindeskHistoryResult,
   clock: UtcClockInfo,
@@ -122,7 +127,7 @@ function buildPrompt(
     projectionWindowDays,
   } = modeling;
 
-  const analysisPackage = {
+  return {
     context: {
       calculator: {
         id: "buy-the-dip",
@@ -187,7 +192,10 @@ function buildPrompt(
       ...(metric.unit ? { unit: metric.unit } : {}),
     })),
   };
+}
 
+function buildPrompt(formState: BuyTheDipFormState, analysisPackage: BuyTheDipPromptAnalysisPackage) {
+  const { token, budget, dipThreshold, duration } = formState;
   const analysisJson = JSON.stringify(analysisPackage, null, 2);
 
   return joinPromptLines([
@@ -287,6 +295,77 @@ function normalizeDipThresholdPercent(rawPercent: number) {
 
 function parseNovaReply(reply: string): CalculatorResult {
   return parseCalculatorReply(reply);
+}
+
+const dipCurrencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 2,
+});
+
+const dipPercentFormatter = new Intl.NumberFormat("en-US", {
+  style: "percent",
+  maximumFractionDigits: 1,
+});
+
+const dipNumberFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 4,
+});
+
+function formatDipMetric(metric: CalculatorSummaryMetric): CalculatorSummaryMetric {
+  const rawValue = metric.value;
+  if (typeof rawValue !== "number") {
+    return metric;
+  }
+
+  const label = metric.label.toLowerCase();
+  const isCurrency = label.includes("usd") || label.includes("allocation") || label.includes("budget");
+  const isPercent = label.includes("percent") || label.includes("threshold");
+
+  let formatted: string;
+  if (isCurrency) {
+    formatted = dipCurrencyFormatter.format(rawValue);
+  } else if (isPercent) {
+    formatted = dipPercentFormatter.format(rawValue / 100);
+  } else {
+    formatted = dipNumberFormatter.format(rawValue);
+  }
+
+  return {
+    ...metric,
+    value: formatted,
+  };
+}
+
+function buildBuyTheDipSummary(
+  formState: BuyTheDipFormState,
+  analysisPackage: BuyTheDipPromptAnalysisPackage,
+): CalculatorDeterministicSummary {
+  const resolvedTokenName = analysisPackage.context.market.token_name ?? formState.token;
+  const budgetValue = Number.parseFloat(formState.budget);
+  const formattedBudget = Number.isFinite(budgetValue)
+    ? dipCurrencyFormatter.format(budgetValue)
+    : formState.budget;
+
+  const thresholdValue = Number.parseFloat(formState.dipThreshold);
+  const formattedThreshold = Number.isFinite(thresholdValue)
+    ? dipPercentFormatter.format(thresholdValue / 100)
+    : `${formState.dipThreshold}%`;
+
+  const metrics = analysisPackage.metrics.map((metric) =>
+    formatDipMetric({ label: metric.label, value: metric.value, unit: metric.unit }),
+  );
+
+  const description = `Deploying ${formattedBudget} when ${resolvedTokenName} sells off ${formattedThreshold} across ${formState.duration}.`;
+
+  const footnotes = analysisPackage.history.summary ? [analysisPackage.history.summary] : undefined;
+
+  return {
+    headline: `${resolvedTokenName} dip-play projection ready`,
+    description,
+    metrics,
+    footnotes,
+  };
 }
 
 export function BuyTheDipCalculatorForm({
@@ -389,47 +468,70 @@ export function BuyTheDipCalculatorForm({
   );
 }
 
-export const buyTheDipCalculatorDefinition: CalculatorDefinition<BuyTheDipFormState> = {
+export const buyTheDipCalculatorDefinition: CalculatorDefinition<
+  BuyTheDipFormState,
+  BuyTheDipPromptAnalysisPackage
+> = {
   id: "buy-the-dip",
   label: "Buy the Dip",
   description: "Deploy capital strategically when prices fall below threshold levels.",
   Form: BuyTheDipCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: async (formState) => {
+  prepareAnalysis: async (formState) => {
     if (!formState.token?.trim()) {
       throw new Error("Select a token before running the buy-the-dip projection.");
     }
 
     const durationDays = resolveDurationDays(formState.duration, DURATION_TO_DAYS, DEFAULT_DURATION_DAYS);
-    const clock = getCurrentUtcClockInfo();
     const history = await fetchCoindeskHistoryWithSummary({
       symbol: formState.token,
       market: formState.market,
       durationDays,
     });
     const budgetInput = Number.parseFloat(formState.budget);
-    const totalBudgetUsd = Number.isFinite(budgetInput) && budgetInput > 0 ? budgetInput : 0;
+    if (!Number.isFinite(budgetInput) || budgetInput <= 0) {
+      throw new Error("Enter a deployment budget greater than zero.");
+    }
+    const totalBudgetUsd = budgetInput;
     const rawThreshold = Number.parseFloat(formState.dipThreshold);
+    if (!Number.isFinite(rawThreshold)) {
+      throw new Error("Select a dip threshold to model deployments.");
+    }
     const dipThresholdPercent = normalizeDipThresholdPercent(rawThreshold);
     const lookbackWindowDays = resolveLookbackWindowDays(durationDays);
     const projectionWindowDays = durationDays;
 
-    const projection = simulateBuyTheDip(history, {
+    const analysis = simulateBuyTheDip(history, {
       totalBudgetUsd,
       dipThreshold: dipThresholdPercent / 100,
       lookbackWindowDays,
       projectionWindowDays,
     });
 
-    const prompt = buildPrompt(formState, history, clock, {
-      historyHighlights: projection.history,
-      projectionSeries: projection.projection,
-      strategyMetrics: projection.metrics,
+    const clock = getCurrentUtcClockInfo();
+    const modeling: BuyTheDipModelingArtifacts = {
+      historyHighlights: analysis.history,
+      projectionSeries: analysis.projection,
+      strategyMetrics: analysis.metrics,
       totalBudgetUsd,
       dipThresholdPercent,
       lookbackWindowDays,
       projectionWindowDays,
-    });
+    };
+
+    const analysisPackage = createAnalysisPackage(formState, history, clock, modeling);
+    const summary = buildBuyTheDipSummary(formState, analysisPackage);
+
+    const prepared: CalculatorPreparedAnalysis<BuyTheDipPromptAnalysisPackage> = {
+      analysisPackage,
+      dataset: analysis.projection.path,
+      summary,
+    };
+
+    return prepared;
+  },
+  getRequestConfig: async (formState, analysis) => {
+    const prompt = buildPrompt(formState, analysis.analysisPackage);
 
     return buildNovaRequestOptions(prompt, { max_tokens: 9000 });
   },

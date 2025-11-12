@@ -125,17 +125,23 @@ User clicks "Run DCA projection"
 handleSubmit() triggered
     │
     ├─► Sets loading state: isLoading = true
-    ├─► Clears previous results (dataset, insight, error)
+    ├─► Clears previous AI results (insight, fallback copy, errors)
     ├─► Sets pending message: "Generating Nova's latest projection..."
     │
-    ├─► Gets request config from active calculator:
-    │   activeDefinition.getRequestConfig(formState)
+    ├─► Runs deterministic preprocessor:
+    │   prepared = activeDefinition.prepareAnalysis(formState)
     │   │
-    │   └─► buildPrompt() creates structured prompt:
-    │       - Instructions for Nova AI
-    │       - User inputs (token, amount, interval, duration)
-    │       - Expected JSON schema format
-    │       - Guidelines for price path generation
+    │   ├─► Validates inputs (throws to surface errors to the form)
+    │   ├─► Fetches/caches market history & simulates projection
+    │   ├─► Returns { analysisPackage, dataset, summary }
+    │   └─► Reuses cached package if inputs haven't changed
+    │
+    ├─► Updates summary/chart with deterministic preview immediately
+    │
+    ├─► Builds Nova prompt with the cached package:
+    │   activeDefinition.getRequestConfig(formState, prepared)
+    │   │
+    │   └─► buildPrompt() stringifies analysisPackage and embeds schema
     │
     ├─► Ensures Nova session ref_id:
     │   ensureNovaRefId("calculator")
