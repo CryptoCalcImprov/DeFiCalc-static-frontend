@@ -22,6 +22,10 @@ import {
   getCurrentUtcClockInfo,
   type UtcClockInfo,
 } from "@/components/calculators/utils/clock";
+import {
+  simulateTrendFollowing,
+  type TrendFollowingAnalysisPackage,
+} from "@/components/calculators/utils/modeling";
 
 export type TrendFollowingFormState = {
   token: string;
@@ -54,52 +58,140 @@ const defaultFormState: TrendFollowingFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's analysis of this trend-following strategy.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
+type TrendModelingArtifacts = {
+  historyHighlights: TrendFollowingAnalysisPackage["history"];
+  projectionSeries: TrendFollowingAnalysisPackage["projection"];
+  strategyMetrics: TrendFollowingAnalysisPackage["metrics"];
+  initialCapitalUsd: number;
+  shortWindow: number;
+  longWindow: number;
+  projectionWindowDays: number;
+};
+
+function formatNumber(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  const absolute = Math.abs(value);
+  if (absolute >= 1000) {
+    return Number(value.toFixed(2));
+  }
+  if (absolute >= 1) {
+    return Number(value.toFixed(4));
+  }
+  return Number(value.toFixed(6));
+}
+
+function sampleTrendStates(states: TrendFollowingAnalysisPackage["projection"]["states"], target = 40) {
+  if (states.length <= target) {
+    return states;
+  }
+  const step = Math.ceil(states.length / target);
+  const sampled = states.filter((_, index) => index % step === 0);
+  if (sampled[sampled.length - 1]?.date !== states[states.length - 1]?.date) {
+    sampled[sampled.length - 1] = states[states.length - 1];
+  }
+  return sampled.slice(0, target);
+}
+
 function buildPrompt(
   { token, tokenName, initialCapital, maPeriod, duration }: TrendFollowingFormState,
   history: CoindeskHistoryResult,
   clock: UtcClockInfo,
+  modeling: TrendModelingArtifacts,
 ) {
   const resolvedTokenName = tokenName?.trim() || token;
-  const normalizedCandles = history.candles.map((candle) => ({
-    date: candle.date,
-    open: Number(candle.open.toFixed(8)),
-    high: Number(candle.high.toFixed(8)),
-    low: Number(candle.low.toFixed(8)),
-    close: Number(candle.close.toFixed(8)),
-  }));
-  const serializedHistory = JSON.stringify(normalizedCandles, null, 2);
+  const {
+    historyHighlights,
+    projectionSeries,
+    strategyMetrics,
+    initialCapitalUsd,
+    shortWindow,
+    longWindow,
+    projectionWindowDays,
+  } = modeling;
+
+  const analysisPackage = {
+    context: {
+      calculator: {
+        id: "trend-following",
+        label: "Trend-Following",
+      },
+      clock: {
+        as_of_date: clock.currentUtcDate,
+        as_of_timestamp: clock.currentUtcIso,
+      },
+      market: {
+        symbol: history.symbol ?? token,
+        instrument: history.instrument,
+        venue: history.market,
+        token_name: resolvedTokenName,
+      },
+      inputs: {
+        initial_capital_usd: formatNumber(initialCapitalUsd),
+        moving_average_period: Number.parseInt(maPeriod, 10) || longWindow,
+        short_window_days: shortWindow,
+        long_window_days: longWindow,
+        duration,
+        duration_days: projectionWindowDays,
+      },
+    },
+    history: {
+      summary: history.summary,
+      stats: {
+        start: historyHighlights.stats.startDate,
+        end: historyHighlights.stats.endDate,
+        samples: historyHighlights.stats.sampleCount,
+        total_return: formatNumber(historyHighlights.stats.totalReturn),
+        annualized_drift: formatNumber(historyHighlights.stats.annualizedDrift),
+        annualized_volatility: formatNumber(historyHighlights.stats.annualizedVolatility),
+      },
+      sample_series: historyHighlights.series.map((point) => ({
+        date: point.date,
+        price: formatNumber(point.price),
+      })),
+    },
+    projection: {
+      strategy_equity: formatNumber(projectionSeries.strategyEquity),
+      hodl_equity: formatNumber(projectionSeries.hodlEquity),
+      states_sample: sampleTrendStates(projectionSeries.states).map((state) => ({
+        date: state.date,
+        short_ma: state.shortMa === null ? null : formatNumber(state.shortMa),
+        long_ma: state.longMa === null ? null : formatNumber(state.longMa),
+        position: state.position,
+      })),
+      path: projectionSeries.path.map((point) => ({
+        date: point.date,
+        price: formatNumber(point.price),
+      })),
+    },
+    metrics: strategyMetrics.map((metric) => ({
+      id: metric.id,
+      label: metric.label,
+      value: formatNumber(metric.value),
+      ...(metric.unit ? { unit: metric.unit } : {}),
+    })),
+  };
+
+  const analysisJson = JSON.stringify(analysisPackage, null, 2);
 
   return joinPromptLines([
-    `Using the provided CoinDesk history data, model the following trend-following strategy without calling any external tools.`,
-    `Respond in a single message, DO NOT request clarification, and DO NOT ask any follow-up questions.`,
-    `Strategy: Start with ${initialCapital} USD. Buy ${token} (${resolvedTokenName}) when price > ${maPeriod}-day MA, hold stablecoin when price <= ${maPeriod}-day MA. Project over ${duration}.`,
+    "You are Nova, a quant researcher assessing a trend-following crypto strategy.",
+    "Use only the provided data. Do not call external tools, request clarification, or defer your answer.",
     "",
-    "Clock context:",
-    `- Current UTC date (schedule anchor): ${clock.currentUtcDate}`,
-    `- Current UTC date/time: ${clock.currentUtcIso}`,
+    `analysisPackage = ${analysisJson}`,
     "",
-    "CoinDesk data context:",
-    `- Market: ${history.market}`,
-    `- Instrument: ${history.instrument}`,
-    `- Date range: ${history.startDate} → ${history.endDate}`,
+    "Use analysisPackage to craft your response:",
+    "1. Summarize performance versus a HODL baseline referencing strategy_equity, hodl_equity, and metrics.",
+    "2. Stress-test the moving-average assumptions; explain sensitivities observed in states_sample within assumptions arrays.",
+    "3. Highlight material risks, regime shifts, and monitoring cues using history stats and current positioning.",
     "",
-    "Historical summary (mirrors get_coindesk_history response):",
-    history.summary,
+    "Response constraints:",
+    "- Return a single JSON object matching the schema below.",
+    "- Populate every numeric field with explicit numbers.",
+    "- Do not include commentary outside the JSON payload.",
     "",
-    "Raw OHLC closes (oldest first):",
-    serializedHistory,
-    "",
-    "Guidelines:",
-    "1. Use the provided current UTC timestamp exactly as the modeling anchor. Do not call any date/time tools.",
-    `2. Use the supplied CoinDesk dataset for historical reference and to anchor baseline drift; do NOT invoke CoinDesk, pricing, or time tools.`,
-    `3. Generate a synthetic-but-coherent price path for ${token} covering ${duration}, biasing toward the provided data when it improves realism. Include the ${maPeriod}-day moving average at each point.`,
-    `4. Simulate the strategy: track when you'd be in ${token} (price > MA) vs. stablecoin (price <= MA), calculate portfolio value and a HODL baseline at each date.`,
-    `5. Estimate performance: approximate Sharpe ratio and maximum drawdown for both strategy and HODL. Note any key trades and risk factors.`,
-    "6. Produce a structured summary using the JSON schema below. Focus on three concise sections that capture performance metrics, trade cadence, and risks. Keep assumptions explicit inside the sections.",
-    "7. Limit the modeled price/MA/portfolio series to at most 120 evenly spaced points (roughly weekly). Each point must include date, price, moving average, portfolioEquity, and hodlValue numbers.",
-    "8. Never ask questions, never defer, and respond with a single JSON object—no prose or markdown framing.",
-    "",
-    "Return JSON only, shaped exactly like:",
+    "Schema:",
     "{",
     '  "insight": {',
     '    "calculator": {',
@@ -116,49 +208,55 @@ function buildPrompt(
     `        "moving_average_period": ${maPeriod},`,
     `        "duration": "${duration}"`,
     "      },",
-    '      "assumptions": ["State the key modeling assumptions clearly."]',
+    '      "analysis_reference": ["projection.strategy_equity", "projection.states_sample"],',
+    '      "assumptions": ["Document key modeling choices and stress-test outcomes."]',
     "    },",
     '    "sections": [',
     "      {",
     '        "type": "performance",',
     '        "headline": "Performance snapshot",',
-    '        "summary": "Highlight Sharpe ratio, drawdown, and total return for strategy vs. HODL.",',
+    '        "summary": "Compare trend strategy outcomes against HODL and note standout drivers.",',
     '        "metrics": [',
     '          { "label": "Strategy total return (%)", "value": 12.5 },',
     '          { "label": "Strategy Sharpe", "value": 0.92 },',
     '          { "label": "Strategy max drawdown (%)", "value": -18.4 }',
-    "        ]",
+    "        ],",
+    '        "assumptions": ["Capture the stress-test insight or scenario comparison."],',
+    '        "risks": ["Highlight sensitivities to volatility or whipsaws."]',
     "      },",
     "      {",
     '        "type": "trade_flow",',
     '        "headline": "Trade cadence & positioning",',
-    '        "summary": "Explain how often price crosses the moving average and resulting position changes.",',
+    '        "summary": "Explain crossover frequency, time in market, and positioning shifts.",',
     '        "metrics": [',
     '          { "label": "Time in market (%)", "value": 64 },',
     '          { "label": "Major crossover count", "value": 14 }',
-    "        ]",
+    "        ],",
+    '        "assumptions": ["Summarize scenario comparisons or stress-tested adjustments."],',
+    '        "risks": ["Flag execution or slippage concerns revealed by the stress test."]',
     "      },",
     "      {",
     '        "type": "risk",',
-    '        "headline": "Risks to monitor",',
-    '        "summary": "Outline sensitivity to volatility regimes, whipsaws, or liquidity constraints.",',
-    '        "risks": ["List each material risk in plain language."]',
+    '        "headline": "Risk outlook",',
+    '        "summary": "List regime-change, liquidity, or operational risks to monitor.",',
+    '        "risks": ["List each material risk in plain language."],',
+    '        "assumptions": ["Capture mitigations or monitoring guidance."]',
     "      }",
     "    ],",
-    '    "notes": ["Optional reminders or next steps if they help interpret the model."]',
+    '    "notes": ["Optional reminders or next steps."]',
     "  },",
     '  "series": [',
     "    {",
     '      "id": "trend_price_equity",',
     '      "label": "Modeled price & equity",',
     '      "points": [',
-    '        { "date": "YYYY-MM-DD", "price": 123.45, "ma": 120.01, "portfolioEquity": 10050.25, "hodlValue": 9950.75 }',
+    '        { "date": "YYYY-MM-DD", "price": 123.45 }',
     "      ]",
     "    }",
     "  ]",
     "}",
     "",
-    "Populate metric values with actual calculations; replace template numbers before responding. Do not emit trailing commentary.",
+    "Strictly follow the schema. Do not emit trailing text or additional keys.",
   ]);
 }
 
@@ -282,10 +380,32 @@ export const trendFollowingCalculatorDefinition: CalculatorDefinition<TrendFollo
       market: formState.market,
       durationDays,
     });
+    const capitalInput = Number.parseFloat(formState.initialCapital);
+    const initialCapitalUsd = Number.isFinite(capitalInput) && capitalInput > 0 ? capitalInput : 0;
+    const maInput = Number.parseInt(formState.maPeriod, 10);
+    const normalizedMaPeriod = Number.isFinite(maInput) && maInput > 0 ? maInput : 50;
+    const shortWindow = Math.max(5, Math.round(normalizedMaPeriod / 2));
+    const longWindow = Math.max(shortWindow + 1, normalizedMaPeriod);
+    const projectionWindowDays = durationDays;
 
-    const prompt = buildPrompt(formState, history, clock);
+    const projection = simulateTrendFollowing(history, {
+      initialCapitalUsd,
+      shortWindow,
+      longWindow,
+      projectionWindowDays,
+    });
 
-    return buildNovaRequestOptions(prompt, { max_tokens: 18000 });
+    const prompt = buildPrompt(formState, history, clock, {
+      historyHighlights: projection.history,
+      projectionSeries: projection.projection,
+      strategyMetrics: projection.metrics,
+      initialCapitalUsd,
+      shortWindow,
+      longWindow,
+      projectionWindowDays,
+    });
+
+    return buildNovaRequestOptions(prompt, { max_tokens: 9000 });
   },
   parseReply: parseNovaReply,
   getSeriesLabel: (formState) => `${formState.token} price`,

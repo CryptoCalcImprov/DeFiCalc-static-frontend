@@ -22,6 +22,10 @@ import {
   getCurrentUtcClockInfo,
   type UtcClockInfo,
 } from "@/components/calculators/utils/clock";
+import {
+  simulateDcaProjection,
+  type DcaAnalysisPackage,
+} from "@/components/calculators/utils/modeling";
 
 export type DcaFormState = {
   token: string;
@@ -41,6 +45,12 @@ const DURATION_TO_DAYS: Record<string, number> = {
   "2 years": 730,
 };
 const DEFAULT_DURATION_DAYS = DURATION_TO_DAYS["6 months"];
+const INTERVAL_TO_DAYS: Record<string, number> = {
+  weekly: 7,
+  "bi-weekly": 14,
+  monthly: 30,
+};
+const DEFAULT_INTERVAL_DAYS = INTERVAL_TO_DAYS["bi-weekly"];
 
 const defaultFormState: DcaFormState = {
   token: "ETH",
@@ -54,51 +64,142 @@ const defaultFormState: DcaFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's perspective on this plan.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
+type DcaModelingArtifacts = {
+  historyHighlights: DcaAnalysisPackage["history"];
+  projectionSeries: DcaAnalysisPackage["projection"];
+  strategyMetrics: DcaAnalysisPackage["metrics"];
+  contributionUsd: number;
+  intervalDays: number;
+  durationDays: number;
+};
+
+function formatNumber(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  const absolute = Math.abs(value);
+  if (absolute >= 1000) {
+    return Number(value.toFixed(2));
+  }
+  if (absolute >= 1) {
+    return Number(value.toFixed(4));
+  }
+  return Number(value.toFixed(6));
+}
+
+function sampleScheduleEntries(schedule: DcaAnalysisPackage["projection"]["schedule"], target = 24) {
+  if (schedule.length <= target) {
+    return schedule;
+  }
+  const step = Math.ceil(schedule.length / target);
+  const sampled = schedule.filter((_, index) => index % step === 0);
+  if (sampled[sampled.length - 1]?.date !== schedule[schedule.length - 1]?.date) {
+    sampled[sampled.length - 1] = schedule[schedule.length - 1];
+  }
+  return sampled.slice(0, target);
+}
+
 function buildPrompt(
   { token, tokenName, amount, interval, duration }: DcaFormState,
   history: CoindeskHistoryResult,
   clock: UtcClockInfo,
+  modeling: DcaModelingArtifacts,
 ) {
   const resolvedTokenName = tokenName?.trim() || token;
-  const normalizedCandles = history.candles.map((candle) => ({
-    date: candle.date,
-    open: Number(candle.open.toFixed(8)),
-    high: Number(candle.high.toFixed(8)),
-    low: Number(candle.low.toFixed(8)),
-    close: Number(candle.close.toFixed(8)),
-  }));
-  const serializedHistory = JSON.stringify(normalizedCandles, null, 2);
+  const {
+    historyHighlights,
+    projectionSeries,
+    strategyMetrics,
+    contributionUsd,
+    intervalDays,
+    durationDays,
+  } = modeling;
+
+  const analysisPackage = {
+    context: {
+      calculator: {
+        id: "dca",
+        label: "Dollar-Cost Averaging",
+      },
+      clock: {
+        as_of_date: clock.currentUtcDate,
+        as_of_timestamp: clock.currentUtcIso,
+      },
+      market: {
+        symbol: history.symbol ?? token,
+        instrument: history.instrument,
+        venue: history.market,
+        token_name: resolvedTokenName,
+      },
+      inputs: {
+        amount_usd: formatNumber(contributionUsd),
+        interval,
+        interval_days: intervalDays,
+        duration,
+        duration_days: durationDays,
+      },
+    },
+    history: {
+      summary: history.summary,
+      stats: {
+        start: historyHighlights.stats.startDate,
+        end: historyHighlights.stats.endDate,
+        samples: historyHighlights.stats.sampleCount,
+        total_return: formatNumber(historyHighlights.stats.totalReturn),
+        annualized_drift: formatNumber(historyHighlights.stats.annualizedDrift),
+        annualized_volatility: formatNumber(historyHighlights.stats.annualizedVolatility),
+      },
+      sample_series: historyHighlights.series.map((point) => ({
+        date: point.date,
+        price: formatNumber(point.price),
+      })),
+    },
+    projection: {
+      totals: {
+        total_contribution_usd: formatNumber(projectionSeries.totalContribution),
+        projected_units: formatNumber(projectionSeries.projectedHoldings),
+        projected_value_usd: formatNumber(projectionSeries.projectedValue),
+      },
+      schedule_samples: sampleScheduleEntries(projectionSeries.schedule).map((entry) => ({
+        date: entry.date,
+        price: formatNumber(entry.price),
+        contribution: formatNumber(entry.contribution),
+        cumulative_units: formatNumber(entry.cumulativeUnits),
+        cumulative_cost: formatNumber(entry.cumulativeCost),
+        cost_basis: formatNumber(entry.costBasis),
+      })),
+      path: projectionSeries.path.map((point) => ({
+        date: point.date,
+        price: formatNumber(point.price),
+      })),
+    },
+    metrics: strategyMetrics.map((metric) => ({
+      id: metric.id,
+      label: metric.label,
+      value: formatNumber(metric.value),
+      ...(metric.unit ? { unit: metric.unit } : {}),
+    })),
+  };
+
+  const analysisJson = JSON.stringify(analysisPackage, null, 2);
 
   return joinPromptLines([
-    `Using the provided CoinDesk history data, evaluate the following dollar-cost-averaging plan without calling any external tools.`,
-    `Respond in a single message, DO NOT request clarification, and DO NOT ask any follow-up questions.`,
-    `Plan details: invest ${amount} USD of ${token} (${resolvedTokenName}) on a ${interval} cadence for ${duration}.`,
+    "You are Nova, a quant researcher analyzing a crypto dollar-cost-averaging plan.",
+    "Stay within the provided data. Do not call external tools, request clarifications, or defer your answer.",
     "",
-    "Clock context:",
-    `- Current UTC date (schedule anchor): ${clock.currentUtcDate}`,
-    `- Current UTC date/time: ${clock.currentUtcIso}`,
+    `analysisPackage = ${analysisJson}`,
     "",
-    "CoinDesk data context:",
-    `- Market: ${history.market}`,
-    `- Instrument: ${history.instrument}`,
-    `- Date range: ${history.startDate} → ${history.endDate}`,
+    "Use analysisPackage to craft insight-focused output:",
+    "1. Summarize plan context and modeled outcomes in two or three crisp sentences referencing metrics and projection totals.",
+    "2. Stress-test the assumptions behind cadence, drift, and volatility; surface the sensitivities inside assumptions arrays.",
+    "3. Highlight operational and market risks, grounding each point in the provided history and projection data.",
     "",
-    "Historical summary (mirrors get_coindesk_history response):",
-    history.summary,
+    "Response constraints:",
+    "- Return a single JSON object that follows the schema below.",
+    "- Populate every numeric field with numbers (no placeholders).",
+    "- Do not include commentary outside the JSON payload.",
     "",
-    "Raw OHLC closes (oldest first):",
-    serializedHistory,
-    "",
-    "Guidelines:",
-    "1. Use the provided current UTC date/time exactly as the schedule anchor. Do not call any date/time tools.",
-    "2. Use the supplied CoinDesk dataset for all historical reference. Do NOT call CoinDesk, pricing, or time tools.",
-    "3. Generate a plausible synthetic price path that matches the cadence and duration. When real history improves realism, bias the model toward the supplied data; otherwise craft a consistent synthetic series.",
-    "4. Summarize performance drivers, expected cost basis shifts, and risks using the structured schema below. Keep assumptions explicit.",
-    "5. Provide one entry per scheduled purchase date in a modeled price path. Dates must be chronological and use YYYY-MM-DD. Prices must be numbers.",
-    "6. Never ask questions, never defer the calculation, and respond with a single JSON object—no prose or markdown framing.",
-    "Populate metric values with actual calculations; replace illustrative numbers shown in the template.",
-    "",
-    "Return JSON only, shaped exactly like:",
+    "Schema:",
     "{",
     '  "insight": {',
     '    "calculator": {',
@@ -115,28 +216,30 @@ function buildPrompt(
     `        "interval": "${interval}",`,
     `        "duration": "${duration}"`,
     "      },",
-    '      "assumptions": ["Describe key assumptions explicitly."]',
+    '      "analysis_reference": ["metrics.total_contribution_usd", "projection.totals.projected_value_usd"],',
+    '      "assumptions": ["Document the key modeling assumptions and stress-test takeaways."]',
     "    },",
     '    "sections": [',
     "      {",
     '        "type": "performance_driver",',
-    '        "headline": "Concise label for core performance factor",',
-    '        "summary": "1-2 sentence explanation of what drives the modeled outcome.",',
+    '        "headline": "Plan performance & signals",',
+    '        "summary": "Two-sentence synthesis referencing totals and notable movements.",',
     '        "metrics": [',
     '          { "label": "Total USD invested", "value": 1300 },',
-    '          { "label": "Estimated cost basis (USD)", "value": 1.91 }',
+    '          { "label": "Projected value (USD)", "value": 1520 }',
     "        ],",
-    '        "assumptions": ["Note any assumptions specific to this driver."],',
-    '        "risks": ["Highlight sensitivities or risk factors."]',
+    '        "assumptions": ["Capture the stress-test insight or scenario comparison."],',
+    '        "risks": ["Note hidden sensitivities tied to cadence or volatility."]',
     "      },",
     "      {",
     '        "type": "risk_assumption",',
-    '        "headline": "Key risks & sensitivities",',
-    '        "summary": "Explain how drift, volatility, or operational constraints could change the result.",',
-    '        "risks": ["List each material risk in plain language."]',
+    '        "headline": "Risk outlook",',
+    '        "summary": "Highlight structural, market, and operational risks.",',
+    '        "risks": ["List material risks in plain language."],',
+    '        "assumptions": ["Mention mitigations or monitoring guidance."]',
     "      }",
     "    ],",
-    '    "notes": ["Include optional closing reminders or action items when helpful."]',
+    '    "notes": ["Optional closing reminders or action items."]',
     "  },",
     '  "series": [',
     "    {",
@@ -151,6 +254,10 @@ function buildPrompt(
     "",
     "Strictly follow the schema. Do not emit trailing text or additional keys.",
   ]);
+}
+
+function resolveIntervalDays(interval: string) {
+  return INTERVAL_TO_DAYS[interval] ?? DEFAULT_INTERVAL_DAYS;
 }
 
 function parseNovaReply(reply: string): CalculatorResult {
@@ -273,10 +380,25 @@ export const dcaCalculatorDefinition: CalculatorDefinition<DcaFormState> = {
       market: formState.market,
       durationDays,
     });
+    const contributionUsd = Number.parseFloat(formState.amount);
+    const normalizedContribution = Number.isFinite(contributionUsd) && contributionUsd > 0 ? contributionUsd : 0;
+    const intervalDays = resolveIntervalDays(formState.interval);
+    const projection = simulateDcaProjection(history, {
+      contributionUsd: normalizedContribution,
+      intervalDays,
+      durationDays,
+    });
 
-    const prompt = buildPrompt(formState, history, clock);
+    const prompt = buildPrompt(formState, history, clock, {
+      historyHighlights: projection.history,
+      projectionSeries: projection.projection,
+      strategyMetrics: projection.metrics,
+      contributionUsd: normalizedContribution,
+      intervalDays,
+      durationDays,
+    });
 
-    return buildNovaRequestOptions(prompt, { max_tokens: 18000 });
+    return buildNovaRequestOptions(prompt, { max_tokens: 9000 });
   },
   parseReply: parseNovaReply,
   getSeriesLabel: (formState) => `${formState.token} price`,
