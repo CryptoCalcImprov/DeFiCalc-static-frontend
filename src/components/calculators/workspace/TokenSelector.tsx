@@ -5,13 +5,13 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 
 import {
-  type CoindeskAsset,
-  useCoindeskAssetSearch,
-} from "@/hooks/useCoindeskAssetSearch";
+  type CoinGeckoAsset,
+  useCoinGeckoAssetSearch,
+} from "@/hooks/useCoinGeckoAssetSearch";
 
 export type TokenSelectorProps = {
   value: string;
-  onSelect: (value: string, asset?: CoindeskAsset) => void;
+  onSelect: (value: string, asset?: CoinGeckoAsset) => void;
   placeholder?: string;
   required?: boolean;
   disabled?: boolean;
@@ -41,7 +41,7 @@ export function TokenSelector({
     setInputValue(value);
   }, [value]);
 
-  const { assets, isLoading, error } = useCoindeskAssetSearch(inputValue);
+  const { assets, isLoading, error } = useCoinGeckoAssetSearch(inputValue);
 
   const listboxId = useMemo(() => `${resolvedId}-listbox`, [resolvedId]);
 
@@ -88,7 +88,7 @@ export function TokenSelector({
     }
   };
 
-  const handleOptionSelect = (asset: CoindeskAsset) => {
+  const handleOptionSelect = (asset: CoinGeckoAsset) => {
     setInputValue(asset.symbol);
     onSelect(asset.symbol, asset);
     setIsOpen(false);
