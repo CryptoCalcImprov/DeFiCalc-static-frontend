@@ -1,4 +1,7 @@
 const DEFAULT_MODEL = "gpt-5-mini";
+const NOVA_DISABLED =
+  typeof process !== "undefined" &&
+  process.env.NEXT_PUBLIC_DISABLE_NOVA?.trim().toLowerCase() === "true";
 
 export type RequestNovaResult = {
   reply: string;
@@ -112,6 +115,16 @@ export async function requestNova(
   options: Partial<RequestInit> = {},
   { refId }: RequestNovaOptions = {},
 ): Promise<RequestNovaResult> {
+  if (NOVA_DISABLED) {
+    console.info("[Nova] Requests are disabled via NEXT_PUBLIC_DISABLE_NOVA.");
+    return {
+      reply: "Nova AI calls are disabled. Set NEXT_PUBLIC_DISABLE_NOVA=false to re-enable.",
+      rawBody: "",
+      status: 0,
+      headers: {},
+    };
+  }
+
   const trimmedPrompt = prompt.trim();
   const requestUrl = createRequestUrl();
   const headers = buildHeaders(options);

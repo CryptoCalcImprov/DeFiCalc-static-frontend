@@ -15,6 +15,7 @@ import { TokenSelector } from "@/components/calculators/workspace/TokenSelector"
 
 export type BuyTheDipFormState = {
   token: string;
+  tokenId?: string;
   budget: string;
   dipThreshold: string;
   duration: string;
@@ -22,6 +23,7 @@ export type BuyTheDipFormState = {
 
 const defaultFormState: BuyTheDipFormState = {
   token: "BTC",
+  tokenId: "bitcoin",
   budget: "5000",
   dipThreshold: "10",
   duration: "6 months",
@@ -143,7 +145,10 @@ export function BuyTheDipCalculatorForm({
           Token
           <TokenSelector
             value={formState.token}
-            onSelect={(nextValue) => handleFieldChangeBuilder("token")(nextValue)}
+            onSelect={(nextValue, asset) => {
+              handleFieldChangeBuilder("token")(nextValue);
+              handleFieldChangeBuilder("tokenId")(asset?.slug);
+            }}
             placeholder="e.g. BTC"
             required
           />

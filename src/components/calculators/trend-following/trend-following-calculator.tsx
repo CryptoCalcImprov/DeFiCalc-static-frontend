@@ -16,6 +16,7 @@ import { TokenSelector } from "@/components/calculators/workspace/TokenSelector"
 
 export type TrendFollowingFormState = {
   token: string;
+  tokenId?: string;
   initialCapital: string;
   maPeriod: string;
   duration: string;
@@ -23,6 +24,7 @@ export type TrendFollowingFormState = {
 
 const defaultFormState: TrendFollowingFormState = {
   token: "BTC",
+  tokenId: "bitcoin",
   initialCapital: "10000",
   maPeriod: "50",
   duration: "1 year",
@@ -144,7 +146,10 @@ export function TrendFollowingCalculatorForm({
           Token
           <TokenSelector
             value={formState.token}
-            onSelect={(nextValue) => handleFieldChangeBuilder("token")(nextValue)}
+            onSelect={(nextValue, asset) => {
+              handleFieldChangeBuilder("token")(nextValue);
+              handleFieldChangeBuilder("tokenId")(asset?.slug);
+            }}
             placeholder="e.g. BTC"
             required
           />

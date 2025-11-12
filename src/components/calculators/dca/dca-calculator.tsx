@@ -15,6 +15,7 @@ import { TokenSelector } from "@/components/calculators/workspace/TokenSelector"
 
 export type DcaFormState = {
   token: string;
+  tokenId?: string;
   amount: string;
   interval: string;
   duration: string;
@@ -22,6 +23,7 @@ export type DcaFormState = {
 
 const defaultFormState: DcaFormState = {
   token: "ETH",
+  tokenId: "ethereum",
   amount: "500",
   interval: "bi-weekly",
   duration: "6 months",
@@ -134,7 +136,10 @@ export function DcaCalculatorForm({
           Token
           <TokenSelector
             value={formState.token}
-            onSelect={(nextValue) => handleFieldChangeBuilder("token")(nextValue)}
+            onSelect={(nextValue, asset) => {
+              handleFieldChangeBuilder("token")(nextValue);
+              handleFieldChangeBuilder("tokenId")(asset?.slug);
+            }}
             placeholder="e.g. ETH"
             required
           />

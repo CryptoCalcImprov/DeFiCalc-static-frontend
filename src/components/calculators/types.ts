@@ -5,6 +5,14 @@ export type TimeSeriesPoint = {
   price: number;
 };
 
+export type CoinGeckoCandle = {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+};
+
 export type CalculatorSummaryMetric = {
   label: string;
   value: string | number;
