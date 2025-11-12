@@ -11,18 +11,41 @@ import { buildFieldChangeHandler } from "@/components/calculators/utils/forms";
 import { joinPromptLines } from "@/components/calculators/utils/prompt";
 import { parseCalculatorReply } from "@/components/calculators/utils/summary";
 import { buildNovaRequestOptions } from "@/components/calculators/utils/request";
-import { parseTrendFollowingReply } from "./parser";
 import { TokenSelector } from "@/components/calculators/workspace/TokenSelector";
+import type { CoindeskAsset } from "@/hooks/useCoindeskAssetSearch";
+import {
+  fetchCoindeskHistoryWithSummary,
+  type CoindeskHistoryResult,
+} from "@/lib/coindesk-history";
+import { resolveDurationDays } from "@/components/calculators/utils/duration";
+import {
+  getCurrentUtcClockInfo,
+  type UtcClockInfo,
+} from "@/components/calculators/utils/clock";
 
 export type TrendFollowingFormState = {
   token: string;
+  tokenName: string;
+  market: string;
   initialCapital: string;
   maPeriod: string;
   duration: string;
 };
 
+const DEFAULT_MARKET = "cadli";
+const DEFAULT_TOKEN_NAME = "Bitcoin";
+const DURATION_TO_DAYS: Record<string, number> = {
+  "6 months": 180,
+  "1 year": 365,
+  "2 years": 730,
+  "3 years": 1095,
+};
+const DEFAULT_DURATION_DAYS = DURATION_TO_DAYS["1 year"];
+
 const defaultFormState: TrendFollowingFormState = {
   token: "BTC",
+  tokenName: DEFAULT_TOKEN_NAME,
+  market: DEFAULT_MARKET,
   initialCapital: "10000",
   maPeriod: "50",
   duration: "1 year",
@@ -31,20 +54,50 @@ const defaultFormState: TrendFollowingFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's analysis of this trend-following strategy.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
-function buildPrompt({ token, initialCapital, maPeriod, duration }: TrendFollowingFormState) {
+function buildPrompt(
+  { token, tokenName, initialCapital, maPeriod, duration }: TrendFollowingFormState,
+  history: CoindeskHistoryResult,
+  clock: UtcClockInfo,
+) {
+  const resolvedTokenName = tokenName?.trim() || token;
+  const normalizedCandles = history.candles.map((candle) => ({
+    date: candle.date,
+    open: Number(candle.open.toFixed(8)),
+    high: Number(candle.high.toFixed(8)),
+    low: Number(candle.low.toFixed(8)),
+    close: Number(candle.close.toFixed(8)),
+  }));
+  const serializedHistory = JSON.stringify(normalizedCandles, null, 2);
+
   return joinPromptLines([
-    `Using your coindesk tool, model the following trend-following strategy.`,
+    `Using the provided CoinDesk history data, model the following trend-following strategy without calling any external tools.`,
     `Respond in a single message, DO NOT request clarification, and DO NOT ask any follow-up questions.`,
-    `Strategy: Start with ${initialCapital} USD. Buy ${token} when price > ${maPeriod}-day MA, hold stablecoin when price <= ${maPeriod}-day MA. Project over ${duration}.`,
+    `Strategy: Start with ${initialCapital} USD. Buy ${token} (${resolvedTokenName}) when price > ${maPeriod}-day MA, hold stablecoin when price <= ${maPeriod}-day MA. Project over ${duration}.`,
+    "",
+    "Clock context:",
+    `- Current UTC date (schedule anchor): ${clock.currentUtcDate}`,
+    `- Current UTC date/time: ${clock.currentUtcIso}`,
+    "",
+    "CoinDesk data context:",
+    `- Market: ${history.market}`,
+    `- Instrument: ${history.instrument}`,
+    `- Date range: ${history.startDate} → ${history.endDate}`,
+    "",
+    "Historical summary (mirrors get_coindesk_history response):",
+    history.summary,
+    "",
+    "Raw OHLC closes (oldest first):",
+    serializedHistory,
     "",
     "Guidelines:",
-    "1. Determine the schedule start date automatically: call your date/time capability to retrieve today's UTC date and use it as the starting point. Do not ask the user.",
-    `2. Generate a synthetic price path for ${token} covering ${duration}. When real history improves realism, use the available data tools silently; otherwise craft a consistent synthetic series with volatility. Include the ${maPeriod}-day moving average at each point.`,
-    `3. Simulate the strategy: track when you'd be in ${token} (price > MA) vs. stablecoin (price <= MA), calculate portfolio value and a HODL baseline at each date.`,
-    `4. Estimate performance: approximate Sharpe ratio and maximum drawdown for both strategy and HODL. Note any key trades and risk factors.`,
-    "5. Produce a structured summary using the JSON schema below. Focus on three concise sections that capture performance metrics, trade cadence, and risks. Keep assumptions explicit inside the sections.",
-    `6. Provide a modeled series with one entry per trading day across ${duration}. Each point must include price, moving average, portfolio equity, and HODL baseline values. All values must be numbers.`,
-    "7. Never ask questions, never defer, and respond with a single JSON object—no prose or markdown framing.",
+    "1. Use the provided current UTC timestamp exactly as the modeling anchor. Do not call any date/time tools.",
+    `2. Use the supplied CoinDesk dataset for historical reference and to anchor baseline drift; do NOT invoke CoinDesk, pricing, or time tools.`,
+    `3. Generate a synthetic-but-coherent price path for ${token} covering ${duration}, biasing toward the provided data when it improves realism. Include the ${maPeriod}-day moving average at each point.`,
+    `4. Simulate the strategy: track when you'd be in ${token} (price > MA) vs. stablecoin (price <= MA), calculate portfolio value and a HODL baseline at each date.`,
+    `5. Estimate performance: approximate Sharpe ratio and maximum drawdown for both strategy and HODL. Note any key trades and risk factors.`,
+    "6. Produce a structured summary using the JSON schema below. Focus on three concise sections that capture performance metrics, trade cadence, and risks. Keep assumptions explicit inside the sections.",
+    "7. Limit the modeled price/MA/portfolio series to at most 120 evenly spaced points (roughly weekly). Each point must include date, price, moving average, portfolioEquity, and hodlValue numbers.",
+    "8. Never ask questions, never defer, and respond with a single JSON object—no prose or markdown framing.",
     "",
     "Return JSON only, shaped exactly like:",
     "{",
@@ -144,7 +197,15 @@ export function TrendFollowingCalculatorForm({
           Token
           <TokenSelector
             value={formState.token}
-            onSelect={(nextValue) => handleFieldChangeBuilder("token")(nextValue)}
+            onSelect={(nextValue, asset?: CoindeskAsset) => {
+              handleFieldChangeBuilder("token")(nextValue);
+              if (asset) {
+                handleFieldChangeBuilder("tokenName")(asset.name ?? nextValue);
+                handleFieldChangeBuilder("market")(
+                  asset.market ?? formState.market ?? DEFAULT_MARKET,
+                );
+              }
+            }}
             placeholder="e.g. BTC"
             required
           />
@@ -209,8 +270,20 @@ export const trendFollowingCalculatorDefinition: CalculatorDefinition<TrendFollo
   description: "Trade on momentum: go long when price exceeds moving average, hold stablecoin otherwise.",
   Form: TrendFollowingCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: (formState) => {
-    const prompt = buildPrompt(formState);
+  getRequestConfig: async (formState) => {
+    if (!formState.token?.trim()) {
+      throw new Error("Select a token before running the trend-following projection.");
+    }
+
+    const durationDays = resolveDurationDays(formState.duration, DURATION_TO_DAYS, DEFAULT_DURATION_DAYS);
+    const clock = getCurrentUtcClockInfo();
+    const history = await fetchCoindeskHistoryWithSummary({
+      symbol: formState.token,
+      market: formState.market,
+      durationDays,
+    });
+
+    const prompt = buildPrompt(formState, history, clock);
 
     return buildNovaRequestOptions(prompt, { max_tokens: 18000 });
   },

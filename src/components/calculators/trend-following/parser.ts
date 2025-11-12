@@ -1,4 +1,5 @@
 import type { TrendFollowingDataPoint } from "./trend-following-chart";
+import { extractBalancedJsonObject } from "@/components/calculators/utils/json";
 
 const DATA_LABEL_PATTERN = /DATA:\s*$/i;
 const SUMMARY_LABEL_PATTERN = /SUMMARY:\s*/i;
@@ -78,8 +79,10 @@ function parseSeriesCollection(series: unknown): TrendFollowingDataPoint[] {
 }
 
 function parseStructuredReply(reply: string): TrendFollowingResult | null {
+  const candidate = extractBalancedJsonObject(reply) ?? reply;
+
   try {
-    const parsed = JSON.parse(reply) as Record<string, unknown>;
+    const parsed = JSON.parse(candidate) as Record<string, unknown>;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return null;
     }

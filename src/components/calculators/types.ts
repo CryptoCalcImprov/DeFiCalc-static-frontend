@@ -73,7 +73,7 @@ export type CalculatorDefinition<FormState> = {
   description?: string;
   Form: (props: CalculatorFormProps<FormState>) => JSX.Element;
   getInitialState: () => FormState;
-  getRequestConfig: (formState: FormState) => CalculatorRequestConfig;
+  getRequestConfig: (formState: FormState) => Promise<CalculatorRequestConfig> | CalculatorRequestConfig;
   parseReply: (reply: string) => CalculatorResult;
   getSeriesLabel?: (formState: FormState) => string;
   initialSummary?: string;

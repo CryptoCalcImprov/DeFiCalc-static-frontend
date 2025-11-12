@@ -12,16 +12,40 @@ import { joinPromptLines } from "@/components/calculators/utils/prompt";
 import { parseCalculatorReply } from "@/components/calculators/utils/summary";
 import { buildNovaRequestOptions } from "@/components/calculators/utils/request";
 import { TokenSelector } from "@/components/calculators/workspace/TokenSelector";
+import { resolveDurationDays } from "@/components/calculators/utils/duration";
+import {
+  getCurrentUtcClockInfo,
+  type UtcClockInfo,
+} from "@/components/calculators/utils/clock";
+import type { CoindeskAsset } from "@/hooks/useCoindeskAssetSearch";
+import {
+  fetchCoindeskHistoryWithSummary,
+  type CoindeskHistoryResult,
+} from "@/lib/coindesk-history";
 
 export type BuyTheDipFormState = {
   token: string;
+  tokenName: string;
+  market: string;
   budget: string;
   dipThreshold: string;
   duration: string;
 };
 
+const DEFAULT_MARKET = "cadli";
+const DEFAULT_TOKEN_NAME = "Bitcoin";
+const DURATION_TO_DAYS: Record<string, number> = {
+  "3 months": 90,
+  "6 months": 180,
+  "1 year": 365,
+  "2 years": 730,
+};
+const DEFAULT_DURATION_DAYS = DURATION_TO_DAYS["6 months"];
+
 const defaultFormState: BuyTheDipFormState = {
   token: "BTC",
+  tokenName: DEFAULT_TOKEN_NAME,
+  market: DEFAULT_MARKET,
   budget: "5000",
   dipThreshold: "10",
   duration: "6 months",
@@ -30,21 +54,51 @@ const defaultFormState: BuyTheDipFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's perspective on this strategy.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
-function buildPrompt({ token, budget, dipThreshold, duration }: BuyTheDipFormState) {
+function buildPrompt(
+  { token, tokenName, budget, dipThreshold, duration }: BuyTheDipFormState,
+  history: CoindeskHistoryResult,
+  clock: UtcClockInfo,
+) {
+  const resolvedTokenName = tokenName?.trim() || token;
+  const normalizedCandles = history.candles.map((candle) => ({
+    date: candle.date,
+    open: Number(candle.open.toFixed(8)),
+    high: Number(candle.high.toFixed(8)),
+    low: Number(candle.low.toFixed(8)),
+    close: Number(candle.close.toFixed(8)),
+  }));
+  const serializedHistory = JSON.stringify(normalizedCandles, null, 2);
+
   return joinPromptLines([
-    `Using your coindesk tool, evaluate the following buy-the-dip strategy.`,
+    `Using the provided CoinDesk history data, evaluate the following buy-the-dip strategy without calling any external tools.`,
     `Respond in a single message, DO NOT request clarification, and DO NOT ask any follow-up questions.`,
-    `Strategy details: deploy a ${budget} USD budget to buy ${token} only when price drops ${dipThreshold}% or more from recent highs, over ${duration}.`,
+    `Strategy details: deploy a ${budget} USD budget to buy ${token} (${resolvedTokenName}) only when price drops ${dipThreshold}% or more from recent highs, over ${duration}.`,
+    "",
+    "Clock context:",
+    `- Current UTC date (schedule anchor): ${clock.currentUtcDate}`,
+    `- Current UTC date/time: ${clock.currentUtcIso}`,
+    "",
+    "CoinDesk data context:",
+    `- Market: ${history.market}`,
+    `- Instrument: ${history.instrument}`,
+    `- Date range: ${history.startDate} → ${history.endDate}`,
+    "",
+    "Historical summary (mirrors get_coindesk_history response):",
+    history.summary,
+    "",
+    "Raw OHLC closes (oldest first):",
+    serializedHistory,
     "",
     "Guidelines:",
-    "1. Determine the schedule start date automatically: call your date/time capability to retrieve today's UTC date and use it as the starting point. Do not ask the user.",
-    "2. Generate a plausible synthetic price path that matches the duration and includes realistic dip opportunities. When real history improves realism, use the available data tools silently; otherwise craft a consistent synthetic series with volatility.",
-    "3. Identify dip opportunities: when price falls by the threshold percentage or more from a recent high (e.g., 7-day or 30-day high), simulate a purchase. Track remaining budget and show when funds would be deployed.",
-    "4. Summarize performance factors, deployment pacing, and residual risks using the structured schema below. Keep each section summary to at most two sentences (~220 characters) and avoid enumerating every individual buy. Focus on aggregate stats.",
+    "1. Use the provided current UTC timestamp as the official start date reference. Do not call any date/time tools.",
+    "2. Use the supplied CoinDesk dataset for historical reference and trend context. Do NOT call CoinDesk, pricing, or time tools.",
+    "3. Generate a plausible synthetic price path that matches the duration and includes realistic dip opportunities informed by the provided data when helpful.",
+    "4. Identify dip opportunities: when price falls by the threshold percentage or more from a recent high (e.g., 7-day or 30-day high), simulate a purchase. Track remaining budget and show when funds would be deployed.",
+    "5. Summarize performance factors, deployment pacing, and residual risks using the structured schema below. Keep each section summary to at most two sentences (~220 characters) and avoid enumerating every individual buy. Focus on aggregate stats.",
     "   - Do not include per-trade logs or date-by-date breakdowns inside summaries, metrics, assumptions, or risks.",
-    "5. Limit metrics arrays to at most three entries each, highlight totals/averages only, and keep assumptions/risk lists to at most three concise bullets.",
-    "6. Provide one entry per trading day or per event date in the modeled price path. Dates must be chronological in YYYY-MM-DD format. Prices must be numeric.",
-    "7. Never ask questions, never defer the calculation, and respond with a single JSON object—no prose or markdown framing.",
+    "6. Limit metrics arrays to at most three entries each, highlight totals/averages only, and keep assumptions/risk lists to at most three concise bullets.",
+    "7. Provide one entry per trading day or per event date in the modeled price path. Dates must be chronological in YYYY-MM-DD format. Prices must be numeric.",
+    "8. Never ask questions, never defer the calculation, and respond with a single JSON object—no prose or markdown framing.",
     "Populate metric values with actual calculations; replace illustrative numbers shown in the template.",
     "",
     "Return JSON only, shaped exactly like:",
@@ -143,7 +197,15 @@ export function BuyTheDipCalculatorForm({
           Token
           <TokenSelector
             value={formState.token}
-            onSelect={(nextValue) => handleFieldChangeBuilder("token")(nextValue)}
+            onSelect={(nextValue, asset?: CoindeskAsset) => {
+              handleFieldChangeBuilder("token")(nextValue);
+              if (asset) {
+                handleFieldChangeBuilder("tokenName")(asset.name ?? nextValue);
+                handleFieldChangeBuilder("market")(
+                  asset.market ?? formState.market ?? DEFAULT_MARKET,
+                );
+              }
+            }}
             placeholder="e.g. BTC"
             required
           />
@@ -210,8 +272,20 @@ export const buyTheDipCalculatorDefinition: CalculatorDefinition<BuyTheDipFormSt
   description: "Deploy capital strategically when prices fall below threshold levels.",
   Form: BuyTheDipCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: (formState) => {
-    const prompt = buildPrompt(formState);
+  getRequestConfig: async (formState) => {
+    if (!formState.token?.trim()) {
+      throw new Error("Select a token before running the buy-the-dip projection.");
+    }
+
+    const durationDays = resolveDurationDays(formState.duration, DURATION_TO_DAYS, DEFAULT_DURATION_DAYS);
+    const clock = getCurrentUtcClockInfo();
+    const history = await fetchCoindeskHistoryWithSummary({
+      symbol: formState.token,
+      market: formState.market,
+      durationDays,
+    });
+
+    const prompt = buildPrompt(formState, history, clock);
 
     return buildNovaRequestOptions(prompt, { max_tokens: 18000 });
   },

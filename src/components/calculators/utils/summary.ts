@@ -5,6 +5,7 @@ import type {
   CalculatorSummarySection,
   TimeSeriesPoint,
 } from "@/components/calculators/types";
+import { extractBalancedJsonObject } from "@/components/calculators/utils/json";
 
 const DATA_LABEL_PATTERN = /DATA:\s*$/i;
 const SUMMARY_LABEL_PATTERN = /SUMMARY:\s*/i;
@@ -228,7 +229,13 @@ export function parseCalculatorReply(reply: string): CalculatorResult {
     };
   }
 
-  const parsed = tryParseJson(normalizedReply);
+  let parsed = tryParseJson(normalizedReply);
+  if (!parsed) {
+    const repaired = extractBalancedJsonObject(normalizedReply);
+    if (repaired && repaired !== normalizedReply) {
+      parsed = tryParseJson(repaired);
+    }
+  }
   if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
     const parsedObject = parsed as JsonLike;
     const insight = parseInsight(parsedObject.insight);

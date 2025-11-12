@@ -87,7 +87,7 @@ export function CalculatorHubSection() {
     setSummaryMessage(pendingSummary);
 
     try {
-      const { prompt, options } = activeDefinition.getRequestConfig(currentState as any);
+      const { prompt, options } = await activeDefinition.getRequestConfig(currentState as any);
       const refId = ensureNovaRefId("calculator");
       const { reply } = await requestNova(prompt, options, { refId });
 

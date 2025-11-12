@@ -7,6 +7,7 @@ export type CoindeskAsset = {
   symbol: string;
   name: string;
   slug?: string;
+  market?: string;
 };
 
 export type UseCoindeskAssetSearchResult = {
@@ -16,12 +17,12 @@ export type UseCoindeskAssetSearchResult = {
 };
 
 const FALLBACK_ASSETS: CoindeskAsset[] = [
-  { symbol: "BTC", name: "Bitcoin", slug: "bitcoin" },
-  { symbol: "ETH", name: "Ethereum", slug: "ethereum" },
-  { symbol: "SOL", name: "Solana", slug: "solana" },
-  { symbol: "AVAX", name: "Avalanche", slug: "avalanche" },
-  { symbol: "MATIC", name: "Polygon", slug: "polygon" },
-  { symbol: "ADA", name: "Cardano", slug: "cardano" },
+  { symbol: "BTC", name: "Bitcoin", slug: "bitcoin", market: "cadli" },
+  { symbol: "ETH", name: "Ethereum", slug: "ethereum", market: "cadli" },
+  { symbol: "SOL", name: "Solana", slug: "solana", market: "cadli" },
+  { symbol: "AVAX", name: "Avalanche", slug: "avalanche", market: "cadli" },
+  { symbol: "MATIC", name: "Polygon", slug: "polygon", market: "cadli" },
+  { symbol: "ADA", name: "Cardano", slug: "cardano", market: "cadli" },
 ];
 
 const DEFAULT_SEARCH_ENDPOINT = "https://data-api.coindesk.com/asset/v1/search";
@@ -60,6 +61,11 @@ function normaliseAsset(entry: unknown): CoindeskAsset | null {
     candidate.ID ??
     candidate.assetId ??
     candidate.slug_name;
+  const marketSource =
+    candidate.market ??
+    candidate.MARKET ??
+    candidate.market_name ??
+    candidate.MARKET_NAME;
 
   if (typeof symbolSource !== "string") {
     return null;
@@ -73,7 +79,12 @@ function normaliseAsset(entry: unknown): CoindeskAsset | null {
   const name = typeof nameSource === "string" && nameSource.trim().length > 0 ? nameSource.trim() : symbol;
   const slug = typeof slugSource === "string" && slugSource.trim().length > 0 ? slugSource.trim() : undefined;
 
-  return { symbol, name, slug };
+  const market =
+    typeof marketSource === "string" && marketSource.trim().length > 0
+      ? marketSource.trim().toLowerCase()
+      : undefined;
+
+  return { symbol, name, slug, market };
 }
 
 function parseAssetResults(payload: unknown): CoindeskAsset[] {

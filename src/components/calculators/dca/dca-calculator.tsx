@@ -12,16 +12,40 @@ import { joinPromptLines } from "@/components/calculators/utils/prompt";
 import { parseCalculatorReply } from "@/components/calculators/utils/summary";
 import { buildNovaRequestOptions } from "@/components/calculators/utils/request";
 import { TokenSelector } from "@/components/calculators/workspace/TokenSelector";
+import type { CoindeskAsset } from "@/hooks/useCoindeskAssetSearch";
+import {
+  fetchCoindeskHistoryWithSummary,
+  type CoindeskHistoryResult,
+} from "@/lib/coindesk-history";
+import { resolveDurationDays } from "@/components/calculators/utils/duration";
+import {
+  getCurrentUtcClockInfo,
+  type UtcClockInfo,
+} from "@/components/calculators/utils/clock";
 
 export type DcaFormState = {
   token: string;
+  tokenName: string;
+  market: string;
   amount: string;
   interval: string;
   duration: string;
 };
 
+const DEFAULT_MARKET = "cadli";
+const DEFAULT_TOKEN_NAME = "Ethereum";
+const DURATION_TO_DAYS: Record<string, number> = {
+  "3 months": 90,
+  "6 months": 180,
+  "1 year": 365,
+  "2 years": 730,
+};
+const DEFAULT_DURATION_DAYS = DURATION_TO_DAYS["6 months"];
+
 const defaultFormState: DcaFormState = {
   token: "ETH",
+  tokenName: DEFAULT_TOKEN_NAME,
+  market: DEFAULT_MARKET,
   amount: "500",
   interval: "bi-weekly",
   duration: "6 months",
@@ -30,18 +54,48 @@ const defaultFormState: DcaFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's perspective on this plan.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
-function buildPrompt({ token, amount, interval, duration }: DcaFormState) {
+function buildPrompt(
+  { token, tokenName, amount, interval, duration }: DcaFormState,
+  history: CoindeskHistoryResult,
+  clock: UtcClockInfo,
+) {
+  const resolvedTokenName = tokenName?.trim() || token;
+  const normalizedCandles = history.candles.map((candle) => ({
+    date: candle.date,
+    open: Number(candle.open.toFixed(8)),
+    high: Number(candle.high.toFixed(8)),
+    low: Number(candle.low.toFixed(8)),
+    close: Number(candle.close.toFixed(8)),
+  }));
+  const serializedHistory = JSON.stringify(normalizedCandles, null, 2);
+
   return joinPromptLines([
-    `Using your coindesk tool, evaluate the following dollar-cost-averaging plan.`,
+    `Using the provided CoinDesk history data, evaluate the following dollar-cost-averaging plan without calling any external tools.`,
     `Respond in a single message, DO NOT request clarification, and DO NOT ask any follow-up questions.`,
-    `Plan details: invest ${amount} USD of ${token} on a ${interval} cadence for ${duration}.`,
+    `Plan details: invest ${amount} USD of ${token} (${resolvedTokenName}) on a ${interval} cadence for ${duration}.`,
+    "",
+    "Clock context:",
+    `- Current UTC date (schedule anchor): ${clock.currentUtcDate}`,
+    `- Current UTC date/time: ${clock.currentUtcIso}`,
+    "",
+    "CoinDesk data context:",
+    `- Market: ${history.market}`,
+    `- Instrument: ${history.instrument}`,
+    `- Date range: ${history.startDate} → ${history.endDate}`,
+    "",
+    "Historical summary (mirrors get_coindesk_history response):",
+    history.summary,
+    "",
+    "Raw OHLC closes (oldest first):",
+    serializedHistory,
     "",
     "Guidelines:",
-    "1. Determine the schedule start date automatically: call your date/time capability to retrieve today's UTC date and use it as the starting point. Do not ask the user.",
-    "2. Generate a plausible synthetic price path that matches the cadence and duration. When real history improves realism, use the available data tools silently; otherwise craft a consistent synthetic series.",
-    "3. Summarize performance drivers, expected cost basis shifts, and risks using the structured schema below. Keep assumptions explicit.",
-    "4. Provide one entry per scheduled purchase date in a modeled price path. Dates must be chronological and use YYYY-MM-DD. Prices must be numbers.",
-    "5. Never ask questions, never defer the calculation, and respond with a single JSON object—no prose or markdown framing.",
+    "1. Use the provided current UTC date/time exactly as the schedule anchor. Do not call any date/time tools.",
+    "2. Use the supplied CoinDesk dataset for all historical reference. Do NOT call CoinDesk, pricing, or time tools.",
+    "3. Generate a plausible synthetic price path that matches the cadence and duration. When real history improves realism, bias the model toward the supplied data; otherwise craft a consistent synthetic series.",
+    "4. Summarize performance drivers, expected cost basis shifts, and risks using the structured schema below. Keep assumptions explicit.",
+    "5. Provide one entry per scheduled purchase date in a modeled price path. Dates must be chronological and use YYYY-MM-DD. Prices must be numbers.",
+    "6. Never ask questions, never defer the calculation, and respond with a single JSON object—no prose or markdown framing.",
     "Populate metric values with actual calculations; replace illustrative numbers shown in the template.",
     "",
     "Return JSON only, shaped exactly like:",
@@ -134,7 +188,15 @@ export function DcaCalculatorForm({
           Token
           <TokenSelector
             value={formState.token}
-            onSelect={(nextValue) => handleFieldChangeBuilder("token")(nextValue)}
+            onSelect={(nextValue, asset?: CoindeskAsset) => {
+              handleFieldChangeBuilder("token")(nextValue);
+              if (asset) {
+                handleFieldChangeBuilder("tokenName")(asset.name ?? nextValue);
+                handleFieldChangeBuilder("market")(
+                  asset.market ?? formState.market ?? DEFAULT_MARKET,
+                );
+              }
+            }}
             placeholder="e.g. ETH"
             required
           />
@@ -199,8 +261,20 @@ export const dcaCalculatorDefinition: CalculatorDefinition<DcaFormState> = {
   description: "Automate recurring buys to average into a token over time.",
   Form: DcaCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: (formState) => {
-    const prompt = buildPrompt(formState);
+  getRequestConfig: async (formState) => {
+    if (!formState.token?.trim()) {
+      throw new Error("Select a token before running the DCA projection.");
+    }
+
+    const durationDays = resolveDurationDays(formState.duration, DURATION_TO_DAYS, DEFAULT_DURATION_DAYS);
+    const clock = getCurrentUtcClockInfo();
+    const history = await fetchCoindeskHistoryWithSummary({
+      symbol: formState.token,
+      market: formState.market,
+      durationDays,
+    });
+
+    const prompt = buildPrompt(formState, history, clock);
 
     return buildNovaRequestOptions(prompt, { max_tokens: 18000 });
   },
