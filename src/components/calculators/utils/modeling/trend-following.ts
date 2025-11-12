@@ -7,6 +7,7 @@ import {
   downsampleSeries,
   extractCloseSeries,
   mean,
+  standardDeviation,
 } from "./helpers";
 import type {
   TimeSeriesPoint,
@@ -90,9 +91,11 @@ function extendForwardPath(
 ): TimeSeriesPoint[] {
   const closes = extractCloseSeries(history);
   const lastPrice = closes[closes.length - 1]?.price ?? 1;
-  const baseDrift = mean(computeLogReturns(history));
+  const logReturns = computeLogReturns(history);
+  const baseDrift = mean(logReturns);
+  const returnVolatility = standardDeviation(logReturns);
   const lastState = states[states.length - 1];
-  const bias = lastState?.position === "long" ? 1.1 : 0.9;
+  const trendBias = lastState?.position === "long" ? 1 : lastState?.position === "flat" ? 0 : -1;
 
   const stepDays = Math.max(7, Math.round(options.projectionWindowDays / 12));
   const steps = Math.max(1, Math.round(options.projectionWindowDays / stepDays));
@@ -101,8 +104,10 @@ function extendForwardPath(
   let currentPrice = lastPrice;
 
   for (let i = 1; i <= steps; i++) {
-    const drift = Math.exp(baseDrift * stepDays);
-    currentPrice = Math.max(0.0001, currentPrice * drift * Math.pow(bias, 1 / steps));
+    const deterministicShock =
+      baseDrift * stepDays + trendBias * returnVolatility * Math.sqrt(stepDays) * 0.5;
+    const drift = Math.exp(deterministicShock);
+    currentPrice = Math.max(0.0001, currentPrice * drift);
     path.push({
       date: addDays(history.endDate, stepDays * i),
       price: currentPrice,
