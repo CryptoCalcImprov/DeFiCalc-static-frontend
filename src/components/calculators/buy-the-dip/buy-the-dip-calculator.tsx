@@ -22,6 +22,10 @@ import {
   fetchCoindeskHistoryWithSummary,
   type CoindeskHistoryResult,
 } from "@/lib/coindesk-history";
+import {
+  simulateBuyTheDip,
+  type BuyTheDipAnalysisPackage,
+} from "@/components/calculators/utils/modeling";
 
 export type BuyTheDipFormState = {
   token: string;
@@ -41,6 +45,11 @@ const DURATION_TO_DAYS: Record<string, number> = {
   "2 years": 730,
 };
 const DEFAULT_DURATION_DAYS = DURATION_TO_DAYS["6 months"];
+const LOOKBACK_WINDOW_MIN_DAYS = 7;
+const LOOKBACK_WINDOW_MAX_DAYS = 60;
+const DEFAULT_DIP_THRESHOLD_PERCENT = 10;
+const DIP_THRESHOLD_MIN_PERCENT = 1;
+const DIP_THRESHOLD_MAX_PERCENT = 60;
 
 const defaultFormState: BuyTheDipFormState = {
   token: "BTC",
@@ -54,54 +63,150 @@ const defaultFormState: BuyTheDipFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's perspective on this strategy.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
+type BuyTheDipModelingArtifacts = {
+  historyHighlights: BuyTheDipAnalysisPackage["history"];
+  projectionSeries: BuyTheDipAnalysisPackage["projection"];
+  strategyMetrics: BuyTheDipAnalysisPackage["metrics"];
+  totalBudgetUsd: number;
+  dipThresholdPercent: number;
+  lookbackWindowDays: number;
+  projectionWindowDays: number;
+};
+
+function formatNumber(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  const absolute = Math.abs(value);
+  if (absolute >= 1000) {
+    return Number(value.toFixed(2));
+  }
+  if (absolute >= 1) {
+    return Number(value.toFixed(4));
+  }
+  return Number(value.toFixed(6));
+}
+
+function formatPercent(value: number) {
+  return formatNumber(value * 100);
+}
+
+function sampleTriggers(triggers: BuyTheDipAnalysisPackage["projection"]["triggers"], target = 12) {
+  if (triggers.length <= target) {
+    return triggers;
+  }
+  return triggers.slice(-target);
+}
+
+function sampleWindows(windows: BuyTheDipAnalysisPackage["projection"]["projectedWindows"], target = 6) {
+  if (windows.length <= target) {
+    return windows;
+  }
+  return windows.slice(0, target);
+}
+
 function buildPrompt(
   { token, tokenName, budget, dipThreshold, duration }: BuyTheDipFormState,
   history: CoindeskHistoryResult,
   clock: UtcClockInfo,
+  modeling: BuyTheDipModelingArtifacts,
 ) {
   const resolvedTokenName = tokenName?.trim() || token;
-  const normalizedCandles = history.candles.map((candle) => ({
-    date: candle.date,
-    open: Number(candle.open.toFixed(8)),
-    high: Number(candle.high.toFixed(8)),
-    low: Number(candle.low.toFixed(8)),
-    close: Number(candle.close.toFixed(8)),
-  }));
-  const serializedHistory = JSON.stringify(normalizedCandles, null, 2);
+  const {
+    historyHighlights,
+    projectionSeries,
+    strategyMetrics,
+    totalBudgetUsd,
+    dipThresholdPercent,
+    lookbackWindowDays,
+    projectionWindowDays,
+  } = modeling;
+
+  const analysisPackage = {
+    context: {
+      calculator: {
+        id: "buy-the-dip",
+        label: "Buy the Dip",
+      },
+      clock: {
+        as_of_date: clock.currentUtcDate,
+        as_of_timestamp: clock.currentUtcIso,
+      },
+      market: {
+        symbol: history.symbol ?? token,
+        instrument: history.instrument,
+        venue: history.market,
+        token_name: resolvedTokenName,
+      },
+      inputs: {
+        budget_usd: formatNumber(totalBudgetUsd),
+        dip_threshold_percent: formatNumber(dipThresholdPercent),
+        dip_threshold_fraction: formatNumber(dipThresholdPercent / 100),
+        duration,
+        duration_days: projectionWindowDays,
+        lookback_window_days: lookbackWindowDays,
+      },
+    },
+    history: {
+      summary: history.summary,
+      stats: {
+        start: historyHighlights.stats.startDate,
+        end: historyHighlights.stats.endDate,
+        samples: historyHighlights.stats.sampleCount,
+        total_return: formatNumber(historyHighlights.stats.totalReturn),
+        annualized_drift: formatNumber(historyHighlights.stats.annualizedDrift),
+        annualized_volatility: formatNumber(historyHighlights.stats.annualizedVolatility),
+      },
+      sample_series: historyHighlights.series.map((point) => ({
+        date: point.date,
+        price: formatNumber(point.price),
+      })),
+    },
+    projection: {
+      remaining_budget_usd: formatNumber(projectionSeries.remainingBudget),
+      triggers_sample: sampleTriggers(projectionSeries.triggers).map((trigger) => ({
+        date: trigger.date,
+        drawdown_percent: formatPercent(trigger.drawdown),
+        price: formatNumber(trigger.price),
+      })),
+      projected_windows: sampleWindows(projectionSeries.projectedWindows).map((window) => ({
+        window_start: window.windowStart,
+        window_end: window.windowEnd,
+        allocation_usd: formatNumber(window.allocation),
+        expected_price: formatNumber(window.expectedPrice),
+      })),
+      path: projectionSeries.path.map((point) => ({
+        date: point.date,
+        price: formatNumber(point.price),
+      })),
+    },
+    metrics: strategyMetrics.map((metric) => ({
+      id: metric.id,
+      label: metric.label,
+      value: formatNumber(metric.value),
+      ...(metric.unit ? { unit: metric.unit } : {}),
+    })),
+  };
+
+  const analysisJson = JSON.stringify(analysisPackage, null, 2);
 
   return joinPromptLines([
-    `Using the provided CoinDesk history data, evaluate the following buy-the-dip strategy without calling any external tools.`,
-    `Respond in a single message, DO NOT request clarification, and DO NOT ask any follow-up questions.`,
-    `Strategy details: deploy a ${budget} USD budget to buy ${token} (${resolvedTokenName}) only when price drops ${dipThreshold}% or more from recent highs, over ${duration}.`,
+    "You are Nova, a quant researcher evaluating a buy-the-dip deployment.",
+    "Rely solely on the provided data. Do not call external tools, request clarification, or defer your answer.",
     "",
-    "Clock context:",
-    `- Current UTC date (schedule anchor): ${clock.currentUtcDate}`,
-    `- Current UTC date/time: ${clock.currentUtcIso}`,
+    `analysisPackage = ${analysisJson}`,
     "",
-    "CoinDesk data context:",
-    `- Market: ${history.market}`,
-    `- Instrument: ${history.instrument}`,
-    `- Date range: ${history.startDate} → ${history.endDate}`,
+    "Use analysisPackage to produce an insight-driven response:",
+    "1. Summarize the dip opportunity set and deployment cadence referencing triggers_sample, projected_windows, and metrics.",
+    "2. Stress-test assumptions about drawdown frequency, liquidity, and budget usage; capture takeaways inside assumptions arrays.",
+    "3. Highlight key risks, monitoring cues, and residual dry powder using remaining_budget_usd and history stats.",
     "",
-    "Historical summary (mirrors get_coindesk_history response):",
-    history.summary,
+    "Response constraints:",
+    "- Return a single JSON object following the schema below.",
+    "- Populate every numeric field with explicit numbers.",
+    "- Do not include commentary outside the JSON payload.",
     "",
-    "Raw OHLC closes (oldest first):",
-    serializedHistory,
-    "",
-    "Guidelines:",
-    "1. Use the provided current UTC timestamp as the official start date reference. Do not call any date/time tools.",
-    "2. Use the supplied CoinDesk dataset for historical reference and trend context. Do NOT call CoinDesk, pricing, or time tools.",
-    "3. Generate a plausible synthetic price path that matches the duration and includes realistic dip opportunities informed by the provided data when helpful.",
-    "4. Identify dip opportunities: when price falls by the threshold percentage or more from a recent high (e.g., 7-day or 30-day high), simulate a purchase. Track remaining budget and show when funds would be deployed.",
-    "5. Summarize performance factors, deployment pacing, and residual risks using the structured schema below. Keep each section summary to at most two sentences (~220 characters) and avoid enumerating every individual buy. Focus on aggregate stats.",
-    "   - Do not include per-trade logs or date-by-date breakdowns inside summaries, metrics, assumptions, or risks.",
-    "6. Limit metrics arrays to at most three entries each, highlight totals/averages only, and keep assumptions/risk lists to at most three concise bullets.",
-    "7. Provide one entry per trading day or per event date in the modeled price path. Dates must be chronological in YYYY-MM-DD format. Prices must be numeric.",
-    "8. Never ask questions, never defer the calculation, and respond with a single JSON object—no prose or markdown framing.",
-    "Populate metric values with actual calculations; replace illustrative numbers shown in the template.",
-    "",
-    "Return JSON only, shaped exactly like:",
+    "Schema:",
     "{",
     '  "insight": {',
     '    "calculator": {',
@@ -118,34 +223,38 @@ function buildPrompt(
     `        "dip_threshold_percent": ${dipThreshold},`,
     `        "duration": "${duration}"`,
     "      },",
-    '      "assumptions": ["Capture major modeling assumptions here."]',
+    '      "analysis_reference": ["projection.triggers_sample", "projection.remaining_budget_usd"],',
+    '      "assumptions": ["Summarize core modeling choices and stress-test insights."]',
     "    },",
     '    "sections": [',
     "      {",
     '        "type": "deployment_plan",',
-    '        "headline": "How the budget deploys",',
-    '        "summary": "Outline cadence of purchases triggered by dip conditions.",',
+    '        "headline": "Budget deployment outlook",',
+    '        "summary": "Explain how capital stages into the market across projected dip windows.",',
     '        "metrics": [',
     '          { "label": "Total budget (USD)", "value": 5000 },',
     '          { "label": "Budget deployed (USD)", "value": 3800 },',
-    '          { "label": "Purchases triggered", "value": 7 }',
+    '          { "label": "Remaining budget (USD)", "value": 1200 }',
     "        ],",
-    '        "assumptions": ["Clarify rebound thresholds, cooling periods, etc."]',
+    '        "assumptions": ["Document cooling periods, sizing logic, or trigger sensitivity."],',
+    '        "risks": ["Note execution or liquidity risks tied to clustering dips."]',
     "      },",
     "      {",
     '        "type": "performance_driver",',
-    '        "headline": "Price dynamics & opportunity set",',
-    '        "summary": "Explain the path of highs, dips, and modeled execution prices.",',
-    '        "risks": ["Note slippage, liquidity, or volatility risks."]',
+    '        "headline": "Opportunity drivers & stress test",',
+    '        "summary": "Describe what creates the opportunity set and how stress tests shift outcomes.",',
+    '        "assumptions": ["Capture the scenario comparisons or sensitivities explored."],',
+    '        "risks": ["Highlight any fragility revealed by the stress test."]',
     "      },",
     "      {",
     '        "type": "risk_assumption",',
-    '        "headline": "Key risks & monitoring",',
-    '        "summary": "Highlight conditions that could break the plan.",',
-    '        "risks": ["List each risk plainly."]',
+    '        "headline": "Risk & monitoring",',
+    '        "summary": "Outline key risks, warning signs, and contingency actions.",',
+    '        "risks": ["List the major risks in plain language."],',
+    '        "assumptions": ["Call out mitigations or monitoring steps."]',
     "      }",
     "    ],",
-    '    "notes": ["Optional closing reminders or next steps."]',
+    '    "notes": ["Optional reminders or next steps."]',
     "  },",
     '  "series": [',
     "    {",
@@ -160,6 +269,20 @@ function buildPrompt(
     "",
     "Strictly follow the schema. Do not emit trailing text or additional keys.",
   ]);
+}
+
+function resolveLookbackWindowDays(durationDays: number) {
+  const approx = Math.round(durationDays / 8);
+  const clamped = Math.min(LOOKBACK_WINDOW_MAX_DAYS, Math.max(LOOKBACK_WINDOW_MIN_DAYS, approx));
+  return clamped;
+}
+
+function normalizeDipThresholdPercent(rawPercent: number) {
+  if (!Number.isFinite(rawPercent) || rawPercent <= 0) {
+    return DEFAULT_DIP_THRESHOLD_PERCENT;
+  }
+  const clamped = Math.min(DIP_THRESHOLD_MAX_PERCENT, Math.max(DIP_THRESHOLD_MIN_PERCENT, rawPercent));
+  return clamped;
 }
 
 function parseNovaReply(reply: string): CalculatorResult {
@@ -284,10 +407,31 @@ export const buyTheDipCalculatorDefinition: CalculatorDefinition<BuyTheDipFormSt
       market: formState.market,
       durationDays,
     });
+    const budgetInput = Number.parseFloat(formState.budget);
+    const totalBudgetUsd = Number.isFinite(budgetInput) && budgetInput > 0 ? budgetInput : 0;
+    const rawThreshold = Number.parseFloat(formState.dipThreshold);
+    const dipThresholdPercent = normalizeDipThresholdPercent(rawThreshold);
+    const lookbackWindowDays = resolveLookbackWindowDays(durationDays);
+    const projectionWindowDays = durationDays;
 
-    const prompt = buildPrompt(formState, history, clock);
+    const projection = simulateBuyTheDip(history, {
+      totalBudgetUsd,
+      dipThreshold: dipThresholdPercent / 100,
+      lookbackWindowDays,
+      projectionWindowDays,
+    });
 
-    return buildNovaRequestOptions(prompt, { max_tokens: 18000 });
+    const prompt = buildPrompt(formState, history, clock, {
+      historyHighlights: projection.history,
+      projectionSeries: projection.projection,
+      strategyMetrics: projection.metrics,
+      totalBudgetUsd,
+      dipThresholdPercent,
+      lookbackWindowDays,
+      projectionWindowDays,
+    });
+
+    return buildNovaRequestOptions(prompt, { max_tokens: 9000 });
   },
   parseReply: parseNovaReply,
   getSeriesLabel: (formState) => `${formState.token} price`,
