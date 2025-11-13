@@ -30,6 +30,7 @@ const COINGECKO_API_BASE_URL = "https://api.coingecko.com/api/v3";
 const COINGECKO_SEARCH_ENDPOINT =
   process.env.NEXT_PUBLIC_COINGECKO_SEARCH_ENDPOINT ?? `${COINGECKO_API_BASE_URL}/search`;
 const PRICE_HISTORY_CACHE_TTL_MS = 1000 * 60 * 2;
+const DISPLAY_WINDOW_MONTHS = 3;
 
 async function searchCoinGeckoAssetId(query: string): Promise<string | null> {
   const normalizedQuery = query.trim();
@@ -182,6 +183,24 @@ export function CalculatorHubSection() {
 
   const dipThresholdString = String((formState as Record<string, unknown>).dipThreshold ?? "");
 
+  const { displayDataset, displayWindowStart } = useMemo(() => {
+    if (!priceHistory.length) {
+      return { displayDataset: priceHistory, displayWindowStart: 0 };
+    }
+
+    const latestCandle = priceHistory[priceHistory.length - 1];
+    const latestDate = new Date(latestCandle.date);
+    const windowStartDate = new Date(latestDate);
+    windowStartDate.setMonth(windowStartDate.getMonth() - DISPLAY_WINDOW_MONTHS);
+    const windowStartTimestamp = windowStartDate.getTime();
+
+    const filtered = priceHistory.filter((candle) => new Date(candle.date).getTime() >= windowStartTimestamp);
+    return {
+      displayDataset: filtered.length ? filtered : priceHistory,
+      displayWindowStart: filtered.length ? windowStartTimestamp : 0,
+    };
+  }, [priceHistory]);
+
   const { technicalOverlays, eventMarkers } = useMemo(() => {
     if (!priceHistory.length) {
       return { technicalOverlays: [], eventMarkers: [] };
@@ -249,10 +268,39 @@ export function CalculatorHubSection() {
           radius: 5,
         });
       }
+    } else if (activeCalculatorId === "trend-following") {
+      const definedPeriods = [50, 100, 200];
+      definedPeriods.forEach((period, index) => {
+        overlays.push({
+          id: `trend-ma-${period}`,
+          label: `${period}-day SMA`,
+          data: buildMovingAverageSeries(priceHistory, period),
+          color: index === 0 ? "rgba(59, 130, 246, 0.95)" : index === 1 ? "rgba(16, 185, 129, 0.9)" : "rgba(236, 72, 153, 0.9)",
+          borderDash: index === 0 ? undefined : [4, 4],
+          strokeWidth: 2,
+        });
+      });
     }
 
-    return { technicalOverlays: overlays, eventMarkers: markers };
-  }, [activeCalculatorId, priceHistory, dipThresholdString]);
+    const clipPoints = <T extends { x: number }>(points: T[], start: number) =>
+      start ? points.filter((point) => point.x >= start) : points;
+
+    const filteredOverlays = overlays
+      .map((overlay) => ({
+        ...overlay,
+        data: clipPoints(overlay.data, displayWindowStart),
+      }))
+      .filter((overlay) => overlay.data.length);
+
+    const filteredMarkers = markers
+      .map((marker) => ({
+        ...marker,
+        points: clipPoints(marker.points, displayWindowStart),
+      }))
+      .filter((marker) => marker.points.length);
+
+    return { technicalOverlays: filteredOverlays, eventMarkers: filteredMarkers };
+  }, [activeCalculatorId, priceHistory, dipThresholdString, displayWindowStart]);
 
   const handleFormStateChange = (field: string, value: unknown): void => {
     setCalculatorStates((previous) => {
@@ -541,14 +589,28 @@ export function CalculatorHubSection() {
       }
       chartPanel={
         activeCalculatorId === "trend-following" ? (
-          <TrendFollowingChart
-            dataset={trendFollowingDataset}
-            isLoading={isLoading}
-            token={(formState as any).token ?? "BTC"}
-          />
+          trendFollowingDataset.length || isLoading ? (
+            <TrendFollowingChart
+              dataset={trendFollowingDataset}
+              isLoading={isLoading}
+              token={(formState as any).token ?? "BTC"}
+            />
+          ) : (
+            <PriceTrajectoryPanel
+              dataset={displayDataset}
+              isLoading={isPriceHistoryLoading}
+              seriesLabel={seriesLabel}
+              technicalOverlays={technicalOverlays}
+              eventMarkers={eventMarkers}
+              loadingMessage="Fetching price history from CoinGecko…"
+              emptyMessage={
+                priceHistoryError ?? "Run the projection to visualize one year of CoinGecko price history."
+              }
+            />
+          )
         ) : (
           <PriceTrajectoryPanel
-            dataset={priceHistory}
+            dataset={displayDataset}
             isLoading={isPriceHistoryLoading}
             seriesLabel={seriesLabel}
             technicalOverlays={technicalOverlays}
