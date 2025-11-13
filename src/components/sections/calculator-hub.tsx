@@ -1,19 +1,24 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { calculatorDefinitions, findCalculatorDefinition } from "@/components/calculators";
 import type { CalculatorInsight, CoinGeckoCandle, TimeSeriesPoint } from "@/components/calculators/types";
 import { CalculatorDeck } from "@/components/calculators/workspace/CalculatorDeck";
 import { CalculatorWorkspace } from "@/components/calculators/workspace/CalculatorWorkspace";
-import { PriceTrajectoryPanel } from "@/components/calculators/workspace/PriceTrajectoryPanel";
+import {
+  PriceTrajectoryPanel,
+  type PriceTrajectoryEventMarker,
+  type PriceTrajectoryOverlay,
+} from "@/components/calculators/workspace/PriceTrajectoryPanel";
 import { SummaryPanel } from "@/components/calculators/workspace/SummaryPanel";
 import { Button } from "@/components/ui/button";
 import { clearNovaHistory, requestNova } from "@/lib/nova-client";
 import { ensureNovaRefId, resetNovaRefId } from "@/lib/nova-session";
 import { TrendFollowingChart, type TrendFollowingDataPoint } from "@/components/calculators/trend-following/trend-following-chart";
 import { parseTrendFollowingReply } from "@/components/calculators/trend-following/parser";
+import { buildDipTriggerSeries, buildMovingAverageSeries } from "@/components/calculators/workspace/technical-indicators";
 
 const defaultCalculatorId = calculatorDefinitions[0]?.id ?? "";
 const defaultDefinition = defaultCalculatorId ? findCalculatorDefinition<any>(defaultCalculatorId) : undefined;
@@ -174,6 +179,80 @@ export function CalculatorHubSection() {
 
   const seriesLabel =
     (activeDefinition?.getSeriesLabel ? activeDefinition.getSeriesLabel(formState as any) : undefined) ?? "Modeled price";
+
+  const dipThresholdString = String((formState as Record<string, unknown>).dipThreshold ?? "");
+
+  const { technicalOverlays, eventMarkers } = useMemo(() => {
+    if (!priceHistory.length) {
+      return { technicalOverlays: [], eventMarkers: [] };
+    }
+
+    const overlays: PriceTrajectoryOverlay[] = [];
+    const markers: PriceTrajectoryEventMarker[] = [];
+
+    if (activeCalculatorId === "dca") {
+      overlays.push(
+        {
+          id: "dca-sma-20",
+          label: "20-day SMA",
+          data: buildMovingAverageSeries(priceHistory, 20),
+          color: "rgba(56, 189, 248, 0.95)",
+        },
+        {
+          id: "dca-sma-60",
+          label: "60-day SMA",
+          data: buildMovingAverageSeries(priceHistory, 60),
+          color: "rgba(129, 140, 248, 0.9)",
+          borderDash: [4, 4],
+        },
+      );
+    } else if (activeCalculatorId === "buy-the-dip") {
+      overlays.push({
+        id: "buy-dip-sma-20",
+        label: "20-day SMA",
+        data: buildMovingAverageSeries(priceHistory, 20),
+        color: "rgba(16, 185, 129, 0.85)",
+      });
+
+      const parsedThreshold = Number.parseFloat(dipThresholdString);
+      const normalizedThreshold = Number.isFinite(parsedThreshold) ? parsedThreshold : 10;
+      const dipSeries = buildDipTriggerSeries(priceHistory, normalizedThreshold, 30);
+
+      if (dipSeries.recentHighs.length) {
+        overlays.push({
+          id: "buy-dip-recent-high",
+          label: "30-day recent high",
+          data: dipSeries.recentHighs,
+          color: "rgba(251, 191, 36, 0.9)",
+          borderDash: [6, 4],
+        });
+      }
+
+      if (dipSeries.thresholdLine.length) {
+        overlays.push({
+          id: "buy-dip-threshold",
+          label: `${normalizedThreshold}% dip threshold`,
+          data: dipSeries.thresholdLine,
+          color: "rgba(248, 113, 113, 0.9)",
+          borderDash: [2, 4],
+          strokeWidth: 1.5,
+        });
+      }
+
+      if (dipSeries.dipEvents.length) {
+        markers.push({
+          id: "buy-dip-events",
+          label: "Dip triggers",
+          points: dipSeries.dipEvents,
+          backgroundColor: "rgba(239, 68, 68, 0.7)",
+          borderColor: "rgba(220, 38, 38, 1)",
+          radius: 5,
+        });
+      }
+    }
+
+    return { technicalOverlays: overlays, eventMarkers: markers };
+  }, [activeCalculatorId, priceHistory, dipThresholdString]);
 
   const handleFormStateChange = (field: string, value: unknown): void => {
     setCalculatorStates((previous) => {
@@ -472,6 +551,8 @@ export function CalculatorHubSection() {
             dataset={priceHistory}
             isLoading={isPriceHistoryLoading}
             seriesLabel={seriesLabel}
+            technicalOverlays={technicalOverlays}
+            eventMarkers={eventMarkers}
             loadingMessage="Fetching price history from CoinGecko…"
             emptyMessage={
               priceHistoryError ?? "Run the projection to visualize one year of CoinGecko price history."

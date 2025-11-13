@@ -10,6 +10,30 @@ import { LoadingDots } from "@/components/ui/loading-dots";
 type ChartConstructor = typeof import("chart.js/auto") extends { default: infer T } ? T : never;
 type ChartInstance = ChartConstructor extends new (...args: any[]) => infer R ? R : never;
 
+export type PriceTrajectoryOverlay = {
+  id: string;
+  label: string;
+  data: { x: number; y: number }[];
+  color: string;
+  backgroundColor?: string;
+  borderDash?: number[];
+  strokeWidth?: number;
+  tension?: number;
+  fill?: boolean;
+  pointRadius?: number;
+  yAxisID?: string;
+};
+
+export type PriceTrajectoryEventMarker = {
+  id: string;
+  label: string;
+  points: { x: number; y: number }[];
+  backgroundColor: string;
+  borderColor: string;
+  radius?: number;
+  yAxisID?: string;
+};
+
 type PriceTrajectoryPanelProps = {
   title?: string;
   dataset: CoinGeckoCandle[];
@@ -17,6 +41,8 @@ type PriceTrajectoryPanelProps = {
   seriesLabel: string;
   loadingMessage?: string;
   emptyMessage?: string;
+  technicalOverlays?: PriceTrajectoryOverlay[];
+  eventMarkers?: PriceTrajectoryEventMarker[];
 };
 
 export function PriceTrajectoryPanel({
@@ -26,6 +52,8 @@ export function PriceTrajectoryPanel({
   seriesLabel,
   loadingMessage = "Fetching price history from CoinGecko...",
   emptyMessage = "Run the projection to visualize one year of CoinGecko price history.",
+  technicalOverlays = [],
+  eventMarkers = [],
 }: PriceTrajectoryPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartInstance | null>(null);
@@ -85,7 +113,32 @@ export function PriceTrajectoryPanel({
           };
         });
 
-        const config: ChartConfiguration<"candlestick", typeof candlestickData, string> = {
+        const overlayDatasets = technicalOverlays.map((overlay) => ({
+          type: "line" as const,
+          label: overlay.label,
+          data: overlay.data,
+          borderColor: overlay.color,
+          borderWidth: overlay.strokeWidth ?? 2,
+          backgroundColor: overlay.backgroundColor ?? "rgba(0,0,0,0)",
+          fill: overlay.fill ?? false,
+          tension: overlay.tension ?? 0.25,
+          borderDash: overlay.borderDash,
+          pointRadius: overlay.pointRadius ?? 0,
+          yAxisID: overlay.yAxisID ?? "y",
+        }));
+
+        const markerDatasets = eventMarkers.map((marker) => ({
+          type: "bubble" as const,
+          label: marker.label,
+          data: marker.points.map((point) => ({ x: point.x, y: point.y, r: marker.radius ?? 5 })),
+          backgroundColor: marker.backgroundColor,
+          borderColor: marker.borderColor,
+          borderWidth: 2,
+          showLine: false,
+          yAxisID: marker.yAxisID ?? "y",
+        }));
+
+        const config: ChartConfiguration<"candlestick", any, string> = {
           type: "candlestick",
           data: {
             datasets: [
@@ -103,6 +156,8 @@ export function PriceTrajectoryPanel({
                   unchanged: "rgba(148, 163, 184, 0.5)", // Gray with transparency for unchanged
                 },
               },
+              ...overlayDatasets,
+              ...markerDatasets,
             ],
           },
           options: {
@@ -125,13 +180,26 @@ export function PriceTrajectoryPanel({
                 borderWidth: 1,
                 callbacks: {
                   label: function (context: any) {
-                    const point = context.raw;
-                    return [
-                      `Open: $${point.o.toFixed(2)}`,
-                      `High: $${point.h.toFixed(2)}`,
-                      `Low: $${point.l.toFixed(2)}`,
-                      `Close: $${point.c.toFixed(2)}`,
-                    ];
+                    const datasetType = context.dataset.type;
+
+                    if (datasetType === "candlestick") {
+                      const point = context.raw as { o: number; h: number; l: number; c: number };
+                      return [
+                        `Open: $${point.o.toFixed(2)}`,
+                        `High: $${point.h.toFixed(2)}`,
+                        `Low: $${point.l.toFixed(2)}`,
+                        `Close: $${point.c.toFixed(2)}`,
+                      ];
+                    }
+
+                    const value = context.parsed?.y ?? context.raw?.y;
+                    const label = context.dataset.label ?? "Value";
+
+                    if (typeof value === "number") {
+                      return `${label}: $${value.toFixed(2)}`;
+                    }
+
+                    return label;
                   },
                 },
               },
@@ -187,12 +255,12 @@ export function PriceTrajectoryPanel({
       chartRef.current?.destroy();
       chartRef.current = null;
     };
-  }, [dataset, hasDataset, seriesLabel]);
+  }, [dataset, hasDataset, seriesLabel, technicalOverlays, eventMarkers]);
 
   return (
     <div className="card-surface rounded-2xl bg-gradient-to-br from-slate-950/70 via-slate-950/50 to-slate-900/25 p-4 sm:rounded-3xl sm:p-6">
       <h4 className="text-xs font-semibold uppercase tracking-widest text-slate-100 sm:text-sm">{title}</h4>
-      <div className="mt-3 h-56 min-w-0 rounded-2xl border border-ocean/60 bg-surface/75 sm:mt-4 sm:h-72 lg:h-96">
+      <div className="mt-3 h-72 min-w-0 rounded-2xl border border-ocean/60 bg-surface/75 sm:mt-4 sm:h-96 lg:h-[28rem]">
         {hasDataset ? (
           <div className="h-full w-full overflow-x-auto">
             <div
