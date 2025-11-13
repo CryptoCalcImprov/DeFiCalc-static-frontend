@@ -14,7 +14,6 @@ import { parseCalculatorReply } from "@/components/calculators/utils/summary";
 import { buildNovaRequestOptions } from "@/components/calculators/utils/request";
 import { TokenSelector } from "@/components/calculators/workspace/TokenSelector";
 import type { DcaSimulation } from "@/components/calculators/dca/simulator";
-import type { DcaSimulation } from "@/components/calculators/dca/simulator";
 export type DcaFormState = {
   token: string;
   tokenId?: string;
