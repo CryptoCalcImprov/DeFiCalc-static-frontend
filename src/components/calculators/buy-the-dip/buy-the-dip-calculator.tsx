@@ -6,6 +6,7 @@ import type {
   CalculatorDefinition,
   CalculatorFormProps,
   CalculatorResult,
+  ChartProjectionData,
 } from "@/components/calculators/types";
 import { buildFieldChangeHandler } from "@/components/calculators/utils/forms";
 import { joinPromptLines } from "@/components/calculators/utils/prompt";
@@ -32,31 +33,29 @@ const defaultFormState: BuyTheDipFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's perspective on this strategy.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
-function buildPrompt({ token, budget, dipThreshold, duration }: BuyTheDipFormState) {
+function buildPrompt(formState: BuyTheDipFormState, chartProjection?: ChartProjectionData) {
+  const { token, budget, dipThreshold, duration } = formState;
+  const normalizedToken = token.trim() || "the selected asset";
+  const projectionPayload = chartProjection ? JSON.stringify(chartProjection) : "null";
+
   return joinPromptLines([
-    `Using your coindesk tool, evaluate the following buy-the-dip strategy.`,
-    `Respond in a single message, DO NOT request clarification, and DO NOT ask any follow-up questions.`,
-    `Strategy details: deploy a ${budget} USD budget to buy ${token} only when price drops ${dipThreshold}% or more from recent highs, over ${duration}.`,
+    "You are given CHART_PROJECTION, a sanitized chart that mixes historical candles with a Monte Carlo forecast.",
+    "Do not invent additional prices—only annotate the provided projection.",
+    `Strategy: deploy ${budget} USD to buy ${normalizedToken} after ${dipThreshold}%+ drops from recent highs within ${duration}.`,
     "",
-    "Guidelines:",
-    "1. Determine the schedule start date automatically: call your date/time capability to retrieve today's UTC date and use it as the starting point. Do not ask the user.",
-    "2. Generate a plausible synthetic price path that matches the duration and includes realistic dip opportunities. When real history improves realism, use the available data tools silently; otherwise craft a consistent synthetic series with volatility.",
-    "3. Identify dip opportunities: when price falls by the threshold percentage or more from a recent high (e.g., 7-day or 30-day high), simulate a purchase. Track remaining budget and show when funds would be deployed.",
-    "4. Summarize performance factors, deployment pacing, and residual risks using the structured schema below. Keep each section summary to at most two sentences (~220 characters) and avoid enumerating every individual buy. Focus on aggregate stats.",
-    "   - Do not include per-trade logs or date-by-date breakdowns inside summaries, metrics, assumptions, or risks.",
-    "5. Limit metrics arrays to at most three entries each, highlight totals/averages only, and keep assumptions/risk lists to at most three concise bullets.",
-    "6. Provide one entry per trading day or per event date in the modeled price path. Dates must be chronological in YYYY-MM-DD format. Prices must be numeric.",
-    "7. Never ask questions, never defer the calculation, and respond with a single JSON object—no prose or markdown framing.",
-    "Populate metric values with actual calculations; replace illustrative numbers shown in the template.",
+    "Return JSON only. Use the schema below, which includes `insight` and a `strategy_overlays` array for your annotations.",
     "",
-    "Return JSON only, shaped exactly like:",
+    "CHART_PROJECTION:",
+    projectionPayload,
+    "",
+    "Response schema:",
     "{",
     '  "insight": {',
     '    "calculator": {',
     '      "id": "buy-the-dip",',
     '      "label": "Buy the Dip",',
     '      "category": "opportunistic_entry",',
-    '      "version": "v1"',
+    '      "version": "v2"',
     "    },",
     '    "context": {',
     '      "as_of": "YYYY-MM-DD",',
@@ -72,7 +71,7 @@ function buildPrompt({ token, budget, dipThreshold, duration }: BuyTheDipFormSta
     "      {",
     '        "type": "deployment_plan",',
     '        "headline": "How the budget deploys",',
-    '        "summary": "Outline cadence of purchases triggered by dip conditions.",',
+    '        "summary": "Summarize how the dip triggers guide the pacing.",',
     '        "metrics": [',
     '          { "label": "Total budget (USD)", "value": 5000 },',
     '          { "label": "Budget deployed (USD)", "value": 3800 },',
@@ -95,18 +94,20 @@ function buildPrompt({ token, budget, dipThreshold, duration }: BuyTheDipFormSta
     "    ],",
     '    "notes": ["Optional closing reminders or next steps."]',
     "  },",
-    '  "series": [',
+    '  "strategy_overlays": [',
     "    {",
-    '      "id": "price_path",',
-    '      "label": "Modeled price path",',
+    '      "id": "dip-buys",',
+    '      "label": "Dip-triggered buys",',
+    '      "type": "buy",',
     '      "points": [',
     '        { "date": "YYYY-MM-DD", "price": 123.45 }',
-    "      ]",
+    "      ],",
+    '      "metadata": { "dip_threshold_percent": 10, "budget_usd": 5000 }',
     "    }",
     "  ]",
     "}",
     "",
-    "Strictly follow the schema. Do not emit trailing text or additional keys.",
+    "Follow the schema exactly and do not emit markdown or additional prose.",
   ]);
 }
 
@@ -215,10 +216,13 @@ export const buyTheDipCalculatorDefinition: CalculatorDefinition<BuyTheDipFormSt
   description: "Deploy capital strategically when prices fall below threshold levels.",
   Form: BuyTheDipCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: (formState) => {
-    const prompt = buildPrompt(formState);
+  getRequestConfig: (formState, chartProjection) => {
+    const prompt = buildPrompt(formState, chartProjection);
 
-    return buildNovaRequestOptions(prompt, { max_tokens: 18000 });
+    return buildNovaRequestOptions(prompt, {
+      max_tokens: 18000,
+      chartProjection,
+    });
   },
   parseReply: parseNovaReply,
   getSeriesLabel: (formState) => `${formState.token} price`,

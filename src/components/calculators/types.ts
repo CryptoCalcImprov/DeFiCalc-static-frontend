@@ -1,4 +1,5 @@
 import type { FormEvent } from "react";
+import type { MonteCarloTrajectoryPoint } from "@/lib/monte-carlo";
 
 export type TimeSeriesPoint = {
   date: string;
@@ -55,6 +56,32 @@ export type CalculatorResult = {
   dataset: TimeSeriesPoint[];
   fallbackSummary?: string;
   fallbackLines?: string[];
+  strategyOverlays?: StrategyOverlay[];
+};
+
+export type ChartProjectionMetadata = {
+  asset: string;
+  as_of: string;
+  projection_horizon_months: number;
+};
+
+export type ChartProjectionData = {
+  historical_data: CoinGeckoCandle[];
+  projection: MonteCarloTrajectoryPoint[];
+  metadata: ChartProjectionMetadata;
+};
+
+export type StrategyOverlayPoint = {
+  date: string;
+  price: number;
+};
+
+export type StrategyOverlay = {
+  id: string;
+  label: string;
+  type: "buy" | "sell" | "annotation";
+  points: StrategyOverlayPoint[];
+  metadata?: Record<string, unknown>;
 };
 
 export type CalculatorFormChangeHandler<FormState> = <Field extends keyof FormState>(
@@ -73,6 +100,7 @@ export type CalculatorFormProps<FormState> = {
 export type CalculatorRequestConfig = {
   prompt: string;
   options?: Partial<RequestInit>;
+  chartProjection?: ChartProjectionData;
 };
 
 export type CalculatorDefinition<FormState> = {
@@ -81,7 +109,11 @@ export type CalculatorDefinition<FormState> = {
   description?: string;
   Form: (props: CalculatorFormProps<FormState>) => JSX.Element;
   getInitialState: () => FormState;
-  getRequestConfig: (formState: FormState) => CalculatorRequestConfig;
+  getRequestConfig: (
+    formState: FormState,
+    chartProjection?: ChartProjectionData,
+    extras?: Record<string, unknown>,
+  ) => CalculatorRequestConfig;
   parseReply: (reply: string) => CalculatorResult;
   getSeriesLabel?: (formState: FormState) => string;
   initialSummary?: string;

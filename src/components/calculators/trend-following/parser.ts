@@ -1,4 +1,4 @@
-import type { TrendFollowingDataPoint } from "./trend-following-chart";
+import type { TrendFollowingDataPoint } from "./types";
 
 const DATA_LABEL_PATTERN = /DATA:\s*$/i;
 const SUMMARY_LABEL_PATTERN = /SUMMARY:\s*/i;

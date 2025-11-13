@@ -49,6 +49,7 @@ export type PriceTrajectoryOverlay = {
   fill?: boolean;
   pointRadius?: number;
   yAxisID?: string;
+  order?: number;
 };
 
 export type PriceTrajectoryEventMarker = {
@@ -132,6 +133,7 @@ export function PriceTrajectoryPanel({
       pointRadius: 0,
       fill: false,
       yAxisID: undefined,
+      order: 50,
     };
   }, [dataset, monteCarloHorizon]);
 
@@ -201,13 +203,15 @@ export function PriceTrajectoryPanel({
           };
         });
 
-        const overlayDatasets = overlaysForRendering.map((overlay) => ({
-          type: "line" as const,
-          label: overlay.label,
-          data: overlay.data,
-          borderColor: overlay.color,
-          borderWidth: overlay.strokeWidth ?? 2,
-          backgroundColor: overlay.backgroundColor ?? "rgba(0,0,0,0)",
+        const overlayDatasets = [...overlaysForRendering]
+          .sort((left, right) => (left.order ?? 0) - (right.order ?? 0))
+          .map((overlay) => ({
+            type: "line" as const,
+            label: overlay.label,
+            data: overlay.data,
+            borderColor: overlay.color,
+            borderWidth: overlay.strokeWidth ?? 2,
+            backgroundColor: overlay.backgroundColor ?? "rgba(0,0,0,0)",
           fill: overlay.fill ?? false,
           tension: overlay.tension ?? 0.25,
           borderDash: overlay.borderDash,
