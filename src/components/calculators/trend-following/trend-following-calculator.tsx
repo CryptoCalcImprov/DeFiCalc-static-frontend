@@ -6,15 +6,19 @@ import type {
   CalculatorDefinition,
   CalculatorFormProps,
   CalculatorResult,
+  ChartProjectionData,
 } from "@/components/calculators/types";
 import { buildFieldChangeHandler } from "@/components/calculators/utils/forms";
 import { joinPromptLines } from "@/components/calculators/utils/prompt";
 import { parseCalculatorReply } from "@/components/calculators/utils/summary";
 import { buildNovaRequestOptions } from "@/components/calculators/utils/request";
-import { parseTrendFollowingReply } from "./parser";
+import { TokenSelector } from "@/components/calculators/workspace/TokenSelector";
+import { simulateTrendFollowingStrategy } from "@/components/calculators/trend-following/simulator";
+import type { TrendFollowingSimulation } from "@/components/calculators/trend-following/types";
 
 export type TrendFollowingFormState = {
   token: string;
+  tokenId?: string;
   initialCapital: string;
   maPeriod: string;
   duration: string;
@@ -22,6 +26,7 @@ export type TrendFollowingFormState = {
 
 const defaultFormState: TrendFollowingFormState = {
   token: "BTC",
+  tokenId: "bitcoin",
   initialCapital: "10000",
   maPeriod: "50",
   duration: "1 year",
@@ -30,29 +35,42 @@ const defaultFormState: TrendFollowingFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's analysis of this trend-following strategy.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
-function buildPrompt({ token, initialCapital, maPeriod, duration }: TrendFollowingFormState) {
+function buildPrompt(
+  formState: TrendFollowingFormState,
+  chartProjection?: ChartProjectionData,
+  strategySimulation?: TrendFollowingSimulation,
+) {
+  const { token, initialCapital, maPeriod, duration } = formState;
+  const normalizedToken = token.trim() || "the selected asset";
+  const projectionPayload = chartProjection ? JSON.stringify(chartProjection) : "null";
+
+  const simulationPayload = strategySimulation ? JSON.stringify(strategySimulation) : "null";
+
   return joinPromptLines([
-    `Using your coindesk tool, model the following trend-following strategy.`,
-    `Respond in a single message, DO NOT request clarification, and DO NOT ask any follow-up questions.`,
-    `Strategy: Start with ${initialCapital} USD. Buy ${token} when price > ${maPeriod}-day MA, hold stablecoin when price <= ${maPeriod}-day MA. Project over ${duration}.`,
+    "You are given CHART_PROJECTION, which contains historical candles and the Monte Carlo forecast that the calculator already plotted.",
+    "Use only the supplied prices to explain how the strategy would trade. Do not synthesize new price series.",
+    `Strategy: start with ${initialCapital} USD. Go long ${normalizedToken} when price exceeds the ${maPeriod}-day moving average; otherwise hold stablecoin. Project across ${duration}.`,
     "",
-    "Guidelines:",
-    "1. Determine the schedule start date automatically: call your date/time capability to retrieve today's UTC date and use it as the starting point. Do not ask the user.",
-    `2. Generate a synthetic price path for ${token} covering ${duration}. When real history improves realism, use the available data tools silently; otherwise craft a consistent synthetic series with volatility. Include the ${maPeriod}-day moving average at each point.`,
-    `3. Simulate the strategy: track when you'd be in ${token} (price > MA) vs. stablecoin (price <= MA), calculate portfolio value and a HODL baseline at each date.`,
-    `4. Estimate performance: approximate Sharpe ratio and maximum drawdown for both strategy and HODL. Note any key trades and risk factors.`,
-    "5. Produce a structured summary using the JSON schema below. Focus on three concise sections that capture performance metrics, trade cadence, and risks. Keep assumptions explicit inside the sections.",
-    `6. Provide a modeled series with one entry per trading day across ${duration}. Each point must include price, moving average, portfolio equity, and HODL baseline values. All values must be numbers.`,
-    "7. Never ask questions, never defer, and respond with a single JSON object—no prose or markdown framing.",
+    "Return JSON only. Focus on the `insight` schema below; strategy overlays are already pre-plotted, so you do not need to emit them.",
+    "Do not ask follow-up questions or add prose outside the schema.",
     "",
-    "Return JSON only, shaped exactly like:",
+    "CHART_PROJECTION:",
+    projectionPayload,
+    "",
+    "STRATEGY_SIMULATION:",
+    simulationPayload,
+    "",
+    "Use STRATEGY_SIMULATION to reference the pre-computed moving average, portfolio equity path, crossovers, and metrics.",
+    "Do not recompute the MA or simulation logic—describe insights using the supplied data.",
+    "",
+    "Response schema:",
     "{",
     '  "insight": {',
     '    "calculator": {',
     '      "id": "trend-following",',
     '      "label": "Trend-Following",',
     '      "category": "momentum_strategy",',
-    '      "version": "v1"',
+    '      "version": "v2"',
     "    },",
     '    "context": {',
     '      "as_of": "YYYY-MM-DD",',
@@ -68,7 +86,7 @@ function buildPrompt({ token, initialCapital, maPeriod, duration }: TrendFollowi
     "      {",
     '        "type": "performance",',
     '        "headline": "Performance snapshot",',
-    '        "summary": "Highlight Sharpe ratio, drawdown, and total return for strategy vs. HODL.",',
+    '        "summary": "Connect Sharpe, drawdown, and returns back to the projected chart.",',
     '        "metrics": [',
     '          { "label": "Strategy total return (%)", "value": 12.5 },',
     '          { "label": "Strategy Sharpe", "value": 0.92 },',
@@ -78,7 +96,7 @@ function buildPrompt({ token, initialCapital, maPeriod, duration }: TrendFollowi
     "      {",
     '        "type": "trade_flow",',
     '        "headline": "Trade cadence & positioning",',
-    '        "summary": "Explain how often price crosses the moving average and resulting position changes.",',
+    '        "summary": "Describe how often price crosses the MA and when the position switches.",',
     '        "metrics": [',
     '          { "label": "Time in market (%)", "value": 64 },',
     '          { "label": "Major crossover count", "value": 14 }',
@@ -87,24 +105,15 @@ function buildPrompt({ token, initialCapital, maPeriod, duration }: TrendFollowi
     "      {",
     '        "type": "risk",',
     '        "headline": "Risks to monitor",',
-    '        "summary": "Outline sensitivity to volatility regimes, whipsaws, or liquidity constraints.",',
+    '        "summary": "Note sensitivity to whipsaws, volatility, or liquidity constraints.",',
     '        "risks": ["List each material risk in plain language."]',
     "      }",
     "    ],",
     '    "notes": ["Optional reminders or next steps if they help interpret the model."]',
-    "  },",
-    '  "series": [',
-    "    {",
-    '      "id": "trend_price_equity",',
-    '      "label": "Modeled price & equity",',
-    '      "points": [',
-    '        { "date": "YYYY-MM-DD", "price": 123.45, "ma": 120.01, "portfolioEquity": 10050.25, "hodlValue": 9950.75 }',
-    "      ]",
-    "    }",
-    "  ]",
+    "  }",
     "}",
     "",
-    "Populate metric values with actual calculations; replace template numbers before responding. Do not emit trailing commentary.",
+    "Populate metric values with actual calculations; replace template numbers and do not emit trailing commentary.",
   ]);
 }
 
@@ -141,11 +150,12 @@ export function TrendFollowingCalculatorForm({
       <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
         <label className="flex flex-col gap-1.5 text-xs font-medium text-slate-200 sm:gap-2 sm:text-sm">
           Token
-          <input
-            type="text"
+          <TokenSelector
             value={formState.token}
-            onChange={handleFieldChange("token")}
-            className="rounded-xl border border-ocean/60 bg-surface/90 px-3 py-1.5 text-sm text-slate-50 placeholder:text-slate-500 shadow-inner focus:border-mint focus:bg-surface/95 focus:outline-none focus:ring-1 focus:ring-mint/35 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
+            onSelect={(nextValue, asset) => {
+              handleFieldChangeBuilder("token")(nextValue);
+              handleFieldChangeBuilder("tokenId")(asset?.slug);
+            }}
             placeholder="e.g. BTC"
             required
           />
@@ -210,10 +220,23 @@ export const trendFollowingCalculatorDefinition: CalculatorDefinition<TrendFollo
   description: "Trade on momentum: go long when price exceeds moving average, hold stablecoin otherwise.",
   Form: TrendFollowingCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: (formState) => {
-    const prompt = buildPrompt(formState);
+  getRequestConfig: (formState, chartProjection, extras) => {
+    const simulationFromExtras = extras?.trendSimulation as TrendFollowingSimulation | undefined;
+    const simulation =
+      simulationFromExtras ??
+      (chartProjection
+        ? simulateTrendFollowingStrategy({
+            chartProjection,
+            maPeriod: Number(formState.maPeriod ?? 50),
+            initialCapital: Number(formState.initialCapital ?? 10000),
+          })
+        : undefined);
+    const prompt = buildPrompt(formState, chartProjection, simulation);
 
-    return buildNovaRequestOptions(prompt, { max_tokens: 18000 });
+    return buildNovaRequestOptions(prompt, {
+      max_tokens: 18000,
+      chartProjection,
+    });
   },
   parseReply: parseNovaReply,
   getSeriesLabel: (formState) => `${formState.token} price`,

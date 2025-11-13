@@ -5,17 +5,10 @@ import type { ChartConfiguration } from "chart.js";
 
 import { CalculatorSpinner } from "@/components/calculators/workspace/CalculatorSpinner";
 import { LoadingDots } from "@/components/ui/loading-dots";
+import type { TrendFollowingDataPoint } from "@/components/calculators/trend-following/types";
 
 type ChartConstructor = typeof import("chart.js/auto") extends { default: infer T } ? T : never;
 type ChartInstance = ChartConstructor extends new (...args: any[]) => infer R ? R : never;
-
-export type TrendFollowingDataPoint = {
-  date: string;
-  price: number;
-  ma: number;
-  portfolioEquity: number;
-  hodlValue: number;
-};
 
 type TrendFollowingChartProps = {
   title?: string;
@@ -72,19 +65,20 @@ export function TrendFollowingChart({
               {
                 label: `${token} Price`,
                 data: dataset.map((point) => point.price),
-                borderColor: "rgba(58, 198, 255, 0.95)",
-                backgroundColor: "rgba(58, 198, 255, 0.14)",
+                borderColor: "rgba(16, 185, 129, 0.95)",
+                backgroundColor: "rgba(16, 185, 129, 0.18)",
                 tension: 0.32,
                 fill: false,
                 pointRadius: 0,
                 pointHoverRadius: 6,
+                borderWidth: 3,
                 yAxisID: "y",
               },
               {
                 label: `Moving Average`,
                 data: dataset.map((point) => point.ma),
-                borderColor: "rgba(147, 197, 253, 0.7)",
-                backgroundColor: "rgba(147, 197, 253, 0.1)",
+                borderColor: "rgba(14, 165, 233, 0.95)",
+                backgroundColor: "rgba(14, 165, 233, 0.2)",
                 tension: 0.32,
                 fill: false,
                 pointRadius: 0,

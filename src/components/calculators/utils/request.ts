@@ -1,3 +1,5 @@
+import type { ChartProjectionData } from "@/components/calculators/types";
+
 type NovaRequestOverrides = Partial<{
   model: string;
   verbosity: string;
@@ -7,6 +9,7 @@ type NovaRequestOverrides = Partial<{
   image_urls: string[];
   bodyExtras: Record<string, unknown>;
   refId: string;
+  chartProjection: ChartProjectionData;
 }>;
 
 const DEFAULT_NOVA_PAYLOAD = {
@@ -28,6 +31,7 @@ export function buildNovaRequestOptions(prompt: string, overrides: NovaRequestOv
     image_urls,
     bodyExtras,
     refId,
+    chartProjection,
   } = overrides;
 
   const payload = {
@@ -41,6 +45,7 @@ export function buildNovaRequestOptions(prompt: string, overrides: NovaRequestOv
     ...(image_urls !== undefined ? { image_urls } : {}),
     ...(refId ? { ref_id: refId } : {}),
     ...bodyExtras,
+    ...(chartProjection ? { chart_projection: chartProjection } : {}),
   };
 
   return {

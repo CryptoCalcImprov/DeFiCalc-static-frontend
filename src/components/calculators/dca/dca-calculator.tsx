@@ -6,14 +6,17 @@ import type {
   CalculatorDefinition,
   CalculatorFormProps,
   CalculatorResult,
+  ChartProjectionData,
 } from "@/components/calculators/types";
 import { buildFieldChangeHandler } from "@/components/calculators/utils/forms";
 import { joinPromptLines } from "@/components/calculators/utils/prompt";
 import { parseCalculatorReply } from "@/components/calculators/utils/summary";
 import { buildNovaRequestOptions } from "@/components/calculators/utils/request";
-
+import { TokenSelector } from "@/components/calculators/workspace/TokenSelector";
+import type { DcaSimulation } from "@/components/calculators/dca/simulator";
 export type DcaFormState = {
   token: string;
+  tokenId?: string;
   amount: string;
   interval: string;
   duration: string;
@@ -21,6 +24,7 @@ export type DcaFormState = {
 
 const defaultFormState: DcaFormState = {
   token: "ETH",
+  tokenId: "ethereum",
   amount: "500",
   interval: "bi-weekly",
   duration: "6 months",
@@ -29,28 +33,39 @@ const defaultFormState: DcaFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's perspective on this plan.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
-function buildPrompt({ token, amount, interval, duration }: DcaFormState) {
+function buildPrompt(
+  formState: DcaFormState,
+  chartProjection?: ChartProjectionData,
+  simulation?: DcaSimulation,
+) {
+  const { token, amount, interval, duration } = formState;
+  const normalizedToken = token.trim() || "the selected asset";
+  const projectionPayload = chartProjection ? JSON.stringify(chartProjection) : "null";
+  const simulationPayload = simulation ? JSON.stringify(simulation) : "null";
+
   return joinPromptLines([
-    `Using your coindesk tool, evaluate the following dollar-cost-averaging plan.`,
-    `Respond in a single message, DO NOT request clarification, and DO NOT ask any follow-up questions.`,
-    `Plan details: invest ${amount} USD of ${token} on a ${interval} cadence for ${duration}.`,
+    "You are given a curated chart projection (CHART_PROJECTION) that contains historical candles and a Monte Carlo forecast.",
+    "Use the projection data and only the prices provided—do not invent additional price paths.",
+    `Strategy: invest ${amount} USD of ${normalizedToken} on a ${interval} cadence for ${duration}.`,
     "",
-    "Guidelines:",
-    "1. Determine the schedule start date automatically: call your date/time capability to retrieve today's UTC date and use it as the starting point. Do not ask the user.",
-    "2. Generate a plausible synthetic price path that matches the cadence and duration. When real history improves realism, use the available data tools silently; otherwise craft a consistent synthetic series.",
-    "3. Summarize performance drivers, expected cost basis shifts, and risks using the structured schema below. Keep assumptions explicit.",
-    "4. Provide one entry per scheduled purchase date in a modeled price path. Dates must be chronological and use YYYY-MM-DD. Prices must be numbers.",
-    "5. Never ask questions, never defer the calculation, and respond with a single JSON object—no prose or markdown framing.",
-    "Populate metric values with actual calculations; replace illustrative numbers shown in the template.",
+    "Deliver a single JSON object only. Do not ask questions or add prose outside the schema.",
     "",
-    "Return JSON only, shaped exactly like:",
+    "CHART_PROJECTION:",
+    projectionPayload,
+    "",
+    "STRATEGY_SIMULATION:",
+    simulationPayload,
+    "",
+    "Use STRATEGY_SIMULATION to reference the daily scheduled contribution dates, prices, quantities, and metrics. Do not recompute the schedule or emit strategy_overlays.",
+    "",
+    "Response schema:",
     "{",
     '  "insight": {',
     '    "calculator": {',
     '      "id": "dca",',
     '      "label": "Dollar-Cost Averaging",',
     '      "category": "accumulation",',
-    '      "version": "v1"',
+    '      "version": "v2"',
     "    },",
     '    "context": {',
     '      "as_of": "YYYY-MM-DD",',
@@ -60,13 +75,13 @@ function buildPrompt({ token, amount, interval, duration }: DcaFormState) {
     `        "interval": "${interval}",`,
     `        "duration": "${duration}"`,
     "      },",
-    '      "assumptions": ["Describe key assumptions explicitly."]',
+    '      "assumptions": ["State the assumptions you used when interpreting the chart projection."]',
     "    },",
     '    "sections": [',
     "      {",
     '        "type": "performance_driver",',
     '        "headline": "Concise label for core performance factor",',
-    '        "summary": "1-2 sentence explanation of what drives the modeled outcome.",',
+    '        "summary": "1-2 sentences tying the chart projection to the planned contributions.",',
     '        "metrics": [',
     '          { "label": "Total USD invested", "value": 1300 },',
     '          { "label": "Estimated cost basis (USD)", "value": 1.91 }',
@@ -77,21 +92,12 @@ function buildPrompt({ token, amount, interval, duration }: DcaFormState) {
     "      {",
     '        "type": "risk_assumption",',
     '        "headline": "Key risks & sensitivities",',
-    '        "summary": "Explain how drift, volatility, or operational constraints could change the result.",',
+    '        "summary": "Explain how volatility or drift could move the curve away from this projection.",',
     '        "risks": ["List each material risk in plain language."]',
     "      }",
     "    ],",
     '    "notes": ["Include optional closing reminders or action items when helpful."]',
-    "  },",
-    '  "series": [',
-    "    {",
-    '      "id": "price_path",',
-    '      "label": "Modeled price path",',
-    '      "points": [',
-    '        { "date": "YYYY-MM-DD", "price": 123.45 }',
-    "      ]",
-    "    }",
-    "  ]",
+    "  }",
     "}",
     "",
     "Strictly follow the schema. Do not emit trailing text or additional keys.",
@@ -131,11 +137,12 @@ export function DcaCalculatorForm({
       <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
         <label className="flex flex-col gap-1.5 text-xs font-medium text-slate-200 sm:gap-2 sm:text-sm">
           Token
-          <input
-            type="text"
+          <TokenSelector
             value={formState.token}
-            onChange={handleFieldChange("token")}
-            className="rounded-xl border border-ocean/60 bg-surface/90 px-3 py-1.5 text-sm text-slate-50 placeholder:text-slate-500 shadow-inner focus:border-mint focus:bg-surface/95 focus:outline-none focus:ring-1 focus:ring-mint/35 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
+            onSelect={(nextValue, asset) => {
+              handleFieldChangeBuilder("token")(nextValue);
+              handleFieldChangeBuilder("tokenId")(asset?.slug);
+            }}
             placeholder="e.g. ETH"
             required
           />
@@ -200,10 +207,14 @@ export const dcaCalculatorDefinition: CalculatorDefinition<DcaFormState> = {
   description: "Automate recurring buys to average into a token over time.",
   Form: DcaCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: (formState) => {
-    const prompt = buildPrompt(formState);
+  getRequestConfig: (formState, chartProjection, extras) => {
+    const simulation = extras?.strategySimulation as DcaSimulation | undefined;
+    const prompt = buildPrompt(formState, chartProjection, simulation);
 
-    return buildNovaRequestOptions(prompt, { max_tokens: 18000 });
+    return buildNovaRequestOptions(prompt, {
+      max_tokens: 18000,
+      chartProjection,
+    });
   },
   parseReply: parseNovaReply,
   getSeriesLabel: (formState) => `${formState.token} price`,
