@@ -10,8 +10,29 @@ import {
   estimateDriftAndVolatility,
   generateMonteCarloPath,
   MonteCarloHorizons,
+  type MonteCarloHorizon,
   type MonteCarloTrajectoryPoint,
 } from "@/lib/monte-carlo";
+
+const PRICE_AXIS_DECIMAL_LIMIT = 6;
+
+function formatPriceAxis(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "$0";
+  }
+
+  const absValue = Math.abs(value);
+  if (absValue >= 1) {
+    return `$${value.toFixed(0)}`;
+  }
+
+  const decimals =
+    absValue > 0
+      ? Math.min(PRICE_AXIS_DECIMAL_LIMIT, Math.max(2, Math.ceil(-Math.log10(absValue))))
+      : 2;
+
+  return `$${value.toFixed(decimals)}`;
+}
 
 type ChartConstructor = typeof import("chart.js/auto") extends { default: infer T } ? T : never;
 type ChartInstance = ChartConstructor extends new (...args: any[]) => infer R ? R : never;
@@ -50,6 +71,7 @@ type PriceTrajectoryPanelProps = {
   technicalOverlays?: PriceTrajectoryOverlay[];
   eventMarkers?: PriceTrajectoryEventMarker[];
   onMonteCarloPath?: (trajectory: MonteCarloTrajectoryPoint[] | null) => void;
+  monteCarloHorizon?: MonteCarloHorizon;
 };
 
 export function PriceTrajectoryPanel({
@@ -62,6 +84,7 @@ export function PriceTrajectoryPanel({
   technicalOverlays = [],
   eventMarkers = [],
   onMonteCarloPath,
+  monteCarloHorizon,
 }: PriceTrajectoryPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartInstance | null>(null);
@@ -80,13 +103,14 @@ export function PriceTrajectoryPanel({
     }
 
     const latestCandle = dataset[dataset.length - 1];
+    const horizonMonths = monteCarloHorizon ?? MonteCarloHorizons.SIX_MONTHS;
     const trajectory = generateMonteCarloPath({
       startPrice: latestCandle.close,
       startTimestamp: new Date(latestCandle.date).getTime(),
       drift: stats.drift,
       volatility: stats.volatility,
       config: {
-        horizonMonths: MonteCarloHorizons.SIX_MONTHS,
+        horizonMonths,
         stepDays: 1,
         seed: 13579,
       },
@@ -109,7 +133,7 @@ export function PriceTrajectoryPanel({
       fill: false,
       yAxisID: undefined,
     };
-  }, [dataset]);
+  }, [dataset, monteCarloHorizon]);
 
   useEffect(() => {
     const trajectory = (monteCarloOverlay?.data ?? null) as MonteCarloTrajectoryPoint[] | null;
@@ -296,7 +320,7 @@ export function PriceTrajectoryPanel({
                 ticks: {
                   color: "#94A3B8",
                   callback: function (value: any) {
-                    return `$${Number(value).toFixed(0)}`;
+                    return formatPriceAxis(Number(value));
                   },
                 },
                 grid: {
@@ -327,9 +351,9 @@ export function PriceTrajectoryPanel({
       <h4 className="text-xs font-semibold uppercase tracking-widest text-slate-100 sm:text-sm">{title}</h4>
       <div className="mt-3 h-72 min-w-0 rounded-2xl border border-ocean/60 bg-surface/75 sm:mt-4 sm:h-96 lg:h-[28rem]">
         {hasDataset ? (
-          <div className="h-full w-full overflow-x-auto">
+          <div className="h-full w-full overflow-x-auto overflow-y-hidden">
             <div
-              className="min-h-full"
+              className="h-full"
               style={{
                 minWidth: `${Math.max(dataset.length * 12, 780)}px`,
               }}

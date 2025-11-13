@@ -24,7 +24,8 @@ import {
   buildSeriesFromCandles,
   type TimeSeriesValuePoint,
 } from "@/components/calculators/workspace/technical-indicators";
-import type { MonteCarloTrajectoryPoint } from "@/lib/monte-carlo";
+import { MonteCarloHorizons } from "@/lib/monte-carlo";
+import type { MonteCarloHorizon, MonteCarloTrajectoryPoint } from "@/lib/monte-carlo";
 
 const defaultCalculatorId = calculatorDefinitions[0]?.id ?? "";
 const defaultDefinition = defaultCalculatorId ? findCalculatorDefinition<any>(defaultCalculatorId) : undefined;
@@ -37,6 +38,22 @@ const COINGECKO_SEARCH_ENDPOINT =
   process.env.NEXT_PUBLIC_COINGECKO_SEARCH_ENDPOINT ?? `${COINGECKO_API_BASE_URL}/search`;
 const PRICE_HISTORY_CACHE_TTL_MS = 1000 * 60 * 2;
 const DISPLAY_WINDOW_MONTHS = 3;
+const DURATION_TO_MONTE_CARLO_HORIZON: Record<string, MonteCarloHorizon> = {
+  "3 months": MonteCarloHorizons.THREE_MONTHS,
+  "6 months": MonteCarloHorizons.SIX_MONTHS,
+  "1 year": MonteCarloHorizons.ONE_YEAR,
+  "2 years": MonteCarloHorizons.TWO_YEARS,
+  "3 years": MonteCarloHorizons.THREE_YEARS,
+};
+
+function resolveDurationToMonteCarloHorizon(duration?: unknown): MonteCarloHorizon | undefined {
+  if (typeof duration !== "string") {
+    return undefined;
+  }
+
+  const normalized = duration.trim().toLowerCase();
+  return DURATION_TO_MONTE_CARLO_HORIZON[normalized];
+}
 
 async function searchCoinGeckoAssetId(query: string): Promise<string | null> {
   const normalizedQuery = query.trim();
@@ -189,6 +206,11 @@ export function CalculatorHubSection() {
     (activeDefinition?.getSeriesLabel ? activeDefinition.getSeriesLabel(formState as any) : undefined) ?? "Modeled price";
 
   const dipThresholdString = String((formState as Record<string, unknown>).dipThreshold ?? "");
+  const durationInput = typeof formState.duration === "string" ? formState.duration : undefined;
+  const monteCarloHorizon = useMemo(
+    () => resolveDurationToMonteCarloHorizon(durationInput),
+    [durationInput],
+  );
   const handleMonteCarloPathUpdate = useCallback(
     (trajectory: MonteCarloTrajectoryPoint[] | null) => {
       setMonteCarloTrajectory(trajectory);
@@ -631,6 +653,7 @@ export function CalculatorHubSection() {
               technicalOverlays={technicalOverlays}
               eventMarkers={eventMarkers}
               onMonteCarloPath={handleMonteCarloPathUpdate}
+              monteCarloHorizon={monteCarloHorizon}
               loadingMessage="Fetching price history from CoinGecko…"
               emptyMessage={
                 priceHistoryError ?? "Run the projection to visualize one year of CoinGecko price history."
@@ -645,6 +668,7 @@ export function CalculatorHubSection() {
             technicalOverlays={technicalOverlays}
             eventMarkers={eventMarkers}
             onMonteCarloPath={handleMonteCarloPathUpdate}
+            monteCarloHorizon={monteCarloHorizon}
             loadingMessage="Fetching price history from CoinGecko…"
             emptyMessage={
               priceHistoryError ?? "Run the projection to visualize one year of CoinGecko price history."

@@ -8,6 +8,7 @@ export const MonteCarloHorizons = {
   SIX_MONTHS: 6,
   ONE_YEAR: 12,
   TWO_YEARS: 24,
+  THREE_YEARS: 36,
 } as const;
 
 const VALID_HORIZONS = new Set<number>(Object.values(MonteCarloHorizons));
