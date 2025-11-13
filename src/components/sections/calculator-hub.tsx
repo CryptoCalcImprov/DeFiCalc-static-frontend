@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useCallback } from "react";
 
 import { calculatorDefinitions, findCalculatorDefinition } from "@/components/calculators";
 import type { CalculatorInsight, CoinGeckoCandle, TimeSeriesPoint } from "@/components/calculators/types";
@@ -18,7 +18,13 @@ import { clearNovaHistory, requestNova } from "@/lib/nova-client";
 import { ensureNovaRefId, resetNovaRefId } from "@/lib/nova-session";
 import { TrendFollowingChart, type TrendFollowingDataPoint } from "@/components/calculators/trend-following/trend-following-chart";
 import { parseTrendFollowingReply } from "@/components/calculators/trend-following/parser";
-import { buildDipTriggerSeries, buildMovingAverageSeries } from "@/components/calculators/workspace/technical-indicators";
+import {
+  buildDipTriggerSeries,
+  buildMovingAverageSeries,
+  buildSeriesFromCandles,
+  type TimeSeriesValuePoint,
+} from "@/components/calculators/workspace/technical-indicators";
+import type { MonteCarloTrajectoryPoint } from "@/lib/monte-carlo";
 
 const defaultCalculatorId = calculatorDefinitions[0]?.id ?? "";
 const defaultDefinition = defaultCalculatorId ? findCalculatorDefinition<any>(defaultCalculatorId) : undefined;
@@ -171,6 +177,7 @@ export function CalculatorHubSection() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
+  const [monteCarloTrajectory, setMonteCarloTrajectory] = useState<MonteCarloTrajectoryPoint[] | null>(null);
 
   const activeDefinition = findCalculatorDefinition<any>(activeCalculatorId);
 
@@ -182,6 +189,12 @@ export function CalculatorHubSection() {
     (activeDefinition?.getSeriesLabel ? activeDefinition.getSeriesLabel(formState as any) : undefined) ?? "Modeled price";
 
   const dipThresholdString = String((formState as Record<string, unknown>).dipThreshold ?? "");
+  const handleMonteCarloPathUpdate = useCallback(
+    (trajectory: MonteCarloTrajectoryPoint[] | null) => {
+      setMonteCarloTrajectory(trajectory);
+    },
+    [],
+  );
 
   const { displayDataset, displayWindowStart } = useMemo(() => {
     if (!priceHistory.length) {
@@ -201,8 +214,20 @@ export function CalculatorHubSection() {
     };
   }, [priceHistory]);
 
+  const historicalSeries = useMemo<TimeSeriesValuePoint[]>(() => buildSeriesFromCandles(priceHistory), [priceHistory]);
+
+  const combinedSeries = useMemo<TimeSeriesValuePoint[]>(() => {
+    if (!monteCarloTrajectory?.length) {
+      return historicalSeries;
+    }
+
+    const merged = [...historicalSeries, ...monteCarloTrajectory.map((point) => ({ x: point.x, y: point.y }))];
+    merged.sort((a, b) => a.x - b.x);
+    return merged;
+  }, [historicalSeries, monteCarloTrajectory]);
+
   const { technicalOverlays, eventMarkers } = useMemo(() => {
-    if (!priceHistory.length) {
+    if (!combinedSeries.length) {
       return { technicalOverlays: [], eventMarkers: [] };
     }
 
@@ -214,13 +239,13 @@ export function CalculatorHubSection() {
         {
           id: "dca-sma-20",
           label: "20-day SMA",
-          data: buildMovingAverageSeries(priceHistory, 20),
+          data: buildMovingAverageSeries(combinedSeries, 20),
           color: "rgba(56, 189, 248, 0.95)",
         },
         {
           id: "dca-sma-60",
           label: "60-day SMA",
-          data: buildMovingAverageSeries(priceHistory, 60),
+          data: buildMovingAverageSeries(combinedSeries, 60),
           color: "rgba(129, 140, 248, 0.9)",
           borderDash: [4, 4],
         },
@@ -229,13 +254,13 @@ export function CalculatorHubSection() {
       overlays.push({
         id: "buy-dip-sma-20",
         label: "20-day SMA",
-        data: buildMovingAverageSeries(priceHistory, 20),
+        data: buildMovingAverageSeries(combinedSeries, 20),
         color: "rgba(16, 185, 129, 0.85)",
       });
 
       const parsedThreshold = Number.parseFloat(dipThresholdString);
       const normalizedThreshold = Number.isFinite(parsedThreshold) ? parsedThreshold : 10;
-      const dipSeries = buildDipTriggerSeries(priceHistory, normalizedThreshold, 30);
+      const dipSeries = buildDipTriggerSeries(combinedSeries, normalizedThreshold, 30);
 
       if (dipSeries.recentHighs.length) {
         overlays.push({
@@ -274,7 +299,7 @@ export function CalculatorHubSection() {
         overlays.push({
           id: `trend-ma-${period}`,
           label: `${period}-day SMA`,
-          data: buildMovingAverageSeries(priceHistory, period),
+          data: buildMovingAverageSeries(combinedSeries, period),
           color: index === 0 ? "rgba(59, 130, 246, 0.95)" : index === 1 ? "rgba(16, 185, 129, 0.9)" : "rgba(236, 72, 153, 0.9)",
           borderDash: index === 0 ? undefined : [4, 4],
           strokeWidth: 2,
@@ -300,7 +325,7 @@ export function CalculatorHubSection() {
       .filter((marker) => marker.points.length);
 
     return { technicalOverlays: filteredOverlays, eventMarkers: filteredMarkers };
-  }, [activeCalculatorId, priceHistory, dipThresholdString, displayWindowStart]);
+  }, [activeCalculatorId, combinedSeries, dipThresholdString, displayWindowStart]);
 
   const handleFormStateChange = (field: string, value: unknown): void => {
     setCalculatorStates((previous) => {
@@ -335,6 +360,7 @@ export function CalculatorHubSection() {
     setPriceHistory([]);
     setPriceHistoryError(null);
     setIsPriceHistoryLoading(true);
+    setMonteCarloTrajectory(null);
 
     const tokenFromState = typeof currentState.token === "string" ? currentState.token.trim() : "";
     const explicitTokenId =
@@ -460,6 +486,7 @@ export function CalculatorHubSection() {
       setPriceHistory([]);
       setPriceHistoryError(null);
       setIsPriceHistoryLoading(false);
+      setMonteCarloTrajectory(null);
       setInsight(null);
       setFallbackLines([]);
       setSummaryMessage(activeDefinition?.initialSummary ?? defaultSummary);
@@ -504,6 +531,7 @@ export function CalculatorHubSection() {
     setPriceHistory([]);
     setPriceHistoryError(null);
     setIsPriceHistoryLoading(false);
+    setMonteCarloTrajectory(null);
 
     setCalculatorStates((previous) => {
       if (previous[nextId]) {
@@ -602,6 +630,7 @@ export function CalculatorHubSection() {
               seriesLabel={seriesLabel}
               technicalOverlays={technicalOverlays}
               eventMarkers={eventMarkers}
+              onMonteCarloPath={handleMonteCarloPathUpdate}
               loadingMessage="Fetching price history from CoinGecko…"
               emptyMessage={
                 priceHistoryError ?? "Run the projection to visualize one year of CoinGecko price history."
@@ -615,6 +644,7 @@ export function CalculatorHubSection() {
             seriesLabel={seriesLabel}
             technicalOverlays={technicalOverlays}
             eventMarkers={eventMarkers}
+            onMonteCarloPath={handleMonteCarloPathUpdate}
             loadingMessage="Fetching price history from CoinGecko…"
             emptyMessage={
               priceHistoryError ?? "Run the projection to visualize one year of CoinGecko price history."

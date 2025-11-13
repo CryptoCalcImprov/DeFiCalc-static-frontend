@@ -5,56 +5,77 @@ export type TechnicalPoint = {
   y: number;
 };
 
+export type TimeSeriesValuePoint = {
+  x: number;
+  y: number;
+};
+
 function toTimestamp(dateString: string): number {
   return new Date(dateString).getTime();
 }
 
+function sortPoints(points: TimeSeriesValuePoint[]): TimeSeriesValuePoint[] {
+  return [...points].sort((a, b) => a.x - b.x);
+}
+
+export function buildSeriesFromCandles(candles: CoinGeckoCandle[]): TimeSeriesValuePoint[] {
+  return sortPoints(
+    candles.map((candle) => ({
+      x: toTimestamp(candle.date),
+      y: candle.close,
+    })),
+  );
+}
+
 /**
- * Builds a simple moving average series for the provided candles.
+ * Builds a simple moving average series for the provided time series.
  */
-export function buildMovingAverageSeries(candles: CoinGeckoCandle[], period: number): TechnicalPoint[] {
+export function buildMovingAverageSeries(points: TimeSeriesValuePoint[], period: number): TechnicalPoint[] {
   const normalizedPeriod = Math.max(1, Math.trunc(period));
-  const points: TechnicalPoint[] = [];
+  const sortedPoints = sortPoints(points);
+  const movingAverage: TechnicalPoint[] = [];
   let runningSum = 0;
 
-  for (let i = 0; i < candles.length; i += 1) {
-    const close = candles[i].close;
-    runningSum += close;
+  for (let index = 0; index < sortedPoints.length; index += 1) {
+    runningSum += sortedPoints[index].y;
 
-    if (i >= normalizedPeriod) {
-      runningSum -= candles[i - normalizedPeriod].close;
+    if (index >= normalizedPeriod) {
+      runningSum -= sortedPoints[index - normalizedPeriod].y;
     }
 
-    if (i >= normalizedPeriod - 1) {
-      const average = runningSum / normalizedPeriod;
-      points.push({ x: toTimestamp(candles[i].date), y: average });
+    if (index >= normalizedPeriod - 1) {
+      movingAverage.push({
+        x: sortedPoints[index].x,
+        y: runningSum / normalizedPeriod,
+      });
     }
   }
 
-  return points;
+  return movingAverage;
 }
 
 /**
  * Builds a rolling maximum (recent high) series over the provided lookback window.
  */
-export function buildRollingHighSeries(candles: CoinGeckoCandle[], lookbackPeriod: number): TechnicalPoint[] {
+export function buildRollingHighSeries(points: TimeSeriesValuePoint[], lookbackPeriod: number): TechnicalPoint[] {
   const normalizedPeriod = Math.max(1, Math.trunc(lookbackPeriod));
-  const points: TechnicalPoint[] = [];
+  const sortedPoints = sortPoints(points);
+  const highs: TechnicalPoint[] = [];
 
-  for (let i = 0; i < candles.length; i += 1) {
+  for (let i = 0; i < sortedPoints.length; i += 1) {
     const windowStart = Math.max(0, i - normalizedPeriod + 1);
     let highest = -Infinity;
 
     for (let j = windowStart; j <= i; j += 1) {
-      highest = Math.max(highest, candles[j].close);
+      highest = Math.max(highest, sortedPoints[j].y);
     }
 
     if (Number.isFinite(highest)) {
-      points.push({ x: toTimestamp(candles[i].date), y: highest });
+      highs.push({ x: sortedPoints[i].x, y: highest });
     }
   }
 
-  return points;
+  return highs;
 }
 
 export type DipTriggerSeries = {
@@ -67,12 +88,13 @@ export type DipTriggerSeries = {
  * Computes the recent high line, dip threshold line, and events that would trigger a buy-the-dip deployment.
  */
 export function buildDipTriggerSeries(
-  candles: CoinGeckoCandle[],
+  points: TimeSeriesValuePoint[],
   thresholdPercent: number,
   lookbackPeriod: number,
 ): DipTriggerSeries {
   const normalizedThreshold = Number.isFinite(thresholdPercent) ? thresholdPercent : 0;
-  const recentHighs = buildRollingHighSeries(candles, lookbackPeriod);
+  const sortedPoints = sortPoints(points);
+  const recentHighs = buildRollingHighSeries(sortedPoints, lookbackPeriod);
   const thresholdLine: TechnicalPoint[] = [];
   const dipEvents: TechnicalPoint[] = [];
 
@@ -82,7 +104,7 @@ export function buildDipTriggerSeries(
     return { recentHighs, thresholdLine, dipEvents };
   }
 
-  for (let i = 0; i < candles.length; i += 1) {
+  for (let i = 0; i < sortedPoints.length; i += 1) {
     const highPoint = recentHighs[i];
     if (!highPoint || !Number.isFinite(highPoint.y)) {
       continue;
@@ -91,9 +113,9 @@ export function buildDipTriggerSeries(
     const thresholdValue = highPoint.y * (1 - thresholdFactor);
     thresholdLine.push({ x: highPoint.x, y: thresholdValue });
 
-    const candle = candles[i];
-    if (candle.close <= thresholdValue) {
-      dipEvents.push({ x: highPoint.x, y: candle.close });
+    const currentPoint = sortedPoints[i];
+    if (currentPoint.y <= thresholdValue) {
+      dipEvents.push({ x: highPoint.x, y: currentPoint.y });
     }
   }
 

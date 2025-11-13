@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { ChartConfiguration } from "chart.js";
 
 import type { CoinGeckoCandle } from "@/components/calculators/types";
 import { CalculatorSpinner } from "@/components/calculators/workspace/CalculatorSpinner";
 import { LoadingDots } from "@/components/ui/loading-dots";
+import {
+  estimateDriftAndVolatility,
+  generateMonteCarloPath,
+  MonteCarloHorizons,
+  type MonteCarloTrajectoryPoint,
+} from "@/lib/monte-carlo";
 
 type ChartConstructor = typeof import("chart.js/auto") extends { default: infer T } ? T : never;
 type ChartInstance = ChartConstructor extends new (...args: any[]) => infer R ? R : never;
@@ -43,6 +49,7 @@ type PriceTrajectoryPanelProps = {
   emptyMessage?: string;
   technicalOverlays?: PriceTrajectoryOverlay[];
   eventMarkers?: PriceTrajectoryEventMarker[];
+  onMonteCarloPath?: (trajectory: MonteCarloTrajectoryPoint[] | null) => void;
 };
 
 export function PriceTrajectoryPanel({
@@ -54,11 +61,68 @@ export function PriceTrajectoryPanel({
   emptyMessage = "Run the projection to visualize one year of CoinGecko price history.",
   technicalOverlays = [],
   eventMarkers = [],
+  onMonteCarloPath,
 }: PriceTrajectoryPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartInstance | null>(null);
 
   const hasDataset = dataset.length > 0;
+
+  const monteCarloOverlay = useMemo(() => {
+    if (!dataset.length) {
+      return null;
+    }
+
+    const closes = dataset.map((candle) => candle.close);
+    const stats = estimateDriftAndVolatility(closes);
+    if (!stats) {
+      return null;
+    }
+
+    const latestCandle = dataset[dataset.length - 1];
+    const trajectory = generateMonteCarloPath({
+      startPrice: latestCandle.close,
+      startTimestamp: new Date(latestCandle.date).getTime(),
+      drift: stats.drift,
+      volatility: stats.volatility,
+      config: {
+        horizonMonths: MonteCarloHorizons.SIX_MONTHS,
+        stepDays: 1,
+        seed: 13579,
+      },
+    });
+
+    if (!trajectory.length) {
+      return null;
+    }
+
+    return {
+      id: "monte-carlo-path",
+      label: "Monte Carlo projection",
+      data: trajectory,
+      color: "#FBA94C",
+      backgroundColor: "rgba(251, 169, 76, 0.15)",
+      strokeWidth: 2.5,
+      borderDash: [6, 4],
+      tension: 0.3,
+      pointRadius: 0,
+      fill: false,
+      yAxisID: undefined,
+    };
+  }, [dataset]);
+
+  useEffect(() => {
+    const trajectory = (monteCarloOverlay?.data ?? null) as MonteCarloTrajectoryPoint[] | null;
+    onMonteCarloPath?.(trajectory);
+  }, [monteCarloOverlay, onMonteCarloPath]);
+
+  const overlaysForRendering = useMemo(() => {
+    if (!monteCarloOverlay) {
+      return technicalOverlays;
+    }
+
+    return [...technicalOverlays, monteCarloOverlay];
+  }, [technicalOverlays, monteCarloOverlay]);
 
   useEffect(() => {
     let isMounted = true;
@@ -113,7 +177,7 @@ export function PriceTrajectoryPanel({
           };
         });
 
-        const overlayDatasets = technicalOverlays.map((overlay) => ({
+        const overlayDatasets = overlaysForRendering.map((overlay) => ({
           type: "line" as const,
           label: overlay.label,
           data: overlay.data,
@@ -138,11 +202,12 @@ export function PriceTrajectoryPanel({
           yAxisID: marker.yAxisID ?? "y",
         }));
 
-        const config: ChartConfiguration<"candlestick", any, string> = {
+        const config: ChartConfiguration = {
           type: "candlestick",
           data: {
             datasets: [
               {
+                type: "candlestick",
                 label: seriesLabel,
                 data: candlestickData,
                 borderColors: {
@@ -255,7 +320,7 @@ export function PriceTrajectoryPanel({
       chartRef.current?.destroy();
       chartRef.current = null;
     };
-  }, [dataset, hasDataset, seriesLabel, technicalOverlays, eventMarkers]);
+  }, [dataset, hasDataset, seriesLabel, overlaysForRendering, eventMarkers]);
 
   return (
     <div className="card-surface rounded-2xl bg-gradient-to-br from-slate-950/70 via-slate-950/50 to-slate-900/25 p-4 sm:rounded-3xl sm:p-6">
