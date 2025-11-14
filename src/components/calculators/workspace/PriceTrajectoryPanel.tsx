@@ -15,7 +15,9 @@ import {
 } from "@/lib/monte-carlo";
 
 const PRICE_AXIS_DECIMAL_LIMIT = 6;
-const PRICE_TOOLTIP_DECIMAL_LIMIT = 5;
+const PRICE_TOOLTIP_DECIMAL_LIMIT = 4;
+const PRICE_TOOLTIP_EXTENDED_DECIMALS = 8;
+const PRICE_TOOLTIP_ZERO_THRESHOLD = 4;
 const TOOLTIP_POSITIONER_ID = "cursorOffset";
 
 function formatPriceAxis(value: number): string {
@@ -42,12 +44,17 @@ function formatTooltipPrice(value: number): string {
   }
 
   const absValue = Math.abs(value);
-  const decimals =
-    absValue >= 1
-      ? PRICE_TOOLTIP_DECIMAL_LIMIT
-      : absValue > 0
-        ? Math.min(PRICE_TOOLTIP_DECIMAL_LIMIT, Math.max(2, Math.ceil(-Math.log10(absValue))))
-        : PRICE_TOOLTIP_DECIMAL_LIMIT;
+  let decimals = PRICE_TOOLTIP_DECIMAL_LIMIT;
+
+  const formattedAbs = Math.abs(value).toFixed(PRICE_TOOLTIP_DECIMAL_LIMIT);
+  const fractionPart = formattedAbs.split(".")[1];
+  const firstZerosZero =
+    typeof fractionPart === "string" &&
+    fractionPart.slice(0, PRICE_TOOLTIP_ZERO_THRESHOLD) === "0".repeat(PRICE_TOOLTIP_ZERO_THRESHOLD);
+
+  if (firstZerosZero) {
+    decimals = Math.max(decimals, PRICE_TOOLTIP_EXTENDED_DECIMALS);
+  }
 
   return `$${value.toFixed(decimals)}`;
 }
