@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChartConfiguration } from "chart.js";
 
 import type { CoinGeckoCandle } from "@/components/calculators/types";
@@ -106,6 +106,7 @@ export function PriceTrajectoryPanel({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartInstance | null>(null);
   const tooltipModeRef = useRef<"strategy" | "technical">("strategy");
+  const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
 
   const hasDataset = dataset.length > 0;
 
@@ -241,7 +242,7 @@ export function PriceTrajectoryPanel({
       showTechnicalTooltip({ clientX: event.clientX, clientY: event.clientY });
     };
 
-    const handlePointerDown = (event: PointerEvent) => {
+  const handlePointerDown = (event: PointerEvent) => {
       if (event.pointerType !== "touch") {
         hideTechnicalTooltip();
         return;
@@ -634,7 +635,17 @@ export function PriceTrajectoryPanel({
 
   return (
     <div className="card-surface rounded-2xl bg-gradient-to-br from-slate-950/70 via-slate-950/50 to-slate-900/25 p-4 sm:rounded-3xl sm:p-6">
-      <h4 className="text-xs font-semibold uppercase tracking-widest text-slate-100 sm:text-sm">{title}</h4>
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="text-xs font-semibold uppercase tracking-widest text-slate-100 sm:text-sm">{title}</h4>
+        <button
+          type="button"
+          onClick={() => setIsInstructionsOpen(true)}
+          className="rounded-full border border-slate-700/80 bg-slate-900/60 px-2 py-1 text-xs font-semibold text-slate-200 transition hover:border-mint/70 hover:text-mint focus:outline-none focus-visible:ring-2 focus-visible:ring-mint/70"
+          aria-label="Show chart controls"
+        >
+          ?
+        </button>
+      </div>
       <div className="mt-3 h-72 min-w-0 rounded-2xl border border-ocean/60 bg-surface/75 sm:mt-4 sm:h-96 lg:h-[28rem]">
         {hasDataset ? (
           <div className="h-full w-full overflow-hidden">
@@ -661,6 +672,44 @@ export function PriceTrajectoryPanel({
           </div>
         )}
       </div>
+      {isInstructionsOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-8">
+          <div className="w-full max-w-lg rounded-2xl border border-ocean/70 bg-slate-950/95 p-6 text-sm text-slate-100 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h5 className="text-base font-semibold uppercase tracking-widest text-mint">Chart controls</h5>
+              <button
+                type="button"
+                onClick={() => setIsInstructionsOpen(false)}
+                className="rounded-full border border-slate-700/70 px-2 py-1 text-xs font-semibold text-slate-200 hover:border-mint/70 hover:text-mint focus:outline-none focus-visible:ring-2 focus-visible:ring-mint/70"
+                aria-label="Close chart control instructions"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Mouse & trackpad</p>
+                <ul className="mt-2 space-y-1 text-sm text-slate-200">
+                  <li>• Drag to pan the chart.</li>
+                  <li>• Scroll wheel pinches to zoom in/out.</li>
+                  <li>• Hold Shift + drag to box zoom.</li>
+                  <li>• Double-click any point to view the technical snapshot.</li>
+                  <li>• Hover strategy markers to see the recommended action.</li>
+                </ul>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Touch screens</p>
+                <ul className="mt-2 space-y-1 text-sm text-slate-200">
+                  <li>• Swipe with one finger to pan.</li>
+                  <li>• Pinch with two fingers to zoom.</li>
+                  <li>• Long press anywhere to show technical details.</li>
+                  <li>• Tap strategy markers to reveal their actions.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
