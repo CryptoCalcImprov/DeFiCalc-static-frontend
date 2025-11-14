@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import type { ChartConfiguration } from "chart.js";
+import zoomPlugin from "chartjs-plugin-zoom";
 
 import type { CoinGeckoCandle } from "@/components/calculators/types";
 import { CalculatorSpinner } from "@/components/calculators/workspace/CalculatorSpinner";
@@ -15,6 +16,7 @@ import {
 } from "@/lib/monte-carlo";
 
 const PRICE_AXIS_DECIMAL_LIMIT = 6;
+const TOOLTIP_POSITIONER_ID = "cursorOffset";
 
 function formatPriceAxis(value: number): string {
   if (!Number.isFinite(value)) {
@@ -52,10 +54,25 @@ export type PriceTrajectoryOverlay = {
   order?: number;
 };
 
+type StrategyPointMeta = {
+  action?: string;
+  description?: string;
+  amount?: number;
+  price?: number;
+  quantity?: number;
+  date?: string;
+};
+
+type PriceTrajectoryEventPoint = {
+  x: number;
+  y: number;
+  meta?: StrategyPointMeta;
+};
+
 export type PriceTrajectoryEventMarker = {
   id: string;
   label: string;
-  points: { x: number; y: number }[];
+  points: PriceTrajectoryEventPoint[];
   backgroundColor: string;
   borderColor: string;
   radius?: number;
@@ -89,6 +106,7 @@ export function PriceTrajectoryPanel({
 }: PriceTrajectoryPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartInstance | null>(null);
+  const tooltipModeRef = useRef<"strategy" | "technical">("strategy");
 
   const hasDataset = dataset.length > 0;
 
@@ -151,6 +169,142 @@ export function PriceTrajectoryPanel({
   }, [technicalOverlays, monteCarloOverlay]);
 
   useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+
+    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+    let longPressPosition: { clientX: number; clientY: number } | null = null;
+
+    const clearLongPress = () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+      longPressPosition = null;
+    };
+
+    const hideTechnicalTooltip = () => {
+      if (tooltipModeRef.current !== "technical") {
+        return;
+      }
+      const chart = chartRef.current;
+      if (!chart) {
+        return;
+      }
+      tooltipModeRef.current = "strategy";
+      chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+      chart.setActiveElements([]);
+      chart.update();
+    };
+
+    const showTechnicalTooltip = (coords: { clientX: number; clientY: number }) => {
+      const chart = chartRef.current;
+      const currentCanvas = canvasRef.current;
+      if (!chart || !currentCanvas) {
+        return;
+      }
+
+      const rect = currentCanvas.getBoundingClientRect();
+      const relativeX = coords.clientX - rect.left;
+      const relativeY = coords.clientY - rect.top;
+
+      const syntheticEvent = {
+        type: "custom",
+        x: relativeX,
+        y: relativeY,
+        native: {
+          offsetX: relativeX,
+          offsetY: relativeY,
+        },
+      } as unknown as Event;
+
+      const elements = chart.getElementsAtEventForMode(
+        syntheticEvent,
+        "index",
+        { axis: "x", intersect: false },
+        false,
+      );
+
+      if (!elements.length) {
+        return;
+      }
+
+      tooltipModeRef.current = "technical";
+      chart.setActiveElements(elements);
+      chart.tooltip.setActiveElements(elements, { x: relativeX, y: relativeY });
+      chart.update();
+    };
+
+    const handleDoubleClick = (event: MouseEvent) => {
+      event.preventDefault();
+      showTechnicalTooltip({ clientX: event.clientX, clientY: event.clientY });
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.pointerType !== "touch") {
+        hideTechnicalTooltip();
+        return;
+      }
+
+      hideTechnicalTooltip();
+      longPressPosition = { clientX: event.clientX, clientY: event.clientY };
+      longPressTimer = window.setTimeout(() => {
+        if (longPressPosition) {
+          showTechnicalTooltip(longPressPosition);
+        }
+        clearLongPress();
+      }, 500);
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (longPressPosition && event.pointerType === "touch") {
+        const deltaX = Math.abs(event.clientX - longPressPosition.clientX);
+        const deltaY = Math.abs(event.clientY - longPressPosition.clientY);
+        if (deltaX > 12 || deltaY > 12) {
+          clearLongPress();
+        }
+      } else if (tooltipModeRef.current === "technical" && event.pointerType !== "touch") {
+        hideTechnicalTooltip();
+      }
+    };
+
+    const handlePointerUp = () => {
+      clearLongPress();
+    };
+
+    const handlePointerLeave = () => {
+      clearLongPress();
+      hideTechnicalTooltip();
+    };
+
+    const handleWheel = () => {
+      hideTechnicalTooltip();
+    };
+
+    canvas.addEventListener("dblclick", handleDoubleClick);
+    canvas.addEventListener("pointerdown", handlePointerDown);
+    canvas.addEventListener("pointerup", handlePointerUp);
+    canvas.addEventListener("pointercancel", handlePointerUp);
+    canvas.addEventListener("pointermove", handlePointerMove);
+    canvas.addEventListener("pointerleave", handlePointerLeave);
+    canvas.addEventListener("wheel", handleWheel, { passive: true });
+
+    return () => {
+      canvas.removeEventListener("dblclick", handleDoubleClick);
+      canvas.removeEventListener("pointerdown", handlePointerDown);
+      canvas.removeEventListener("pointerup", handlePointerUp);
+      canvas.removeEventListener("pointercancel", handlePointerUp);
+      canvas.removeEventListener("pointermove", handlePointerMove);
+      canvas.removeEventListener("pointerleave", handlePointerLeave);
+      canvas.removeEventListener("wheel", handleWheel);
+      clearLongPress();
+    };
+  }, [hasDataset]);
+
+
+  useEffect(() => {
     let isMounted = true;
 
     const renderChart = async () => {
@@ -188,6 +342,8 @@ export function PriceTrajectoryPanel({
         if (timeAdapterModule?.default) {
           ChartJs.register(timeAdapterModule.default);
         }
+        ChartJs.register(zoomPlugin);
+        registerCursorOffsetTooltip(ChartJs, chartModule as Record<string, unknown>);
 
         chartRef.current?.destroy();
 
@@ -222,7 +378,12 @@ export function PriceTrajectoryPanel({
         const markerDatasets = eventMarkers.map((marker) => ({
           type: "bubble" as const,
           label: marker.label,
-          data: marker.points.map((point) => ({ x: point.x, y: point.y, r: marker.radius ?? 5 })),
+          data: marker.points.map((point) => ({
+            x: point.x,
+            y: point.y,
+            r: marker.radius ?? 5,
+            meta: point.meta,
+          })),
           backgroundColor: marker.backgroundColor,
           borderColor: marker.borderColor,
           borderWidth: 2,
@@ -256,6 +417,10 @@ export function PriceTrajectoryPanel({
           options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+              mode: "nearest",
+              intersect: true,
+            },
             plugins: {
               legend: {
                 labels: {
@@ -271,28 +436,131 @@ export function PriceTrajectoryPanel({
                 bodyColor: "#CBD5E1",
                 borderColor: "rgba(58, 198, 255, 0.45)",
                 borderWidth: 1,
+                position: TOOLTIP_POSITIONER_ID,
+                caretPadding: 12,
+                filter: (tooltipItem) => {
+                  const datasetType = tooltipItem.dataset.type;
+                  if (tooltipModeRef.current === "technical") {
+                    return datasetType !== "bubble";
+                  }
+                  return datasetType === "bubble";
+                },
                 callbacks: {
-                  label: function (context: any) {
-                    const datasetType = context.dataset.type;
+                  title: (items) => {
+                    const first = items[0];
+                    if (!first) {
+                      return "";
+                    }
+                    if (tooltipModeRef.current === "technical") {
+                      const timestamp = typeof first.parsed?.x === "number" ? first.parsed.x : Number(first.raw?.x);
+                      if (typeof timestamp === "number" && Number.isFinite(timestamp)) {
+                        return new Date(timestamp).toLocaleString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        });
+                      }
+                      return first.label ?? "";
+                    }
+                    const rawPoint = first.raw as { x?: number; meta?: StrategyPointMeta };
+                    if (rawPoint?.meta?.date) {
+                      return rawPoint.meta.date;
+                    }
+                    const timestamp = typeof rawPoint?.x === "number" ? rawPoint.x : first.parsed?.x;
+                    if (typeof timestamp === "number" && Number.isFinite(timestamp)) {
+                      return new Date(timestamp).toLocaleString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      });
+                    }
+                    return first.label ?? "";
+                  },
+                  label: (context) => {
+                    if (tooltipModeRef.current === "technical") {
+                      const datasetType = context.dataset.type;
+                      if (datasetType === "candlestick") {
+                        const point = context.raw as { o: number; h: number; l: number; c: number };
+                        return [
+                          `Open: ${formatPriceAxis(point.o)}`,
+                          `High: ${formatPriceAxis(point.h)}`,
+                          `Low: ${formatPriceAxis(point.l)}`,
+                          `Close: ${formatPriceAxis(point.c)}`,
+                        ];
+                      }
+                      const value = context.parsed?.y ?? context.raw?.y;
+                      const label = context.dataset.label ?? "Value";
+                      if (typeof value === "number") {
+                        return `${label}: ${formatPriceAxis(value)}`;
+                      }
+                      return label;
+                    }
+                    const datasetLabel = context.dataset.label ?? "Strategy action";
+                    const rawPoint = context.raw as { y?: number; meta?: StrategyPointMeta };
+                    const meta = rawPoint?.meta ?? {};
+                    const lines: string[] = [];
 
-                    if (datasetType === "candlestick") {
-                      const point = context.raw as { o: number; h: number; l: number; c: number };
-                      return [
-                        `Open: $${point.o.toFixed(2)}`,
-                        `High: $${point.h.toFixed(2)}`,
-                        `Low: $${point.l.toFixed(2)}`,
-                        `Close: $${point.c.toFixed(2)}`,
-                      ];
+                    if (meta.action) {
+                      lines.push(meta.action);
+                    } else {
+                      lines.push(datasetLabel);
                     }
 
-                    const value = context.parsed?.y ?? context.raw?.y;
-                    const label = context.dataset.label ?? "Value";
-
-                    if (typeof value === "number") {
-                      return `${label}: $${value.toFixed(2)}`;
+                    const price = typeof meta.price === "number" ? meta.price : context.parsed?.y;
+                    if (typeof price === "number" && Number.isFinite(price)) {
+                      lines.push(`Price: ${formatPriceAxis(price)}`);
                     }
 
-                    return label;
+                    if (typeof meta.amount === "number" && Number.isFinite(meta.amount)) {
+                      lines.push(`Amount: $${meta.amount.toFixed(2)}`);
+                    }
+
+                    if (typeof meta.quantity === "number" && Number.isFinite(meta.quantity)) {
+                      lines.push(`Quantity: ${meta.quantity.toFixed(4)}`);
+                    }
+
+                    if (meta.description) {
+                      lines.push(meta.description);
+                    }
+
+                    return lines;
+                  },
+                },
+              },
+              zoom: {
+                pan: {
+                  enabled: true,
+                  mode: "x",
+                  modifierKey: null,
+                },
+                zoom: {
+                  wheel: {
+                    enabled: true,
+                  },
+                  pinch: {
+                    enabled: true,
+                  },
+                  drag: {
+                    enabled: true,
+                    modifierKey: "shift",
+                    backgroundColor: "rgba(56, 189, 248, 0.15)",
+                    borderWidth: 1,
+                    borderColor: "rgba(56, 189, 248, 0.65)",
+                  },
+                  mode: "x",
+                },
+                limits: {
+                  x: {
+                    min: "original",
+                    max: "original",
+                  },
+                  y: {
+                    min: "original",
+                    max: "original",
                   },
                 },
               },
@@ -355,19 +623,12 @@ export function PriceTrajectoryPanel({
       <h4 className="text-xs font-semibold uppercase tracking-widest text-slate-100 sm:text-sm">{title}</h4>
       <div className="mt-3 h-72 min-w-0 rounded-2xl border border-ocean/60 bg-surface/75 sm:mt-4 sm:h-96 lg:h-[28rem]">
         {hasDataset ? (
-          <div className="h-full w-full overflow-x-auto overflow-y-hidden">
-            <div
-              className="h-full"
-              style={{
-                minWidth: `${Math.max(dataset.length * 12, 780)}px`,
-              }}
-            >
-              <canvas
-                ref={canvasRef}
-                className="h-full w-full"
-                style={{ width: "100%", height: "100%" }}
-              />
-            </div>
+          <div className="h-full w-full overflow-hidden">
+            <canvas
+              ref={canvasRef}
+              className="h-full w-full"
+              style={{ width: "100%", height: "100%" }}
+            />
           </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-ocean/55 bg-surface/65 px-6 text-center">
@@ -388,4 +649,50 @@ export function PriceTrajectoryPanel({
       </div>
     </div>
   );
+}
+function registerCursorOffsetTooltip(ChartJs: ChartConstructor, chartModule: Record<string, unknown>) {
+  const TooltipClass = (chartModule as any).Tooltip ?? (ChartJs as any).Tooltip;
+  if (!TooltipClass?.positioners) {
+    return;
+  }
+
+  if (TooltipClass.positioners[TOOLTIP_POSITIONER_ID]) {
+    return;
+  }
+
+  TooltipClass.positioners[TOOLTIP_POSITIONER_ID] = function (_items: unknown[], eventPosition: { x: number; y: number }) {
+    if (!eventPosition || typeof eventPosition.x !== "number" || typeof eventPosition.y !== "number") {
+      return false;
+    }
+
+    // `this` refers to the tooltip instance
+    const tooltip: any = this;
+    const chart = tooltip?.chart;
+    const chartArea = chart?.chartArea;
+    if (!chartArea) {
+      return eventPosition;
+    }
+
+    const padding = 16;
+    const tooltipWidth = tooltip?.width ?? 0;
+    const tooltipHeight = tooltip?.height ?? 0;
+    const halfWidth = tooltipWidth / 2;
+    const halfHeight = tooltipHeight / 2;
+
+    let targetX = eventPosition.x + padding;
+    let targetY = eventPosition.y;
+
+    const minX = chartArea.left + 4;
+    const maxX = chartArea.right - tooltipWidth - 4;
+    const minY = chartArea.top + halfHeight + 4;
+    const maxY = chartArea.bottom - halfHeight - 4;
+
+    targetX = Math.min(Math.max(targetX, minX), maxX);
+    targetY = Math.min(Math.max(targetY, minY), maxY);
+
+    return {
+      x: targetX,
+      y: targetY,
+    };
+  };
 }
