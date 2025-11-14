@@ -190,7 +190,7 @@ export function PriceTrajectoryPanel({
         return;
       }
       const chart = chartRef.current;
-      if (!chart) {
+      if (!chart || !chart.tooltip) {
         return;
       }
       tooltipModeRef.current = "strategy";
@@ -202,7 +202,7 @@ export function PriceTrajectoryPanel({
     const showTechnicalTooltip = (coords: { clientX: number; clientY: number }) => {
       const chart = chartRef.current;
       const currentCanvas = canvasRef.current;
-      if (!chart || !currentCanvas) {
+      if (!chart || !currentCanvas || !chart.tooltip) {
         return;
       }
 
