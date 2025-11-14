@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import type { ChartConfiguration } from "chart.js";
-import zoomPlugin from "chartjs-plugin-zoom";
 
 import type { CoinGeckoCandle } from "@/components/calculators/types";
 import { CalculatorSpinner } from "@/components/calculators/workspace/CalculatorSpinner";
@@ -250,7 +249,7 @@ export function PriceTrajectoryPanel({
 
       hideTechnicalTooltip();
       longPressPosition = { clientX: event.clientX, clientY: event.clientY };
-      longPressTimer = window.setTimeout(() => {
+      longPressTimer = setTimeout(() => {
         if (longPressPosition) {
           showTechnicalTooltip(longPressPosition);
         }
@@ -320,10 +319,11 @@ export function PriceTrajectoryPanel({
       }
 
       try {
-        const [chartModule, financialModule, timeAdapterModule] = await Promise.all([
+        const [chartModule, financialModule, timeAdapterModule, zoomModule] = await Promise.all([
           import("chart.js/auto"),
           import("chartjs-chart-financial"),
           import("chartjs-adapter-date-fns"),
+          import("chartjs-plugin-zoom"),
         ]);
         if (!isMounted || !canvas) {
           return;
@@ -342,7 +342,9 @@ export function PriceTrajectoryPanel({
         if (timeAdapterModule?.default) {
           ChartJs.register(timeAdapterModule.default);
         }
-        ChartJs.register(zoomPlugin);
+        if (zoomModule?.default) {
+          ChartJs.register(zoomModule.default);
+        }
         registerCursorOffsetTooltip(ChartJs, chartModule as Record<string, unknown>);
 
         chartRef.current?.destroy();
@@ -436,7 +438,7 @@ export function PriceTrajectoryPanel({
                 bodyColor: "#CBD5E1",
                 borderColor: "rgba(58, 198, 255, 0.45)",
                 borderWidth: 1,
-                position: TOOLTIP_POSITIONER_ID,
+                position: TOOLTIP_POSITIONER_ID as never,
                 caretPadding: 12,
                 filter: (tooltipItem) => {
                   const datasetType = tooltipItem.dataset.type;
@@ -452,7 +454,14 @@ export function PriceTrajectoryPanel({
                       return "";
                     }
                     if (tooltipModeRef.current === "technical") {
-                      const timestamp = typeof first.parsed?.x === "number" ? first.parsed.x : Number(first.raw?.x);
+                      const parsedTimestamp =
+                        typeof first.parsed?.x === "number" ? first.parsed.x : undefined;
+                      const rawTimestamp =
+                        typeof (first.raw as Record<string, unknown> | undefined)?.x === "number"
+                          ? (first.raw as Record<string, number>).x
+                          : undefined;
+                      const timestamp =
+                        parsedTimestamp !== undefined ? parsedTimestamp : rawTimestamp ?? null;
                       if (typeof timestamp === "number" && Number.isFinite(timestamp)) {
                         return new Date(timestamp).toLocaleString(undefined, {
                           month: "short",
@@ -492,7 +501,12 @@ export function PriceTrajectoryPanel({
                           `Close: ${formatPriceAxis(point.c)}`,
                         ];
                       }
-                      const value = context.parsed?.y ?? context.raw?.y;
+                      const rawValue =
+                        typeof (context.raw as Record<string, unknown> | undefined)?.y === "number"
+                          ? (context.raw as Record<string, number>).y
+                          : undefined;
+                      const value =
+                        typeof context.parsed?.y === "number" ? context.parsed?.y : rawValue;
                       const label = context.dataset.label ?? "Value";
                       if (typeof value === "number") {
                         return `${label}: ${formatPriceAxis(value)}`;
@@ -535,7 +549,7 @@ export function PriceTrajectoryPanel({
                 pan: {
                   enabled: true,
                   mode: "x",
-                  modifierKey: null,
+                  modifierKey: undefined,
                 },
                 zoom: {
                   wheel: {

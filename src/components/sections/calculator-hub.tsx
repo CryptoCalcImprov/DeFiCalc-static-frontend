@@ -394,9 +394,7 @@ export function CalculatorHubSection() {
                 },
               };
             })
-            .filter(
-              (entry): entry is PriceTrajectoryEventMarker["points"][number] => Boolean(entry),
-            ),
+            .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
           backgroundColor: "rgba(236, 72, 153, 0.85)",
           borderColor: "rgba(219, 39, 119, 1)",
           radius: 4,
@@ -541,7 +539,7 @@ export function CalculatorHubSection() {
               },
             };
           })
-          .filter((entry): entry is PriceTrajectoryEventMarker["points"][number] => Boolean(entry));
+          .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
 
         if (!points.length) {
           return null;
