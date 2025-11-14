@@ -382,9 +382,19 @@ export function CalculatorHubSection() {
               if (!Number.isFinite(timestamp) || !Number.isFinite(point.price)) {
                 return null;
               }
-              return { x: timestamp, y: point.price };
+              return {
+                x: timestamp,
+                y: point.price,
+                meta: {
+                  action: `Buy $${point.amount.toFixed(2)}`,
+                  amount: point.amount,
+                  quantity: point.quantity,
+                  price: point.price,
+                  date: point.date,
+                },
+              };
             })
-            .filter((entry): entry is { x: number; y: number } => Boolean(entry)),
+            .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
           backgroundColor: "rgba(236, 72, 153, 0.85)",
           borderColor: "rgba(219, 39, 119, 1)",
           radius: 4,
@@ -427,7 +437,14 @@ export function CalculatorHubSection() {
         markers.push({
           id: "buy-dip-events",
           label: "Dip triggers",
-          points: dipSeries.dipEvents,
+          points: dipSeries.dipEvents.map((point) => ({
+            ...point,
+            meta: {
+              action: `${normalizedThreshold}% dip trigger`,
+              price: point.y,
+              date: new Date(point.x).toISOString().slice(0, 10),
+            },
+          })),
           backgroundColor: "rgba(239, 68, 68, 0.7)",
           borderColor: "rgba(220, 38, 38, 1)",
           radius: 5,
@@ -501,9 +518,28 @@ export function CalculatorHubSection() {
               return null;
             }
 
-            return { x: timestamp, y: point.price };
+            const actionFromMetadata =
+              typeof overlay.metadata?.action === "string" ? overlay.metadata.action : undefined;
+            const action =
+              actionFromMetadata ??
+              (overlay.type === "buy"
+                ? "Buy signal"
+                : overlay.type === "sell"
+                  ? "Sell signal"
+                  : overlay.label);
+
+            return {
+              x: timestamp,
+              y: point.price,
+              meta: {
+                action,
+                description: overlay.label,
+                price: point.price,
+                date: point.date,
+              },
+            };
           })
-          .filter(Boolean);
+          .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
 
         if (!points.length) {
           return null;
