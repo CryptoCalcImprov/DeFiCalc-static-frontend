@@ -15,6 +15,7 @@ import {
 } from "@/lib/monte-carlo";
 
 const PRICE_AXIS_DECIMAL_LIMIT = 6;
+const PRICE_TOOLTIP_DECIMAL_LIMIT = 5;
 const TOOLTIP_POSITIONER_ID = "cursorOffset";
 
 function formatPriceAxis(value: number): string {
@@ -31,6 +32,22 @@ function formatPriceAxis(value: number): string {
     absValue > 0
       ? Math.min(PRICE_AXIS_DECIMAL_LIMIT, Math.max(2, Math.ceil(-Math.log10(absValue))))
       : 2;
+
+  return `$${value.toFixed(decimals)}`;
+}
+
+function formatTooltipPrice(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "$0.00";
+  }
+
+  const absValue = Math.abs(value);
+  const decimals =
+    absValue >= 1
+      ? PRICE_TOOLTIP_DECIMAL_LIMIT
+      : absValue > 0
+        ? Math.min(PRICE_TOOLTIP_DECIMAL_LIMIT, Math.max(2, Math.ceil(-Math.log10(absValue))))
+        : PRICE_TOOLTIP_DECIMAL_LIMIT;
 
   return `$${value.toFixed(decimals)}`;
 }
@@ -496,10 +513,10 @@ export function PriceTrajectoryPanel({
                       if (datasetType === "candlestick") {
                         const point = context.raw as { o: number; h: number; l: number; c: number };
                         return [
-                          `Open: ${formatPriceAxis(point.o)}`,
-                          `High: ${formatPriceAxis(point.h)}`,
-                          `Low: ${formatPriceAxis(point.l)}`,
-                          `Close: ${formatPriceAxis(point.c)}`,
+                          `Open: ${formatTooltipPrice(point.o)}`,
+                          `High: ${formatTooltipPrice(point.h)}`,
+                          `Low: ${formatTooltipPrice(point.l)}`,
+                          `Close: ${formatTooltipPrice(point.c)}`,
                         ];
                       }
                       const rawValue =
@@ -510,7 +527,7 @@ export function PriceTrajectoryPanel({
                         typeof context.parsed?.y === "number" ? context.parsed?.y : rawValue;
                       const label = context.dataset.label ?? "Value";
                       if (typeof value === "number") {
-                        return `${label}: ${formatPriceAxis(value)}`;
+                        return `${label}: ${formatTooltipPrice(value)}`;
                       }
                       return label;
                     }
@@ -527,7 +544,7 @@ export function PriceTrajectoryPanel({
 
                     const price = typeof meta.price === "number" ? meta.price : context.parsed?.y;
                     if (typeof price === "number" && Number.isFinite(price)) {
-                      lines.push(`Price: ${formatPriceAxis(price)}`);
+                      lines.push(`Price: ${formatTooltipPrice(price)}`);
                     }
 
                     if (typeof meta.amount === "number" && Number.isFinite(meta.amount)) {
