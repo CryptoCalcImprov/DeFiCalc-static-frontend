@@ -698,7 +698,7 @@ export function PriceTrajectoryPanel({
       </div>
       {isInstructionsOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-8">
-          <div className="w-full max-w-lg rounded-2xl border border-ocean/70 bg-slate-950/95 p-6 text-sm text-slate-100 shadow-2xl">
+          <div className="w-full max-w-lg rounded-2xl border border-ocean/70 bg-slate-950 p-6 text-sm text-slate-100 shadow-2xl">
             <div className="flex items-center justify-between">
               <h5 className="text-base font-semibold uppercase tracking-widest text-mint">Chart controls</h5>
               <button
