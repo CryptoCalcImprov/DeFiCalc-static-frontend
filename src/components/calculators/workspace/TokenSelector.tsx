@@ -4,10 +4,8 @@ import type { ChangeEvent, KeyboardEvent } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 
-import {
-  type CoinGeckoAsset,
-  useCoinGeckoAssetSearch,
-} from "@/hooks/useCoinGeckoAssetSearch";
+import { useCoinGeckoAssetSearch } from "@/hooks/useCoinGeckoAssetSearch";
+import type { CoinGeckoAsset } from "@/lib/coingecko-client";
 
 export type TokenSelectorProps = {
   value: string;
