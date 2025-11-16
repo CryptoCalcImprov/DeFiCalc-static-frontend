@@ -24,6 +24,7 @@ import { SummaryPanel } from "@/components/calculators/workspace/SummaryPanel";
 import { Button } from "@/components/ui/button";
 import { clearNovaHistory, requestNova } from "@/lib/nova-client";
 import { ensureNovaRefId, resetNovaRefId } from "@/lib/nova-session";
+import { searchAssets, getMarketChart } from "@/lib/coingecko-client";
 import {
   buildDipTriggerSeries,
   buildMovingAverageSeries,
@@ -46,9 +47,6 @@ const defaultDefinition = defaultCalculatorId ? findCalculatorDefinition<any>(de
 const defaultSummary =
   defaultDefinition?.initialSummary ?? "Run a projection to see Nova’s perspective on this plan.";
 
-const COINGECKO_API_BASE_URL = "https://api.coingecko.com/api/v3";
-const COINGECKO_SEARCH_ENDPOINT =
-  process.env.NEXT_PUBLIC_COINGECKO_SEARCH_ENDPOINT ?? `${COINGECKO_API_BASE_URL}/search`;
 const PRICE_HISTORY_CACHE_TTL_MS = 1000 * 60 * 2;
 const DISPLAY_WINDOW_MONTHS = 3;
 const DURATION_TO_MONTE_CARLO_HORIZON: Record<string, MonteCarloHorizon> = {
@@ -166,100 +164,13 @@ async function searchCoinGeckoAssetId(query: string): Promise<string | null> {
     return null;
   }
 
-  const requestUrl = new URL(COINGECKO_SEARCH_ENDPOINT);
-  requestUrl.searchParams.set("query", normalizedQuery);
-
-  const response = await fetch(requestUrl);
-  if (!response.ok) {
-    throw new Error(`CoinGecko search failed (${response.status}).`);
+  const assets = await searchAssets(normalizedQuery);
+  if (assets.length === 0) {
+    return null;
   }
 
-  const payload = (await response.json().catch(() => ({} as Record<string, unknown>))) as Record<
-    string,
-    unknown
-  >;
-  const coins = Array.isArray(payload.coins) ? payload.coins : [];
-
-  for (const entry of coins) {
-    if (typeof entry !== "object" || entry === null) {
-      continue;
-    }
-
-    const coinRecord = entry as Record<string, unknown>;
-    const idValue = typeof coinRecord.id === "string" ? coinRecord.id.trim() : "";
-    if (idValue) {
-      return idValue;
-    }
-  }
-
-  return null;
-}
-
-async function fetchCoinGeckoPriceHistory(assetId: string): Promise<CoinGeckoCandle[]> {
-  // Use market_chart endpoint for daily data (365 days = daily intervals)
-  // OHLC endpoint only provides 4-day intervals for 365 days
-  const requestUrl = new URL(`${COINGECKO_API_BASE_URL}/coins/${assetId}/market_chart`);
-  requestUrl.searchParams.set("vs_currency", "usd");
-  requestUrl.searchParams.set("days", "365");
-
-  const response = await fetch(requestUrl);
-  if (!response.ok) {
-    if (response.status === 429) {
-      throw new Error("CoinGecko rate limit exceeded. Please wait a moment and try again.");
-    }
-    throw new Error(`CoinGecko price history fetch failed (${response.status}).`);
-  }
-
-  const payload = (await response.json().catch(() => ({} as Record<string, unknown>))) as Record<
-    string,
-    unknown
-  >;
-  const rawPrices = Array.isArray(payload.prices) ? payload.prices : [];
-  if (rawPrices.length === 0) {
-    return [];
-  }
-
-  // Convert daily price data to OHLC candles
-  // Since we only have closing prices, we'll create synthetic OHLC:
-  // - open = previous day's close (or same as close for first day)
-  // - close = current price
-  // - high/low estimated based on price movement
-  const normalized: CoinGeckoCandle[] = [];
-  
-  for (let i = 0; i < rawPrices.length; i++) {
-    const entry = rawPrices[i];
-    if (!Array.isArray(entry) || entry.length < 2) {
-      continue;
-    }
-
-    const timestamp = Number(entry[0]);
-    const close = Number(entry[1]);
-    
-    if (Number.isNaN(timestamp) || Number.isNaN(close)) {
-      continue;
-    }
-
-    // Get previous close for open price
-    const prevClose = i > 0 && Array.isArray(rawPrices[i - 1]) ? Number(rawPrices[i - 1][1]) : close;
-    const open = prevClose;
-
-    // Estimate high/low based on price movement
-    // Use a small percentage variation or the actual range if price moved
-    const priceChange = Math.abs(close - open);
-    const volatility = Math.max(priceChange, close * 0.01); // At least 1% volatility
-    const high = Math.max(open, close) + volatility * 0.3;
-    const low = Math.min(open, close) - volatility * 0.3;
-
-    normalized.push({
-      date: new Date(timestamp).toISOString().slice(0, 10),
-      open,
-      high,
-      low,
-      close,
-    });
-  }
-
-  return normalized;
+  // Return the slug (CoinGecko ID) of the first result
+  return assets[0]?.slug ?? null;
 }
 
 type CalculatorStateMap = Record<string, unknown>;
@@ -632,7 +543,7 @@ export function CalculatorHubSection() {
       if (cacheEntry && now - cacheEntry.fetchedAt < PRICE_HISTORY_CACHE_TTL_MS) {
         history = cacheEntry.data;
       } else {
-        history = await fetchCoinGeckoPriceHistory(coinId);
+        history = await getMarketChart(coinId, "365", "usd");
         priceHistoryCacheRef.current.set(coinId, { data: history, fetchedAt: now });
       }
 
