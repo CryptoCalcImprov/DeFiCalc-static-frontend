@@ -570,25 +570,25 @@ export default function HomePage() {
                     <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">Yield board</h3>
                     <span className="text-[11px] text-muted sm:text-xs">Updated 5 minutes ago</span>
                   </div>
-                  <div className="overflow-hidden rounded-2xl border border-ocean/55 bg-surface/75 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)]">
-                    <table className="w-full text-left text-xs text-slate-200 sm:text-sm">
+                  <div className="overflow-x-auto rounded-2xl border border-ocean/55 bg-surface/75 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)] [-webkit-overflow-scrolling:touch]">
+                    <table className="w-full min-w-[600px] text-left text-xs text-slate-200 sm:text-sm">
                       <thead className="bg-surface/85 text-[11px] uppercase tracking-[0.22em] text-slate-300">
                         <tr>
-                          <th className="px-4 py-3 font-semibold">Strategy</th>
-                          <th className="px-4 py-3 font-semibold">APR</th>
-                          <th className="px-4 py-3 font-semibold">Chain</th>
-                          <th className="px-4 py-3 font-semibold">Stack</th>
-                          <th className="px-4 py-3 font-semibold text-right">Risk</th>
+                          <th className="px-2 py-2 font-semibold sm:px-4 sm:py-3 whitespace-nowrap">Strategy</th>
+                          <th className="px-2 py-2 font-semibold sm:px-4 sm:py-3 whitespace-nowrap">APR</th>
+                          <th className="px-2 py-2 font-semibold sm:px-4 sm:py-3 whitespace-nowrap">Chain</th>
+                          <th className="px-2 py-2 font-semibold sm:px-4 sm:py-3 whitespace-nowrap">Stack</th>
+                          <th className="px-2 py-2 font-semibold text-right sm:px-4 sm:py-3 whitespace-nowrap">Risk</th>
                         </tr>
                       </thead>
                       <tbody>
                         {yieldHighlights.map((item) => (
                           <tr key={item.name} className="border-t border-slate-800/60">
-                            <td className="px-4 py-3 font-semibold text-slate-100">{item.name}</td>
-                            <td className="px-4 py-3 text-mint">{item.apr}</td>
-                            <td className="px-4 py-3">{item.chain}</td>
-                            <td className="px-4 py-3 text-slate-300/90">{item.platform}</td>
-                            <td className="px-4 py-3 text-right text-[11px] uppercase tracking-wide text-slate-300">
+                            <td className="px-2 py-2 font-semibold text-slate-100 sm:px-4 sm:py-3 whitespace-nowrap">{item.name}</td>
+                            <td className="px-2 py-2 text-mint sm:px-4 sm:py-3 whitespace-nowrap">{item.apr}</td>
+                            <td className="px-2 py-2 sm:px-4 sm:py-3 whitespace-nowrap">{item.chain}</td>
+                            <td className="px-2 py-2 text-slate-300/90 sm:px-4 sm:py-3 whitespace-nowrap">{item.platform}</td>
+                            <td className="px-2 py-2 text-right text-[11px] uppercase tracking-wide text-slate-300 sm:px-4 sm:py-3 whitespace-nowrap">
                               {item.risk}
                             </td>
                           </tr>

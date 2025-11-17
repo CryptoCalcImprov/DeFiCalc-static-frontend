@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 
 import "../styles/globals.css";
@@ -74,6 +74,14 @@ export const metadata: Metadata = {
     shortcut: publicAsset("/icons/favicon.ico")
   },
   manifest: publicAsset("/icons/site.webmanifest")
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: "cover"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
