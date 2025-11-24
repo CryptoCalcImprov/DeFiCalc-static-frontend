@@ -243,45 +243,95 @@ function parseStrategyOverlays(rawOverlays: unknown): StrategyOverlay[] {
 
 function parseChartData(rawChartData: unknown): NovaChartData | undefined {
   if (!rawChartData || typeof rawChartData !== "object") {
+    console.log("[parseChartData] No chart data or not an object");
     return undefined;
   }
 
   const data = rawChartData as JsonLike;
   
-  if (!Array.isArray(data.historical) || !Array.isArray(data.projection)) {
+  // Handle both MCP format (history/projection) and our format (historical/projection)
+  const historyArray = (Array.isArray(data.history) ? data.history : 
+                        Array.isArray(data.historical) ? data.historical : []) as unknown[];
+  const projectionArray = (Array.isArray(data.projection) ? data.projection : []) as unknown[];
+
+  console.log("[parseChartData] Found arrays:", {
+    historyCount: historyArray.length,
+    projectionCount: projectionArray.length,
+    hasHistory: Array.isArray(data.history),
+    hasHistorical: Array.isArray(data.historical),
+    hasProjection: Array.isArray(data.projection),
+    dataKeys: Object.keys(data),
+  });
+
+  if (!historyArray.length && !projectionArray.length) {
+    console.log("[parseChartData] No data in arrays");
     return undefined;
   }
 
-  const historical = (data.historical as unknown[])
+  // Helper to convert ISO timestamp to YYYY-MM-DD
+  const formatDate = (dateOrTimestamp: string): string => {
+    if (!dateOrTimestamp) return "";
+    // If already in YYYY-MM-DD format, return as-is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateOrTimestamp)) {
+      return dateOrTimestamp;
+    }
+    // Otherwise parse ISO timestamp and convert
+    try {
+      const parsed = new Date(dateOrTimestamp);
+      return parsed.toISOString().slice(0, 10);
+    } catch {
+      return "";
+    }
+  };
+
+  const historical = historyArray
     .map((item) => {
       if (!item || typeof item !== "object") return null;
       const candle = item as JsonLike;
+      // Handle both 'date' and 'timestamp' fields
+      const dateStr = formatDate(
+        (typeof candle.date === "string" ? candle.date : 
+         typeof candle.timestamp === "string" ? candle.timestamp : "")
+      );
       return {
-        date: typeof candle.date === "string" ? candle.date : "",
-        open: Number(candle.open),
-        high: Number(candle.high),
-        low: Number(candle.low),
-        close: Number(candle.close),
+        date: dateStr,
+        open: Number(candle.open || 0),
+        high: Number(candle.high || 0),
+        low: Number(candle.low || 0),
+        close: Number(candle.close || 0),
       };
     })
     .filter((item): item is CoinGeckoCandle => Boolean(item && item.date));
 
-  const projection = (data.projection as unknown[])
+  const projection = projectionArray
     .map((item) => {
       if (!item || typeof item !== "object") return null;
       const point = item as JsonLike;
+      // Handle both 'date' and 'timestamp' fields
+      const dateStr = formatDate(
+        (typeof point.date === "string" ? point.date : 
+         typeof point.timestamp === "string" ? point.timestamp : "")
+      );
       return {
-        date: typeof point.date === "string" ? point.date : "",
-        mean: Number(point.mean),
-        percentile_10: Number(point.percentile_10),
-        percentile_90: Number(point.percentile_90),
+        date: dateStr,
+        mean: Number(point.mean || 0),
+        percentile_10: Number(point.percentile_10 || 0),
+        percentile_90: Number(point.percentile_90 || 0),
       };
     })
     .filter((item): item is NovaChartData["projection"][number] => Boolean(item && item.date));
 
   if (!historical.length && !projection.length) {
+    console.log("[parseChartData] No data after filtering");
     return undefined;
   }
+
+  console.log("[parseChartData] Successfully parsed:", {
+    historicalCount: historical.length,
+    projectionCount: projection.length,
+    firstHistorical: historical[0],
+    firstProjection: projection[0],
+  });
 
   const metadata = data.metadata as JsonLike | undefined;
   const technicalSignals = metadata?.technical_signals as Record<string, number> | undefined;

@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState } from "react";
 
 import { calculatorDefinitions, findCalculatorDefinition } from "@/components/calculators";
 import type {
@@ -112,6 +112,10 @@ export function CalculatorHubSection() {
   const [error, setError] = useState<string | null>(null);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
   const [monteCarloTrajectory, setMonteCarloTrajectory] = useState<MonteCarloTrajectoryPoint[] | null>(null);
+  const [forecastPercentiles, setForecastPercentiles] = useState<{
+    lower: MonteCarloTrajectoryPoint[];
+    upper: MonteCarloTrajectoryPoint[];
+  } | null>(null);
   const [strategyOverlays, setStrategyOverlays] = useState<StrategyOverlay[]>([]);
   const [dcaSimulation, setDcaSimulation] = useState<DcaSimulation | null>(null);
   const [projectionStartTimestamp, setProjectionStartTimestamp] = useState(0);
@@ -377,13 +381,6 @@ export function CalculatorHubSection() {
     [eventMarkers, strategyEventMarkers],
   );
 
-  const handleMonteCarloPathUpdate = useCallback(
-    (trajectory: MonteCarloTrajectoryPoint[] | null) => {
-      setMonteCarloTrajectory(trajectory);
-    },
-    [],
-  );
-
   const handleFormStateChange = (field: string, value: unknown): void => {
     setCalculatorStates((previous) => {
       const existingState = (previous[activeCalculatorId] ?? {}) as Record<string, unknown>;
@@ -417,6 +414,7 @@ export function CalculatorHubSection() {
     setStrategyOverlays([]);
     setPriceHistory([]);
     setMonteCarloTrajectory(null);
+    setForecastPercentiles(null);
     setDcaSimulation(null);
     setProjectionStartTimestamp(0);
 
@@ -445,16 +443,48 @@ export function CalculatorHubSection() {
         chartData: parsedChartData,
       } = activeDefinition.parseReply(reply);
 
+      console.log("[CalculatorHub] Parsed reply result:", {
+        hasInsight: !!parsedInsight,
+        datasetLength: parsedDataset.length,
+        hasChartData: !!parsedChartData,
+        chartData: parsedChartData,
+      });
+
       if (!parsedChartData) {
+        console.error("[CalculatorHub] No chart data returned from Nova");
         throw new Error("Nova did not return chart data. Please try again.");
       }
+
+      console.log("[CalculatorHub] Setting price history:", {
+        historicalCount: parsedChartData.historical.length,
+        projectionCount: parsedChartData.projection.length,
+        firstHistorical: parsedChartData.historical[0],
+        firstProjection: parsedChartData.projection[0],
+      });
 
       setPriceHistory(parsedChartData.historical);
       const trajectory = parsedChartData.projection.map(p => ({
         x: new Date(p.date).getTime(),
         y: p.mean, // Use mean price for the trajectory line
       }));
+      
+      console.log("[CalculatorHub] Setting trajectory:", {
+        trajectoryLength: trajectory.length,
+        firstPoint: trajectory[0],
+        lastPoint: trajectory[trajectory.length - 1],
+      });
+      
       setMonteCarloTrajectory(trajectory);
+
+      const lowerBand = parsedChartData.projection.map((point) => ({
+        x: new Date(point.date).getTime(),
+        y: point.percentile_10,
+      }));
+      const upperBand = parsedChartData.projection.map((point) => ({
+        x: new Date(point.date).getTime(),
+        y: point.percentile_90,
+      }));
+      setForecastPercentiles({ lower: lowerBand, upper: upperBand });
       
       const projectionSeries = parsedChartData.projection.map((point) => ({
         timestamp: new Date(point.date).getTime(),
@@ -561,7 +591,11 @@ export function CalculatorHubSection() {
       setInsight(null);
       setFallbackLines([]);
       setStrategyOverlays([]);
+      setPriceHistory([]);
+      setMonteCarloTrajectory(null);
+      setForecastPercentiles(null);
       setDcaSimulation(null);
+      setProjectionStartTimestamp(0);
       setSummaryMessage("Nova couldn't complete this request. Please adjust your inputs and try again.");
     } finally {
       setIsLoading(false);
@@ -584,6 +618,7 @@ export function CalculatorHubSection() {
       setNovaDataset([]);
       setPriceHistory([]);
       setMonteCarloTrajectory(null);
+      setForecastPercentiles(null);
       setStrategyOverlays([]);
       setDcaSimulation(null);
       setProjectionStartTimestamp(0);
@@ -628,6 +663,7 @@ export function CalculatorHubSection() {
     setSummaryMessage(nextDefinition?.initialSummary ?? defaultSummary);
     setPriceHistory([]);
     setMonteCarloTrajectory(null);
+    setForecastPercentiles(null);
     setStrategyOverlays([]);
     setDcaSimulation(null);
     setProjectionStartTimestamp(0);
@@ -662,26 +698,68 @@ export function CalculatorHubSection() {
     });
   };
 
-  const projectionOverlay = useMemo(() => {
-    if (!monteCarloTrajectory?.length) {
-      return null;
+  const projectionOverlays = useMemo(() => {
+    const overlays: PriceTrajectoryOverlay[] = [];
+
+    if (forecastPercentiles?.upper?.length) {
+      overlays.push({
+        id: "nova-forecast-upper",
+        label: "Nova Forecast (p90)",
+        data: forecastPercentiles.upper,
+        color: "rgba(251, 173, 92, 0.9)",
+        backgroundColor: "rgba(251, 173, 92, 0.08)",
+        borderDash: [2, 2],
+        strokeWidth: 1.5,
+        tension: 0.2,
+        pointRadius: 0,
+        order: 45,
+      });
     }
 
-    return {
-      id: "monte-carlo-path",
-      label: "Nova Forecast",
-      data: monteCarloTrajectory,
-      color: "#FBA94C",
-      backgroundColor: "rgba(251, 169, 76, 0.15)",
-      strokeWidth: 2.5,
-      borderDash: [6, 4],
-      tension: 0.3,
-      pointRadius: 0,
-      fill: false,
-      yAxisID: undefined,
-      order: 50,
-    };
-  }, [monteCarloTrajectory]);
+    if (monteCarloTrajectory?.length) {
+      console.log("[CalculatorHub] Creating projection overlay:", {
+        dataLength: monteCarloTrajectory.length,
+        firstPoint: monteCarloTrajectory[0],
+        lastPoint: monteCarloTrajectory[monteCarloTrajectory.length - 1],
+      });
+
+      overlays.push({
+        id: "nova-forecast-mean",
+        label: "Nova Forecast (mean)",
+        data: monteCarloTrajectory,
+        color: "#FBA94C",
+        backgroundColor: "rgba(251, 169, 76, 0.15)",
+        strokeWidth: 2.5,
+        borderDash: [6, 4],
+        tension: 0.3,
+        pointRadius: 0,
+        fill: false,
+        yAxisID: undefined,
+        order: 50,
+      });
+    }
+
+    if (forecastPercentiles?.lower?.length) {
+      overlays.push({
+        id: "nova-forecast-lower",
+        label: "Nova Forecast (p10)",
+        data: forecastPercentiles.lower,
+        color: "rgba(239, 109, 86, 0.9)",
+        backgroundColor: "rgba(239, 109, 86, 0.08)",
+        borderDash: [2, 2],
+        strokeWidth: 1.5,
+        tension: 0.2,
+        pointRadius: 0,
+        order: 55,
+      });
+    }
+
+    if (!overlays.length) {
+      console.log("[CalculatorHub] No trajectory for projection overlay");
+    }
+
+    return overlays;
+  }, [forecastPercentiles, monteCarloTrajectory]);
 
   const CalculatorFormComponent = activeDefinition?.Form ?? null;
   const priceTrajectoryPanel = (
@@ -691,7 +769,7 @@ export function CalculatorHubSection() {
       seriesLabel={seriesLabel}
       technicalOverlays={technicalOverlays}
       eventMarkers={combinedEventMarkers}
-      projectionOverlay={projectionOverlay}
+      projectionOverlays={projectionOverlays}
       loadingMessage="Nova is analyzing market data and generating projections..."
       emptyMessage={
         error ?? "Run the projection to visualize Nova's forecast and strategy analysis."

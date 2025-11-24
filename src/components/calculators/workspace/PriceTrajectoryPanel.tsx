@@ -105,7 +105,7 @@ type PriceTrajectoryPanelProps = {
   emptyMessage?: string;
   technicalOverlays?: PriceTrajectoryOverlay[];
   eventMarkers?: PriceTrajectoryEventMarker[];
-  projectionOverlay?: PriceTrajectoryOverlay | null;
+  projectionOverlays?: PriceTrajectoryOverlay[];
 };
 
 export function PriceTrajectoryPanel({
@@ -117,7 +117,7 @@ export function PriceTrajectoryPanel({
   emptyMessage = "Run the projection to visualize one year of CoinGecko price history.",
   technicalOverlays = [],
   eventMarkers = [],
-  projectionOverlay,
+  projectionOverlays = [],
 }: PriceTrajectoryPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartInstance | null>(null);
@@ -127,12 +127,12 @@ export function PriceTrajectoryPanel({
   const hasDataset = dataset.length > 0;
 
   const overlaysForRendering = useMemo(() => {
-    if (!projectionOverlay) {
+    if (!projectionOverlays.length) {
       return technicalOverlays;
     }
 
-    return [...technicalOverlays, projectionOverlay];
-  }, [technicalOverlays, projectionOverlay]);
+    return [...technicalOverlays, ...projectionOverlays];
+  }, [technicalOverlays, projectionOverlays]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
