@@ -6,13 +6,7 @@ import type { ChartConfiguration } from "chart.js";
 import type { CoinGeckoCandle } from "@/components/calculators/types";
 import { CalculatorSpinner } from "@/components/calculators/workspace/CalculatorSpinner";
 import { LoadingDots } from "@/components/ui/loading-dots";
-import {
-  estimateDriftAndVolatility,
-  generateMonteCarloPath,
-  MonteCarloHorizons,
-  type MonteCarloHorizon,
-  type MonteCarloTrajectoryPoint,
-} from "@/lib/monte-carlo";
+import type { MonteCarloTrajectoryPoint } from "@/lib/monte-carlo";
 
 const PRICE_AXIS_DECIMAL_LIMIT = 6;
 const PRICE_TOOLTIP_DECIMAL_LIMIT = 4;
@@ -111,8 +105,7 @@ type PriceTrajectoryPanelProps = {
   emptyMessage?: string;
   technicalOverlays?: PriceTrajectoryOverlay[];
   eventMarkers?: PriceTrajectoryEventMarker[];
-  onMonteCarloPath?: (trajectory: MonteCarloTrajectoryPoint[] | null) => void;
-  monteCarloHorizon?: MonteCarloHorizon;
+  projectionOverlay?: PriceTrajectoryOverlay | null;
 };
 
 export function PriceTrajectoryPanel({
@@ -124,8 +117,7 @@ export function PriceTrajectoryPanel({
   emptyMessage = "Run the projection to visualize one year of CoinGecko price history.",
   technicalOverlays = [],
   eventMarkers = [],
-  onMonteCarloPath,
-  monteCarloHorizon,
+  projectionOverlay,
 }: PriceTrajectoryPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartInstance | null>(null);
@@ -134,63 +126,13 @@ export function PriceTrajectoryPanel({
 
   const hasDataset = dataset.length > 0;
 
-  const monteCarloOverlay = useMemo(() => {
-    if (!dataset.length) {
-      return null;
-    }
-
-    const closes = dataset.map((candle) => candle.close);
-    const stats = estimateDriftAndVolatility(closes);
-    if (!stats) {
-      return null;
-    }
-
-    const latestCandle = dataset[dataset.length - 1];
-    const horizonMonths = monteCarloHorizon ?? MonteCarloHorizons.SIX_MONTHS;
-    const trajectory = generateMonteCarloPath({
-      startPrice: latestCandle.close,
-      startTimestamp: new Date(latestCandle.date).getTime(),
-      drift: stats.drift,
-      volatility: stats.volatility,
-      config: {
-        horizonMonths,
-        stepDays: 1,
-        seed: 13579,
-      },
-    });
-
-    if (!trajectory.length) {
-      return null;
-    }
-
-    return {
-      id: "monte-carlo-path",
-      label: "Monte Carlo projection",
-      data: trajectory,
-      color: "#FBA94C",
-      backgroundColor: "rgba(251, 169, 76, 0.15)",
-      strokeWidth: 2.5,
-      borderDash: [6, 4],
-      tension: 0.3,
-      pointRadius: 0,
-      fill: false,
-      yAxisID: undefined,
-      order: 50,
-    };
-  }, [dataset, monteCarloHorizon]);
-
-  useEffect(() => {
-    const trajectory = (monteCarloOverlay?.data ?? null) as MonteCarloTrajectoryPoint[] | null;
-    onMonteCarloPath?.(trajectory);
-  }, [monteCarloOverlay, onMonteCarloPath]);
-
   const overlaysForRendering = useMemo(() => {
-    if (!monteCarloOverlay) {
+    if (!projectionOverlay) {
       return technicalOverlays;
     }
 
-    return [...technicalOverlays, monteCarloOverlay];
-  }, [technicalOverlays, monteCarloOverlay]);
+    return [...technicalOverlays, projectionOverlay];
+  }, [technicalOverlays, projectionOverlay]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

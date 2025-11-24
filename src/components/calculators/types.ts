@@ -51,12 +51,27 @@ export type CalculatorInsight = {
   notes?: string[];
 };
 
+export type NovaChartData = {
+  historical: CoinGeckoCandle[];
+  projection: {
+    date: string;
+    mean: number;
+    percentile_10: number;
+    percentile_90: number;
+  }[];
+  metadata?: {
+    confidence?: number;
+    technical_signals?: Record<string, number>;
+  };
+};
+
 export type CalculatorResult = {
   insight: CalculatorInsight | null;
   dataset: TimeSeriesPoint[];
   fallbackSummary?: string;
   fallbackLines?: string[];
   strategyOverlays?: StrategyOverlay[];
+  chartData?: NovaChartData;
 };
 
 export type ChartProjectionMetadata = {

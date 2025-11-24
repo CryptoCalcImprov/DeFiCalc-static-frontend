@@ -14,6 +14,7 @@ import { parseCalculatorReply } from "@/components/calculators/utils/summary";
 import { buildNovaRequestOptions } from "@/components/calculators/utils/request";
 import { TokenSelector } from "@/components/calculators/workspace/TokenSelector";
 import type { DcaSimulation } from "@/components/calculators/dca/simulator";
+
 export type DcaFormState = {
   token: string;
   tokenId?: string;
@@ -33,25 +34,38 @@ const defaultFormState: DcaFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's perspective on this plan.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
+const DURATION_TO_MCP_HORIZON: Record<string, string> = {
+  "3 months": "three_months",
+  "6 months": "six_months",
+  "1 year": "one_year",
+};
+
 function buildPrompt(
   formState: DcaFormState,
-  chartProjection?: ChartProjectionData,
   simulation?: DcaSimulation,
 ) {
-  const { token, amount, interval, duration } = formState;
+  const { token, tokenId, amount, interval, duration } = formState;
   const normalizedToken = token.trim() || "the selected asset";
-  const projectionPayload = chartProjection ? JSON.stringify(chartProjection) : "null";
   const simulationPayload = simulation ? JSON.stringify(simulation) : "null";
+  const mcpDuration = DURATION_TO_MCP_HORIZON[duration] || "six_months";
+  const assetId = tokenId || token.toLowerCase();
 
   return joinPromptLines([
-    "You are given a curated chart projection (CHART_PROJECTION) that contains historical candles and a Monte Carlo forecast.",
-    "Use the projection data and only the prices provided—do not invent additional price paths.",
+    `You are assisting with a DCA calculator for ${normalizedToken}.`,
+    "Please call the MCP forecast tool (get_forecast) with:",
+    `- asset_id: "${assetId}"`,
+    '- forecast_type: "long"',
+    `- duration: "${mcpDuration}"`,
+    '- include_chart: true',
+    '- vs_currency: "usd"',
+    "",
+    "Use the forecast data to analyze the strategy and return a response with:",
+    "1. Your insight analysis (following the schema below)",
+    "2. chart_data: { historical: [...], projection: [...] } extracted from the forecast tool response",
+    "",
     `Strategy: invest ${amount} USD of ${normalizedToken} on a ${interval} cadence for ${duration}.`,
     "",
     "Deliver a single JSON object only. Do not ask questions or add prose outside the schema.",
-    "",
-    "CHART_PROJECTION:",
-    projectionPayload,
     "",
     "STRATEGY_SIMULATION:",
     simulationPayload,
@@ -66,7 +80,7 @@ function buildPrompt(
     '      "label": "Dollar-Cost Averaging",',
     '      "category": "accumulation",',
     '      "version": "v2"',
-    "    },",
+    '    },',
     '    "context": {',
     '      "as_of": "YYYY-MM-DD",',
     `      "asset": "${token}",`,
@@ -74,30 +88,42 @@ function buildPrompt(
     `        "amount_usd": ${amount},`,
     `        "interval": "${interval}",`,
     `        "duration": "${duration}"`,
-    "      },",
+    '      },',
     '      "assumptions": ["State the assumptions you used when interpreting the chart projection."]',
-    "    },",
+    '    },',
     '    "sections": [',
-    "      {",
+    '      {',
     '        "type": "performance_driver",',
     '        "headline": "Concise label for core performance factor",',
     '        "summary": "1-2 sentences tying the chart projection to the planned contributions.",',
     '        "metrics": [',
     '          { "label": "Total USD invested", "value": 1300 },',
     '          { "label": "Estimated cost basis (USD)", "value": 1.91 }',
-    "        ],",
+    '        ],',
     '        "assumptions": ["Note any assumptions specific to this driver."],',
     '        "risks": ["Highlight sensitivities or risk factors."]',
-    "      },",
-    "      {",
+    '      },',
+    '      {',
     '        "type": "risk_assumption",',
     '        "headline": "Key risks & sensitivities",',
     '        "summary": "Explain how volatility or drift could move the curve away from this projection.",',
     '        "risks": ["List each material risk in plain language."]',
-    "      }",
-    "    ],",
+    '      }',
+    '    ],',
     '    "notes": ["Include optional closing reminders or action items when helpful."]',
-    "  }",
+    '  },',
+    '  "chart_data": {',
+    '    "historical": [',
+    '      { "date": "ISO string", "open": 0, "high": 0, "low": 0, "close": 0 }',
+    '    ],',
+    '    "projection": [',
+    '      { "date": "ISO string", "mean": 0, "percentile_10": 0, "percentile_90": 0 }',
+    '    ],',
+    '    "metadata": {',
+    '      "confidence": 0.5,',
+    '      "technical_signals": { "rsi": 0 }',
+    '    }',
+    '  }',
     "}",
     "",
     "Strictly follow the schema. Do not emit trailing text or additional keys.",
@@ -182,7 +208,6 @@ export function DcaCalculatorForm({
             <option value="3 months">3 months</option>
             <option value="6 months">6 months</option>
             <option value="1 year">1 year</option>
-            <option value="2 years">2 years</option>
           </select>
         </label>
       </div>
@@ -207,13 +232,12 @@ export const dcaCalculatorDefinition: CalculatorDefinition<DcaFormState> = {
   description: "Automate recurring buys to average into a token over time.",
   Form: DcaCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: (formState, chartProjection, extras) => {
+  getRequestConfig: (formState, _chartProjection, extras) => {
     const simulation = extras?.strategySimulation as DcaSimulation | undefined;
-    const prompt = buildPrompt(formState, chartProjection, simulation);
+    const prompt = buildPrompt(formState, simulation);
 
     return buildNovaRequestOptions(prompt, {
       max_tokens: 18000,
-      chartProjection,
     });
   },
   parseReply: parseNovaReply,

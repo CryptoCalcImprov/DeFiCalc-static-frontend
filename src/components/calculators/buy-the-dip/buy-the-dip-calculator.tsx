@@ -33,20 +33,34 @@ const defaultFormState: BuyTheDipFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's perspective on this strategy.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
-function buildPrompt(formState: BuyTheDipFormState, chartProjection?: ChartProjectionData) {
-  const { token, budget, dipThreshold, duration } = formState;
+const DURATION_TO_MCP_HORIZON: Record<string, string> = {
+  "3 months": "three_months",
+  "6 months": "six_months",
+  "1 year": "one_year",
+};
+
+function buildPrompt(formState: BuyTheDipFormState) {
+  const { token, tokenId, budget, dipThreshold, duration } = formState;
   const normalizedToken = token.trim() || "the selected asset";
-  const projectionPayload = chartProjection ? JSON.stringify(chartProjection) : "null";
+  const mcpDuration = DURATION_TO_MCP_HORIZON[duration] || "six_months";
+  const assetId = tokenId || token.toLowerCase();
 
   return joinPromptLines([
-    "You are given CHART_PROJECTION, a sanitized chart that mixes historical candles with a Monte Carlo forecast.",
-    "Do not invent additional prices—only annotate the provided projection.",
+    `You are assisting with a Buy the Dip calculator for ${normalizedToken}.`,
+    "Please call the MCP forecast tool (get_forecast) with:",
+    `- asset_id: "${assetId}"`,
+    '- forecast_type: "long"',
+    `- duration: "${mcpDuration}"`,
+    '- include_chart: true',
+    '- vs_currency: "usd"',
+    "",
+    "Use the forecast data to analyze the strategy and return a response with:",
+    "1. Your insight analysis (following the schema below)",
+    "2. chart_data: { historical: [...], projection: [...] } extracted from the forecast tool response",
+    "",
     `Strategy: deploy ${budget} USD to buy ${normalizedToken} after ${dipThreshold}%+ drops from recent highs within ${duration}.`,
     "",
     "Return JSON only. Use the schema below, which includes `insight` and a `strategy_overlays` array for your annotations.",
-    "",
-    "CHART_PROJECTION:",
-    projectionPayload,
     "",
     "Response schema:",
     "{",
@@ -56,7 +70,7 @@ function buildPrompt(formState: BuyTheDipFormState, chartProjection?: ChartProje
     '      "label": "Buy the Dip",',
     '      "category": "opportunistic_entry",',
     '      "version": "v2"',
-    "    },",
+    '    },',
     '    "context": {',
     '      "as_of": "YYYY-MM-DD",',
     `      "asset": "${token}",`,
@@ -64,11 +78,11 @@ function buildPrompt(formState: BuyTheDipFormState, chartProjection?: ChartProje
     `        "budget_usd": ${budget},`,
     `        "dip_threshold_percent": ${dipThreshold},`,
     `        "duration": "${duration}"`,
-    "      },",
+    '      },',
     '      "assumptions": ["Capture major modeling assumptions here."]',
-    "    },",
+    '    },',
     '    "sections": [',
-    "      {",
+    '      {',
     '        "type": "deployment_plan",',
     '        "headline": "How the budget deploys",',
     '        "summary": "Summarize how the dip triggers guide the pacing.",',
@@ -76,35 +90,47 @@ function buildPrompt(formState: BuyTheDipFormState, chartProjection?: ChartProje
     '          { "label": "Total budget (USD)", "value": 5000 },',
     '          { "label": "Budget deployed (USD)", "value": 3800 },',
     '          { "label": "Purchases triggered", "value": 7 }',
-    "        ],",
+    '        ],',
     '        "assumptions": ["Clarify rebound thresholds, cooling periods, etc."]',
-    "      },",
-    "      {",
+    '      },',
+    '      {',
     '        "type": "performance_driver",',
     '        "headline": "Price dynamics & opportunity set",',
     '        "summary": "Explain the path of highs, dips, and modeled execution prices.",',
     '        "risks": ["Note slippage, liquidity, or volatility risks."]',
-    "      },",
-    "      {",
+    '      },',
+    '      {',
     '        "type": "risk_assumption",',
     '        "headline": "Key risks & monitoring",',
     '        "summary": "Highlight conditions that could break the plan.",',
     '        "risks": ["List each risk plainly."]',
-    "      }",
-    "    ],",
+    '      }',
+    '    ],',
     '    "notes": ["Optional closing reminders or next steps."]',
-    "  },",
+    '  },',
+    '  "chart_data": {',
+    '    "historical": [',
+    '      { "date": "ISO string", "open": 0, "high": 0, "low": 0, "close": 0 }',
+    '    ],',
+    '    "projection": [',
+    '      { "date": "ISO string", "mean": 0, "percentile_10": 0, "percentile_90": 0 }',
+    '    ],',
+    '    "metadata": {',
+    '      "confidence": 0.5,',
+    '      "technical_signals": { "rsi": 0 }',
+    '    }',
+    '  },',
     '  "strategy_overlays": [',
-    "    {",
+    '    {',
     '      "id": "dip-buys",',
     '      "label": "Dip-triggered buys",',
     '      "type": "buy",',
     '      "points": [',
     '        { "date": "YYYY-MM-DD", "price": 123.45 }',
-    "      ],",
+    '      ],',
     '      "metadata": { "dip_threshold_percent": 10, "budget_usd": 5000 }',
-    "    }",
-    "  ]",
+    '    }',
+    '  ]',
     "}",
     "",
     "Follow the schema exactly and do not emit markdown or additional prose.",
@@ -191,7 +217,6 @@ export function BuyTheDipCalculatorForm({
             <option value="3 months">3 months</option>
             <option value="6 months">6 months</option>
             <option value="1 year">1 year</option>
-            <option value="2 years">2 years</option>
           </select>
         </label>
       </div>
@@ -216,12 +241,11 @@ export const buyTheDipCalculatorDefinition: CalculatorDefinition<BuyTheDipFormSt
   description: "Deploy capital strategically when prices fall below threshold levels.",
   Form: BuyTheDipCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: (formState, chartProjection) => {
-    const prompt = buildPrompt(formState, chartProjection);
+  getRequestConfig: (formState, _chartProjection) => {
+    const prompt = buildPrompt(formState);
 
     return buildNovaRequestOptions(prompt, {
       max_tokens: 18000,
-      chartProjection,
     });
   },
   parseReply: parseNovaReply,

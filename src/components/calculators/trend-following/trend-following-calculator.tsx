@@ -35,27 +35,39 @@ const defaultFormState: TrendFollowingFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's analysis of this trend-following strategy.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
+const DURATION_TO_MCP_HORIZON: Record<string, string> = {
+  "3 months": "three_months",
+  "6 months": "six_months",
+  "1 year": "one_year",
+};
+
 function buildPrompt(
   formState: TrendFollowingFormState,
-  chartProjection?: ChartProjectionData,
   strategySimulation?: TrendFollowingSimulation,
 ) {
-  const { token, initialCapital, maPeriod, duration } = formState;
+  const { token, tokenId, initialCapital, maPeriod, duration } = formState;
   const normalizedToken = token.trim() || "the selected asset";
-  const projectionPayload = chartProjection ? JSON.stringify(chartProjection) : "null";
-
   const simulationPayload = strategySimulation ? JSON.stringify(strategySimulation) : "null";
+  const mcpDuration = DURATION_TO_MCP_HORIZON[duration] || "one_year";
+  const assetId = tokenId || token.toLowerCase();
 
   return joinPromptLines([
-    "You are given CHART_PROJECTION, which contains historical candles and the Monte Carlo forecast that the calculator already plotted.",
-    "Use only the supplied prices to explain how the strategy would trade. Do not synthesize new price series.",
+    `You are assisting with a Trend Following calculator for ${normalizedToken}.`,
+    "Please call the MCP forecast tool (get_forecast) with:",
+    `- asset_id: "${assetId}"`,
+    '- forecast_type: "long"',
+    `- duration: "${mcpDuration}"`,
+    '- include_chart: true',
+    '- vs_currency: "usd"',
+    "",
+    "Use the forecast data to analyze the strategy and return a response with:",
+    "1. Your insight analysis (following the schema below)",
+    "2. chart_data: { historical: [...], projection: [...] } extracted from the forecast tool response",
+    "",
     `Strategy: start with ${initialCapital} USD. Go long ${normalizedToken} when price exceeds the ${maPeriod}-day moving average; otherwise hold stablecoin. Project across ${duration}.`,
     "",
     "Return JSON only. Focus on the `insight` schema below; strategy overlays are already pre-plotted, so you do not need to emit them.",
     "Do not ask follow-up questions or add prose outside the schema.",
-    "",
-    "CHART_PROJECTION:",
-    projectionPayload,
     "",
     "STRATEGY_SIMULATION:",
     simulationPayload,
@@ -71,7 +83,7 @@ function buildPrompt(
     '      "label": "Trend-Following",',
     '      "category": "momentum_strategy",',
     '      "version": "v2"',
-    "    },",
+    '    },',
     '    "context": {',
     '      "as_of": "YYYY-MM-DD",',
     `      "asset": "${token}",`,
@@ -79,11 +91,11 @@ function buildPrompt(
     `        "initial_capital_usd": ${initialCapital},`,
     `        "moving_average_period": ${maPeriod},`,
     `        "duration": "${duration}"`,
-    "      },",
+    '      },',
     '      "assumptions": ["State the key modeling assumptions clearly."]',
-    "    },",
+    '    },',
     '    "sections": [',
-    "      {",
+    '      {',
     '        "type": "performance",',
     '        "headline": "Performance snapshot",',
     '        "summary": "Connect Sharpe, drawdown, and returns back to the projected chart.",',
@@ -91,26 +103,38 @@ function buildPrompt(
     '          { "label": "Strategy total return (%)", "value": 12.5 },',
     '          { "label": "Strategy Sharpe", "value": 0.92 },',
     '          { "label": "Strategy max drawdown (%)", "value": -18.4 }',
-    "        ]",
-    "      },",
-    "      {",
+    '        ]',
+    '      },',
+    '      {',
     '        "type": "trade_flow",',
     '        "headline": "Trade cadence & positioning",',
     '        "summary": "Describe how often price crosses the MA and when the position switches.",',
     '        "metrics": [',
     '          { "label": "Time in market (%)", "value": 64 },',
     '          { "label": "Major crossover count", "value": 14 }',
-    "        ]",
-    "      },",
-    "      {",
+    '        ]',
+    '      },',
+    '      {',
     '        "type": "risk",',
     '        "headline": "Risks to monitor",',
     '        "summary": "Note sensitivity to whipsaws, volatility, or liquidity constraints.",',
     '        "risks": ["List each material risk in plain language."]',
-    "      }",
-    "    ],",
+    '      }',
+    '    ],',
     '    "notes": ["Optional reminders or next steps if they help interpret the model."]',
-    "  }",
+    '  },',
+    '  "chart_data": {',
+    '    "historical": [',
+    '      { "date": "ISO string", "open": 0, "high": 0, "low": 0, "close": 0 }',
+    '    ],',
+    '    "projection": [',
+    '      { "date": "ISO string", "mean": 0, "percentile_10": 0, "percentile_90": 0 }',
+    '    ],',
+    '    "metadata": {',
+    '      "confidence": 0.5,',
+    '      "technical_signals": { "rsi": 0 }',
+    '    }',
+    '  }',
     "}",
     "",
     "Populate metric values with actual calculations; replace template numbers and do not emit trailing commentary.",
@@ -194,8 +218,6 @@ export function TrendFollowingCalculatorForm({
           >
             <option value="6 months">6 months</option>
             <option value="1 year">1 year</option>
-            <option value="2 years">2 years</option>
-            <option value="3 years">3 years</option>
           </select>
         </label>
       </div>
@@ -220,22 +242,18 @@ export const trendFollowingCalculatorDefinition: CalculatorDefinition<TrendFollo
   description: "Trade on momentum: go long when price exceeds moving average, hold stablecoin otherwise.",
   Form: TrendFollowingCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: (formState, chartProjection, extras) => {
+  getRequestConfig: (formState, _chartProjection, extras) => {
     const simulationFromExtras = extras?.trendSimulation as TrendFollowingSimulation | undefined;
     const simulation =
       simulationFromExtras ??
-      (chartProjection
-        ? simulateTrendFollowingStrategy({
-            chartProjection,
-            maPeriod: Number(formState.maPeriod ?? 50),
-            initialCapital: Number(formState.initialCapital ?? 10000),
-          })
-        : undefined);
-    const prompt = buildPrompt(formState, chartProjection, simulation);
+      // If we don't have chart projection, we can't simulate locally, so we pass undefined
+      // and let the backend/Nova handle it or return empty
+      undefined;
+
+    const prompt = buildPrompt(formState, simulation);
 
     return buildNovaRequestOptions(prompt, {
       max_tokens: 18000,
-      chartProjection,
     });
   },
   parseReply: parseNovaReply,

@@ -3,6 +3,8 @@ import type {
   CalculatorResult,
   CalculatorSummaryMetric,
   CalculatorSummarySection,
+  CoinGeckoCandle,
+  NovaChartData,
   StrategyOverlay,
   TimeSeriesPoint,
 } from "@/components/calculators/types";
@@ -239,6 +241,61 @@ function parseStrategyOverlays(rawOverlays: unknown): StrategyOverlay[] {
     .filter(Boolean) as StrategyOverlay[];
 }
 
+function parseChartData(rawChartData: unknown): NovaChartData | undefined {
+  if (!rawChartData || typeof rawChartData !== "object") {
+    return undefined;
+  }
+
+  const data = rawChartData as JsonLike;
+  
+  if (!Array.isArray(data.historical) || !Array.isArray(data.projection)) {
+    return undefined;
+  }
+
+  const historical = (data.historical as unknown[])
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const candle = item as JsonLike;
+      return {
+        date: typeof candle.date === "string" ? candle.date : "",
+        open: Number(candle.open),
+        high: Number(candle.high),
+        low: Number(candle.low),
+        close: Number(candle.close),
+      };
+    })
+    .filter((item): item is CoinGeckoCandle => Boolean(item && item.date));
+
+  const projection = (data.projection as unknown[])
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const point = item as JsonLike;
+      return {
+        date: typeof point.date === "string" ? point.date : "",
+        mean: Number(point.mean),
+        percentile_10: Number(point.percentile_10),
+        percentile_90: Number(point.percentile_90),
+      };
+    })
+    .filter((item): item is NovaChartData["projection"][number] => Boolean(item && item.date));
+
+  if (!historical.length && !projection.length) {
+    return undefined;
+  }
+
+  const metadata = data.metadata as JsonLike | undefined;
+  const technicalSignals = metadata?.technical_signals as Record<string, number> | undefined;
+
+  return {
+    historical,
+    projection,
+    metadata: {
+      confidence: typeof metadata?.confidence === "number" ? metadata.confidence : undefined,
+      technical_signals: technicalSignals,
+    },
+  };
+}
+
 function parseLegacySummaryAndDataset(reply: string) {
   const normalizedReply = reply ?? "";
   const jsonStart = normalizedReply.indexOf("[");
@@ -304,10 +361,12 @@ export function parseCalculatorReply(reply: string): CalculatorResult {
     const parsedObject = parsed as JsonLike;
     const insight = parseInsight(parsedObject.insight);
     const dataset = extractDataset(parsedObject);
+    const chartData = parseChartData(parsedObject.chart_data);
 
     const result: CalculatorResult = {
       insight,
       dataset,
+      chartData,
     };
 
     const strategyOverlays = parseStrategyOverlays(parsedObject.strategy_overlays);

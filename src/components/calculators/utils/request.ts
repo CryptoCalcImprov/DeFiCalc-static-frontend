@@ -9,7 +9,7 @@ type NovaRequestOverrides = Partial<{
   image_urls: string[];
   bodyExtras: Record<string, unknown>;
   refId: string;
-  chartProjection: ChartProjectionData;
+  // Removed chartProjection from here as it's no longer needed
 }>;
 
 const DEFAULT_NOVA_PAYLOAD = {
@@ -31,7 +31,6 @@ export function buildNovaRequestOptions(prompt: string, overrides: NovaRequestOv
     image_urls,
     bodyExtras,
     refId,
-    chartProjection,
   } = overrides;
 
   const payload = {
@@ -45,7 +44,6 @@ export function buildNovaRequestOptions(prompt: string, overrides: NovaRequestOv
     ...(image_urls !== undefined ? { image_urls } : {}),
     ...(refId ? { ref_id: refId } : {}),
     ...bodyExtras,
-    ...(chartProjection ? { chart_projection: chartProjection } : {}),
   };
 
   return {
