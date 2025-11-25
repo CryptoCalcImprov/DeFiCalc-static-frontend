@@ -1,5 +1,3 @@
-import type { ChartProjectionData } from "@/components/calculators/types";
-
 type NovaRequestOverrides = Partial<{
   model: string;
   verbosity: string;
@@ -9,13 +7,12 @@ type NovaRequestOverrides = Partial<{
   image_urls: string[];
   bodyExtras: Record<string, unknown>;
   refId: string;
-  chartProjection: ChartProjectionData;
 }>;
 
 const DEFAULT_NOVA_PAYLOAD = {
   model: "gpt-5-mini",
   verbosity: "low",
-  max_tokens: 50000,
+  max_tokens: 80000,
   reasoning: true,
   reasoning_params: {},
   image_urls: [] as string[],
@@ -25,13 +22,12 @@ export function buildNovaRequestOptions(prompt: string, overrides: NovaRequestOv
   const {
     model,
     verbosity,
-    max_tokens,
-    reasoning,
-    reasoning_params,
-    image_urls,
-    bodyExtras,
-    refId,
-    chartProjection,
+  max_tokens,
+  reasoning,
+  reasoning_params,
+  image_urls,
+  bodyExtras,
+  refId,
   } = overrides;
 
   const payload = {
@@ -45,7 +41,6 @@ export function buildNovaRequestOptions(prompt: string, overrides: NovaRequestOv
     ...(image_urls !== undefined ? { image_urls } : {}),
     ...(refId ? { ref_id: refId } : {}),
     ...bodyExtras,
-    ...(chartProjection ? { chart_projection: chartProjection } : {}),
   };
 
   return {

@@ -2,12 +2,7 @@
 
 import type { ChangeEvent } from "react";
 
-import type {
-  CalculatorDefinition,
-  CalculatorFormProps,
-  CalculatorResult,
-  ChartProjectionData,
-} from "@/components/calculators/types";
+import type { CalculatorDefinition, CalculatorFormProps, CalculatorResult } from "@/components/calculators/types";
 import { buildFieldChangeHandler } from "@/components/calculators/utils/forms";
 import { joinPromptLines } from "@/components/calculators/utils/prompt";
 import { parseCalculatorReply } from "@/components/calculators/utils/summary";
@@ -33,20 +28,22 @@ const defaultFormState: BuyTheDipFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's perspective on this strategy.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
-function buildPrompt(formState: BuyTheDipFormState, chartProjection?: ChartProjectionData) {
+function buildPrompt(formState: BuyTheDipFormState, forecastParams?: Record<string, unknown>) {
   const { token, budget, dipThreshold, duration } = formState;
   const normalizedToken = token.trim() || "the selected asset";
-  const projectionPayload = chartProjection ? JSON.stringify(chartProjection) : "null";
+  const forecastParamsPayload = forecastParams ? JSON.stringify(forecastParams) : "{}";
 
   return joinPromptLines([
-    "You are given CHART_PROJECTION, a sanitized chart that mixes historical candles with a Monte Carlo forecast.",
-    "Do not invent additional prices—only annotate the provided projection.",
+    "Use the forecast MCP tool to fetch price history and a forecast path.",
+    "Call the tool with FORECAST_PARAMS and rely on chart.history and chart.projection (mean, percentile_10, percentile_90).",
+    "Do not invent additional prices—anchor annotations to the returned projection.",
+    "You must include the returned chart under a top-level `chart` key with `history` and `projection` arrays.",
     `Strategy: deploy ${budget} USD to buy ${normalizedToken} after ${dipThreshold}%+ drops from recent highs within ${duration}.`,
     "",
     "Return JSON only. Use the schema below, which includes `insight` and a `strategy_overlays` array for your annotations.",
     "",
-    "CHART_PROJECTION:",
-    projectionPayload,
+    "FORECAST_PARAMS:",
+    forecastParamsPayload,
     "",
     "Response schema:",
     "{",
@@ -104,7 +101,15 @@ function buildPrompt(formState: BuyTheDipFormState, chartProjection?: ChartProje
     "      ],",
     '      "metadata": { "dip_threshold_percent": 10, "budget_usd": 5000 }',
     "    }",
-    "  ]",
+    "  ],",
+    '  "chart": {',
+    '    "history": [',
+    '      { "timestamp": "YYYY-MM-DDTHH:MM:SSZ", "open": 0, "high": 0, "low": 0, "close": 0 }',
+    "    ],",
+    '    "projection": [',
+    '      { "timestamp": "YYYY-MM-DDTHH:MM:SSZ", "mean": 0, "percentile_10": 0, "percentile_90": 0 }',
+    "    ]",
+    "  }",
     "}",
     "",
     "Follow the schema exactly and do not emit markdown or additional prose.",
@@ -216,12 +221,13 @@ export const buyTheDipCalculatorDefinition: CalculatorDefinition<BuyTheDipFormSt
   description: "Deploy capital strategically when prices fall below threshold levels.",
   Form: BuyTheDipCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: (formState, chartProjection) => {
-    const prompt = buildPrompt(formState, chartProjection);
+  getRequestConfig: (formState, _chartProjection, extras) => {
+    const forecastParams = extras?.forecastParams as Record<string, unknown> | undefined;
+    const prompt = buildPrompt(formState, forecastParams);
 
     return buildNovaRequestOptions(prompt, {
       max_tokens: 18000,
-      chartProjection,
+      ...(forecastParams ? { bodyExtras: { forecast_params: forecastParams } } : {}),
     });
   },
   parseReply: parseNovaReply,

@@ -2,18 +2,12 @@
 
 import type { ChangeEvent } from "react";
 
-import type {
-  CalculatorDefinition,
-  CalculatorFormProps,
-  CalculatorResult,
-  ChartProjectionData,
-} from "@/components/calculators/types";
+import type { CalculatorDefinition, CalculatorFormProps, CalculatorResult } from "@/components/calculators/types";
 import { buildFieldChangeHandler } from "@/components/calculators/utils/forms";
 import { joinPromptLines } from "@/components/calculators/utils/prompt";
 import { parseCalculatorReply } from "@/components/calculators/utils/summary";
 import { buildNovaRequestOptions } from "@/components/calculators/utils/request";
 import { TokenSelector } from "@/components/calculators/workspace/TokenSelector";
-import type { DcaSimulation } from "@/components/calculators/dca/simulator";
 export type DcaFormState = {
   token: string;
   tokenId?: string;
@@ -33,30 +27,22 @@ const defaultFormState: DcaFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's perspective on this plan.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
-function buildPrompt(
-  formState: DcaFormState,
-  chartProjection?: ChartProjectionData,
-  simulation?: DcaSimulation,
-) {
+function buildPrompt(formState: DcaFormState, forecastParams?: Record<string, unknown>) {
   const { token, amount, interval, duration } = formState;
   const normalizedToken = token.trim() || "the selected asset";
-  const projectionPayload = chartProjection ? JSON.stringify(chartProjection) : "null";
-  const simulationPayload = simulation ? JSON.stringify(simulation) : "null";
+  const forecastParamsPayload = forecastParams ? JSON.stringify(forecastParams) : "{}";
 
   return joinPromptLines([
-    "You are given a curated chart projection (CHART_PROJECTION) that contains historical candles and a Monte Carlo forecast.",
-    "Use the projection data and only the prices provided—do not invent additional price paths.",
+    "Use the forecast MCP tool to fetch price history and a forecast path.",
+    `Call the tool with FORECAST_PARAMS and use its chart.history and chart.projection (mean, percentile_10, percentile_90).`,
+    "Do not invent additional price paths—anchor analysis on the returned projection.",
+    "You must include the returned chart in your JSON under a top-level `chart` key with `history` and `projection` arrays.",
     `Strategy: invest ${amount} USD of ${normalizedToken} on a ${interval} cadence for ${duration}.`,
     "",
+    "FORECAST_PARAMS:",
+    forecastParamsPayload,
+    "",
     "Deliver a single JSON object only. Do not ask questions or add prose outside the schema.",
-    "",
-    "CHART_PROJECTION:",
-    projectionPayload,
-    "",
-    "STRATEGY_SIMULATION:",
-    simulationPayload,
-    "",
-    "Use STRATEGY_SIMULATION to reference the daily scheduled contribution dates, prices, quantities, and metrics. Do not recompute the schedule or emit strategy_overlays.",
     "",
     "Response schema:",
     "{",
@@ -97,6 +83,14 @@ function buildPrompt(
     "      }",
     "    ],",
     '    "notes": ["Include optional closing reminders or action items when helpful."]',
+    "  }",
+    '  ,"chart": {',
+    '    "history": [',
+    '      { "timestamp": "YYYY-MM-DDTHH:MM:SSZ", "open": 0, "high": 0, "low": 0, "close": 0 }',
+    "    ],",
+    '    "projection": [',
+    '      { "timestamp": "YYYY-MM-DDTHH:MM:SSZ", "mean": 0, "percentile_10": 0, "percentile_90": 0 }',
+    "    ]",
     "  }",
     "}",
     "",
@@ -207,13 +201,13 @@ export const dcaCalculatorDefinition: CalculatorDefinition<DcaFormState> = {
   description: "Automate recurring buys to average into a token over time.",
   Form: DcaCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: (formState, chartProjection, extras) => {
-    const simulation = extras?.strategySimulation as DcaSimulation | undefined;
-    const prompt = buildPrompt(formState, chartProjection, simulation);
+  getRequestConfig: (formState, _chartProjection, extras) => {
+    const forecastParams = extras?.forecastParams as Record<string, unknown> | undefined;
+    const prompt = buildPrompt(formState, forecastParams);
 
     return buildNovaRequestOptions(prompt, {
       max_tokens: 18000,
-      chartProjection,
+      ...(forecastParams ? { bodyExtras: { forecast_params: forecastParams } } : {}),
     });
   },
   parseReply: parseNovaReply,

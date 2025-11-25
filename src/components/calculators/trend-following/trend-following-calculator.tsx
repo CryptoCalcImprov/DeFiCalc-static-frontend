@@ -2,19 +2,12 @@
 
 import type { ChangeEvent } from "react";
 
-import type {
-  CalculatorDefinition,
-  CalculatorFormProps,
-  CalculatorResult,
-  ChartProjectionData,
-} from "@/components/calculators/types";
+import type { CalculatorDefinition, CalculatorFormProps, CalculatorResult } from "@/components/calculators/types";
 import { buildFieldChangeHandler } from "@/components/calculators/utils/forms";
 import { joinPromptLines } from "@/components/calculators/utils/prompt";
 import { parseCalculatorReply } from "@/components/calculators/utils/summary";
 import { buildNovaRequestOptions } from "@/components/calculators/utils/request";
 import { TokenSelector } from "@/components/calculators/workspace/TokenSelector";
-import { simulateTrendFollowingStrategy } from "@/components/calculators/trend-following/simulator";
-import type { TrendFollowingSimulation } from "@/components/calculators/trend-following/types";
 
 export type TrendFollowingFormState = {
   token: string;
@@ -35,33 +28,25 @@ const defaultFormState: TrendFollowingFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's analysis of this trend-following strategy.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
-function buildPrompt(
-  formState: TrendFollowingFormState,
-  chartProjection?: ChartProjectionData,
-  strategySimulation?: TrendFollowingSimulation,
-) {
+function buildPrompt(formState: TrendFollowingFormState, forecastParams?: Record<string, unknown>) {
   const { token, initialCapital, maPeriod, duration } = formState;
   const normalizedToken = token.trim() || "the selected asset";
-  const projectionPayload = chartProjection ? JSON.stringify(chartProjection) : "null";
-
-  const simulationPayload = strategySimulation ? JSON.stringify(strategySimulation) : "null";
+  const forecastParamsPayload = forecastParams ? JSON.stringify(forecastParams) : "{}";
 
   return joinPromptLines([
-    "You are given CHART_PROJECTION, which contains historical candles and the Monte Carlo forecast that the calculator already plotted.",
-    "Use only the supplied prices to explain how the strategy would trade. Do not synthesize new price series.",
+    "Use the forecast MCP tool to fetch price history and a forward projection.",
+    "Call the tool with FORECAST_PARAMS and rely on chart.history and chart.projection (mean, percentile_10, percentile_90).",
+    "Use those prices to explain how the strategy would trade. Do not synthesize new price series.",
+    "You must include the returned chart under a top-level `chart` key with `history` and `projection` arrays.",
     `Strategy: start with ${initialCapital} USD. Go long ${normalizedToken} when price exceeds the ${maPeriod}-day moving average; otherwise hold stablecoin. Project across ${duration}.`,
     "",
     "Return JSON only. Focus on the `insight` schema below; strategy overlays are already pre-plotted, so you do not need to emit them.",
     "Do not ask follow-up questions or add prose outside the schema.",
     "",
-    "CHART_PROJECTION:",
-    projectionPayload,
+    "FORECAST_PARAMS:",
+    forecastParamsPayload,
     "",
-    "STRATEGY_SIMULATION:",
-    simulationPayload,
-    "",
-    "Use STRATEGY_SIMULATION to reference the pre-computed moving average, portfolio equity path, crossovers, and metrics.",
-    "Do not recompute the MA or simulation logic—describe insights using the supplied data.",
+    "Base your reasoning on the forecast output and compute metrics directly from those prices.",
     "",
     "Response schema:",
     "{",
@@ -110,6 +95,14 @@ function buildPrompt(
     "      }",
     "    ],",
     '    "notes": ["Optional reminders or next steps if they help interpret the model."]',
+    "  },",
+    '  "chart": {',
+    '    "history": [',
+    '      { "timestamp": "YYYY-MM-DDTHH:MM:SSZ", "open": 0, "high": 0, "low": 0, "close": 0 }',
+    "    ],",
+    '    "projection": [',
+    '      { "timestamp": "YYYY-MM-DDTHH:MM:SSZ", "mean": 0, "percentile_10": 0, "percentile_90": 0 }',
+    "    ]",
     "  }",
     "}",
     "",
@@ -220,22 +213,13 @@ export const trendFollowingCalculatorDefinition: CalculatorDefinition<TrendFollo
   description: "Trade on momentum: go long when price exceeds moving average, hold stablecoin otherwise.",
   Form: TrendFollowingCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: (formState, chartProjection, extras) => {
-    const simulationFromExtras = extras?.trendSimulation as TrendFollowingSimulation | undefined;
-    const simulation =
-      simulationFromExtras ??
-      (chartProjection
-        ? simulateTrendFollowingStrategy({
-            chartProjection,
-            maPeriod: Number(formState.maPeriod ?? 50),
-            initialCapital: Number(formState.initialCapital ?? 10000),
-          })
-        : undefined);
-    const prompt = buildPrompt(formState, chartProjection, simulation);
+  getRequestConfig: (formState, _chartProjection, extras) => {
+    const forecastParams = extras?.forecastParams as Record<string, unknown> | undefined;
+    const prompt = buildPrompt(formState, forecastParams);
 
     return buildNovaRequestOptions(prompt, {
       max_tokens: 18000,
-      chartProjection,
+      ...(forecastParams ? { bodyExtras: { forecast_params: forecastParams } } : {}),
     });
   },
   parseReply: parseNovaReply,

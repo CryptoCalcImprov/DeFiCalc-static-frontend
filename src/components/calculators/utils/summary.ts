@@ -3,6 +3,9 @@ import type {
   CalculatorResult,
   CalculatorSummaryMetric,
   CalculatorSummarySection,
+  ChartProjectionData,
+  CoinGeckoCandle,
+  ForecastProjectionPoint,
   StrategyOverlay,
   TimeSeriesPoint,
 } from "@/components/calculators/types";
@@ -239,6 +242,108 @@ function parseStrategyOverlays(rawOverlays: unknown): StrategyOverlay[] {
     .filter(Boolean) as StrategyOverlay[];
 }
 
+function parseChartHistory(rawHistory: unknown): CoinGeckoCandle[] {
+  if (!Array.isArray(rawHistory)) {
+    return [];
+  }
+
+  return rawHistory
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+      const candidate = entry as JsonLike;
+      const timestampString = typeof candidate.timestamp === "string" ? candidate.timestamp : undefined;
+      const dateString =
+        typeof candidate.date === "string"
+          ? candidate.date
+          : timestampString
+            ? timestampString.slice(0, 10)
+            : undefined;
+
+      const open = Number(candidate.open);
+      const high = Number(candidate.high);
+      const low = Number(candidate.low);
+      const close = Number(candidate.close);
+
+      if (!dateString || [open, high, low, close].some((value) => !Number.isFinite(value))) {
+        return null;
+      }
+
+      return {
+        date: dateString,
+        open,
+        high,
+        low,
+        close,
+      } satisfies CoinGeckoCandle;
+    })
+    .filter(Boolean) as CoinGeckoCandle[];
+}
+
+function parseChartProjection(rawProjection: unknown): ForecastProjectionPoint[] {
+  if (!Array.isArray(rawProjection)) {
+    return [];
+  }
+
+  return rawProjection
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+      const candidate = entry as JsonLike;
+      const timestamp = typeof candidate.timestamp === "string" ? candidate.timestamp : undefined;
+      const mean = Number(candidate.mean);
+      const percentile10 =
+        typeof candidate.percentile_10 === "number" ? candidate.percentile_10 : Number(candidate.percentile_10);
+      const percentile90 =
+        typeof candidate.percentile_90 === "number" ? candidate.percentile_90 : Number(candidate.percentile_90);
+
+      if (!timestamp || !Number.isFinite(mean)) {
+        return null;
+      }
+
+      const projectionPoint: ForecastProjectionPoint = {
+        timestamp,
+        mean,
+      };
+
+      if (Number.isFinite(percentile10)) {
+        projectionPoint.percentile_10 = percentile10;
+      }
+      if (Number.isFinite(percentile90)) {
+        projectionPoint.percentile_90 = percentile90;
+      }
+
+      return projectionPoint;
+    })
+    .filter(Boolean) as ForecastProjectionPoint[];
+}
+
+function parseChart(rawChart: unknown): ChartProjectionData | undefined {
+  if (!rawChart || typeof rawChart !== "object") {
+    return undefined;
+  }
+
+  const chart = rawChart as JsonLike;
+  const history = parseChartHistory(chart.history ?? chart.historical_data);
+  const projection = parseChartProjection(chart.projection);
+  const metadata =
+    chart.metadata && typeof chart.metadata === "object" && !Array.isArray(chart.metadata)
+      ? (chart.metadata as Record<string, unknown>)
+      : undefined;
+
+  if (!history.length && !projection.length) {
+    return undefined;
+  }
+
+  return {
+    historical_data: history,
+    projection,
+    metadata: metadata as ChartProjectionData["metadata"],
+  };
+}
+
 function parseLegacySummaryAndDataset(reply: string) {
   const normalizedReply = reply ?? "";
   const jsonStart = normalizedReply.indexOf("[");
@@ -304,11 +409,15 @@ export function parseCalculatorReply(reply: string): CalculatorResult {
     const parsedObject = parsed as JsonLike;
     const insight = parseInsight(parsedObject.insight);
     const dataset = extractDataset(parsedObject);
-
+    const chart = parseChart(parsedObject.chart);
     const result: CalculatorResult = {
       insight,
       dataset,
     };
+
+    if (chart) {
+      result.chart = chart;
+    }
 
     const strategyOverlays = parseStrategyOverlays(parsedObject.strategy_overlays);
     if (strategyOverlays.length) {

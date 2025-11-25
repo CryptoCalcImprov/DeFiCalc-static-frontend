@@ -1,13 +1,13 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useMemo, useRef, useState, useCallback } from "react";
+import { useMemo, useState } from "react";
 
 import { calculatorDefinitions, findCalculatorDefinition } from "@/components/calculators";
 import type {
   CalculatorInsight,
-  ChartProjectionData,
   CoinGeckoCandle,
+  ForecastProjectionPoint,
   StrategyOverlay,
   TimeSeriesPoint,
 } from "@/components/calculators/types";
@@ -16,27 +16,21 @@ import { CalculatorWorkspace } from "@/components/calculators/workspace/Calculat
 import {
   PriceTrajectoryPanel,
   type PriceTrajectoryEventMarker,
-  type PriceTrajectoryOverlay,
-} from "@/components/calculators/workspace/PriceTrajectoryPanel";
+    type PriceTrajectoryOverlay,
+  } from "@/components/calculators/workspace/PriceTrajectoryPanel";
 import type { TrendFollowingSimulation } from "@/components/calculators/trend-following/types";
 import { simulateTrendFollowingStrategy } from "@/components/calculators/trend-following/simulator";
 import { SummaryPanel } from "@/components/calculators/workspace/SummaryPanel";
 import { Button } from "@/components/ui/button";
 import { clearNovaHistory, requestNova } from "@/lib/nova-client";
 import { ensureNovaRefId, resetNovaRefId } from "@/lib/nova-session";
-import { searchAssets, getMarketChart } from "@/lib/coingecko-client";
+import { searchAssets } from "@/lib/coingecko-client";
 import {
   buildDipTriggerSeries,
   buildMovingAverageSeries,
   buildSeriesFromCandles,
   type TimeSeriesValuePoint,
 } from "@/components/calculators/workspace/technical-indicators";
-import {
-  estimateDriftAndVolatility,
-  generateMonteCarloPath,
-  MonteCarloHorizons,
-} from "@/lib/monte-carlo";
-import type { MonteCarloHorizon, MonteCarloTrajectoryPoint } from "@/lib/monte-carlo";
 import { parseTrendFollowingReply } from "@/components/calculators/trend-following/parser";
 import { formatSummaryLines } from "@/components/calculators/utils/summary";
 import { simulateDcaStrategy, type DcaSimulation } from "@/components/calculators/dca/simulator";
@@ -47,14 +41,13 @@ const defaultDefinition = defaultCalculatorId ? findCalculatorDefinition<any>(de
 const defaultSummary =
   defaultDefinition?.initialSummary ?? "Run a projection to see Nova’s perspective on this plan.";
 
-const PRICE_HISTORY_CACHE_TTL_MS = 1000 * 60 * 2;
 const DISPLAY_WINDOW_MONTHS = 3;
-const DURATION_TO_MONTE_CARLO_HORIZON: Record<string, MonteCarloHorizon> = {
-  "3 months": MonteCarloHorizons.THREE_MONTHS,
-  "6 months": MonteCarloHorizons.SIX_MONTHS,
-  "1 year": MonteCarloHorizons.ONE_YEAR,
-  "2 years": MonteCarloHorizons.TWO_YEARS,
-  "3 years": MonteCarloHorizons.THREE_YEARS,
+const DURATION_TO_FORECAST_PARAM: Record<string, string> = {
+  "3 months": "three_months",
+  "6 months": "six_months",
+  "1 year": "one_year",
+  "2 years": "two_years",
+  "3 years": "three_years",
 };
 
 const DURATION_TO_MONTHS: Record<string, number> = {
@@ -80,6 +73,15 @@ function resolveDurationToMonths(duration?: unknown): number {
   return DURATION_TO_MONTHS[normalized] ?? 6;
 }
 
+function resolveDurationToForecast(duration?: unknown): string {
+  if (typeof duration !== "string") {
+    return "six_months";
+  }
+
+  const normalized = duration.trim().toLowerCase();
+  return DURATION_TO_FORECAST_PARAM[normalized] ?? "six_months";
+}
+
 function resolveIntervalToDays(interval?: unknown): number {
   if (typeof interval !== "string") {
     return 14;
@@ -87,75 +89,6 @@ function resolveIntervalToDays(interval?: unknown): number {
 
   const normalized = interval.trim().toLowerCase();
   return INTERVAL_TO_DAYS[normalized] ?? 14;
-}
-
-function resolveDurationToMonteCarloHorizon(duration?: unknown): MonteCarloHorizon | undefined {
-  if (typeof duration !== "string") {
-    return undefined;
-  }
-
-  const normalized = duration.trim().toLowerCase();
-  return DURATION_TO_MONTE_CARLO_HORIZON[normalized];
-}
-
-function buildDisplayWindow(history: CoinGeckoCandle[]): CoinGeckoCandle[] {
-  if (!history.length) {
-    return history;
-  }
-
-  const latestCandle = history[history.length - 1];
-  const latestDate = new Date(latestCandle.date);
-  const windowStartDate = new Date(latestDate);
-  windowStartDate.setMonth(windowStartDate.getMonth() - DISPLAY_WINDOW_MONTHS);
-  const windowStartTimestamp = windowStartDate.getTime();
-
-  const filtered = history.filter(
-    (candle) => new Date(candle.date).getTime() >= windowStartTimestamp,
-  );
-
-  return filtered.length ? filtered : history;
-}
-
-function buildChartProjectionPayload(
-  history: CoinGeckoCandle[],
-  horizon: MonteCarloHorizon | undefined,
-  asset: string,
-): ChartProjectionData {
-  const windowedHistory = buildDisplayWindow(history);
-  const projectionSource = windowedHistory.length ? windowedHistory : history;
-  let projection: MonteCarloTrajectoryPoint[] = [];
-
-  if (projectionSource.length >= 2) {
-    const stats = estimateDriftAndVolatility(projectionSource.map((point) => point.close));
-    const startCandle = projectionSource[projectionSource.length - 1];
-    if (stats && startCandle) {
-      const horizonMonths = horizon ?? MonteCarloHorizons.SIX_MONTHS;
-      projection = generateMonteCarloPath({
-        startPrice: startCandle.close,
-        startTimestamp: new Date(startCandle.date).getTime(),
-        drift: stats.drift,
-        volatility: stats.volatility,
-        config: {
-          horizonMonths,
-          stepDays: 1,
-          seed: 13579,
-        },
-      });
-    }
-  }
-
-  const latestCandle = history[history.length - 1];
-  const metadata = {
-    asset: asset || "asset",
-    as_of: latestCandle?.date ?? new Date().toISOString().slice(0, 10),
-    projection_horizon_months: horizon ?? MonteCarloHorizons.SIX_MONTHS,
-  };
-
-  return {
-    historical_data: windowedHistory.length ? windowedHistory : history,
-    projection,
-    metadata,
-  };
 }
 
 async function searchCoinGeckoAssetId(query: string): Promise<string | null> {
@@ -196,20 +129,10 @@ export function CalculatorHubSection() {
   const [priceHistory, setPriceHistory] = useState<CoinGeckoCandle[]>([]);
   const [isPriceHistoryLoading, setIsPriceHistoryLoading] = useState(false);
   const [priceHistoryError, setPriceHistoryError] = useState<string | null>(null);
-  const priceHistoryRequestRef = useRef(0);
-  const priceHistoryCacheRef = useRef(
-    new Map<
-      string,
-      {
-        data: CoinGeckoCandle[];
-        fetchedAt: number;
-      }
-    >(),
-  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
-  const [monteCarloTrajectory, setMonteCarloTrajectory] = useState<MonteCarloTrajectoryPoint[] | null>(null);
+  const [forecastProjection, setForecastProjection] = useState<ForecastProjectionPoint[]>([]);
   const [strategyOverlays, setStrategyOverlays] = useState<StrategyOverlay[]>([]);
   const [dcaSimulation, setDcaSimulation] = useState<DcaSimulation | null>(null);
   const [projectionStartTimestamp, setProjectionStartTimestamp] = useState(0);
@@ -225,10 +148,6 @@ export function CalculatorHubSection() {
 
   const dipThresholdString = String((formState as Record<string, unknown>).dipThreshold ?? "");
   const durationInput = typeof formState.duration === "string" ? formState.duration : undefined;
-  const monteCarloHorizon = useMemo(
-    () => resolveDurationToMonteCarloHorizon(durationInput),
-    [durationInput],
-  );
   const { displayDataset, displayWindowStart } = useMemo(() => {
     if (!priceHistory.length) {
       return { displayDataset: priceHistory, displayWindowStart: 0 };
@@ -249,15 +168,31 @@ export function CalculatorHubSection() {
 
   const historicalSeries = useMemo<TimeSeriesValuePoint[]>(() => buildSeriesFromCandles(priceHistory), [priceHistory]);
 
+  const forecastMeanSeries = useMemo<TimeSeriesValuePoint[]>(() => {
+    if (!forecastProjection.length) {
+      return [];
+    }
+
+    return forecastProjection
+      .map((point) => {
+        const timestamp = new Date(point.timestamp).getTime();
+        if (!Number.isFinite(timestamp) || !Number.isFinite(point.mean)) {
+          return null;
+        }
+        return { x: timestamp, y: point.mean };
+      })
+      .filter((entry): entry is TimeSeriesValuePoint => Boolean(entry));
+  }, [forecastProjection]);
+
   const combinedSeries = useMemo<TimeSeriesValuePoint[]>(() => {
-    if (!monteCarloTrajectory?.length) {
+    if (!forecastMeanSeries.length) {
       return historicalSeries;
     }
 
-    const merged = [...historicalSeries, ...monteCarloTrajectory.map((point) => ({ x: point.x, y: point.y }))];
+    const merged = [...historicalSeries, ...forecastMeanSeries];
     merged.sort((a, b) => a.x - b.x);
     return merged;
-  }, [historicalSeries, monteCarloTrajectory]);
+  }, [historicalSeries, forecastMeanSeries]);
 
   const { technicalOverlays, eventMarkers } = useMemo(() => {
     if (!combinedSeries.length) {
@@ -266,6 +201,67 @@ export function CalculatorHubSection() {
 
     const overlays: PriceTrajectoryOverlay[] = [];
     const markers: PriceTrajectoryEventMarker[] = [];
+
+    if (forecastProjection.length) {
+      const meanOverlayPoints: PriceTrajectoryOverlay["data"] = [];
+      const upperOverlayPoints: PriceTrajectoryOverlay["data"] = [];
+      const lowerOverlayPoints: PriceTrajectoryOverlay["data"] = [];
+
+      forecastProjection.forEach((point) => {
+        const timestamp = new Date(point.timestamp).getTime();
+        if (!Number.isFinite(timestamp)) {
+          return;
+        }
+        if (Number.isFinite(point.mean)) {
+          meanOverlayPoints.push({ x: timestamp, y: point.mean });
+        }
+        if (Number.isFinite(point.percentile_90)) {
+          upperOverlayPoints.push({ x: timestamp, y: point.percentile_90 as number });
+        }
+        if (Number.isFinite(point.percentile_10)) {
+          lowerOverlayPoints.push({ x: timestamp, y: point.percentile_10 as number });
+        }
+      });
+
+      if (meanOverlayPoints.length) {
+        overlays.push({
+          id: "forecast-mean",
+          label: "Forecast mean",
+          data: meanOverlayPoints,
+          color: "rgba(251, 169, 76, 0.95)",
+          strokeWidth: 2.5,
+          borderDash: [6, 4],
+          tension: 0.25,
+          pointRadius: 0,
+        });
+      }
+
+      if (upperOverlayPoints.length) {
+        overlays.push({
+          id: "forecast-upper",
+          label: "90th percentile",
+          data: upperOverlayPoints,
+          color: "rgba(59, 130, 246, 0.8)",
+          strokeWidth: 1.5,
+          borderDash: [3, 3],
+          tension: 0.2,
+          pointRadius: 0,
+        });
+      }
+
+      if (lowerOverlayPoints.length) {
+        overlays.push({
+          id: "forecast-lower",
+          label: "10th percentile",
+          data: lowerOverlayPoints,
+          color: "rgba(239, 68, 68, 0.8)",
+          strokeWidth: 1.5,
+          borderDash: [3, 3],
+          tension: 0.2,
+          pointRadius: 0,
+        });
+      }
+    }
 
     if (activeCalculatorId === "dca") {
       overlays.push(
@@ -398,7 +394,15 @@ export function CalculatorHubSection() {
       .filter((marker) => marker.points.length);
 
     return { technicalOverlays: filteredOverlays, eventMarkers: filteredMarkers };
-  }, [activeCalculatorId, combinedSeries, dipThresholdString, dcaSimulation, projectionStartTimestamp, displayWindowStart]);
+  }, [
+    activeCalculatorId,
+    combinedSeries,
+    dipThresholdString,
+    dcaSimulation,
+    projectionStartTimestamp,
+    displayWindowStart,
+    forecastProjection,
+  ]);
 
   const strategyEventMarkers = useMemo<PriceTrajectoryEventMarker[]>(() => {
     if (!strategyOverlays.length) {
@@ -474,13 +478,6 @@ export function CalculatorHubSection() {
     [eventMarkers, strategyEventMarkers],
   );
 
-  const handleMonteCarloPathUpdate = useCallback(
-    (trajectory: MonteCarloTrajectoryPoint[] | null) => {
-      setMonteCarloTrajectory(trajectory);
-    },
-    [],
-  );
-
   const handleFormStateChange = (field: string, value: unknown): void => {
     setCalculatorStates((previous) => {
       const existingState = (previous[activeCalculatorId] ?? {}) as Record<string, unknown>;
@@ -514,6 +511,10 @@ export function CalculatorHubSection() {
     setStrategyOverlays([]);
     setPriceHistoryError(null);
     setIsPriceHistoryLoading(true);
+    setPriceHistory([]);
+    setForecastProjection([]);
+    setProjectionStartTimestamp(0);
+    setDcaSimulation(null);
 
     const tokenFromState = typeof currentState.token === "string" ? currentState.token.trim() : "";
     const explicitTokenId =
@@ -521,12 +522,6 @@ export function CalculatorHubSection() {
         ? currentState.tokenId.trim()
         : undefined;
 
-    const historyRequestId = priceHistoryRequestRef.current + 1;
-    priceHistoryRequestRef.current = historyRequestId;
-
-    let chartProjection: ChartProjectionData | undefined;
-    let projectionSeries: { timestamp: number; price: number; date: string }[] = [];
-    let trendSimulation: TrendFollowingSimulation | null = null;
     let simulationOverlay: StrategyOverlay | null = null;
 
     try {
@@ -536,43 +531,54 @@ export function CalculatorHubSection() {
         throw new Error("Unable to resolve a CoinGecko ID for the selected token.");
       }
 
-      const cacheEntry = priceHistoryCacheRef.current.get(coinId);
-      const now = Date.now();
-      let history: CoinGeckoCandle[];
+      const forecastDuration = resolveDurationToForecast(durationInput);
+      const forecastParams = {
+        asset_id: coinId,
+        forecast_type: "long",
+        duration: forecastDuration,
+        include_chart: true,
+        vs_currency: "usd",
+      };
 
-      if (cacheEntry && now - cacheEntry.fetchedAt < PRICE_HISTORY_CACHE_TTL_MS) {
-        history = cacheEntry.data;
-      } else {
-        history = await getMarketChart(coinId, "365", "usd");
-        priceHistoryCacheRef.current.set(coinId, { data: history, fetchedAt: now });
-      }
+      const { prompt, options } = activeDefinition.getRequestConfig(
+        currentState as any,
+        undefined,
+        { forecastParams },
+      );
+      const refId = ensureNovaRefId("calculator");
+      const { reply } = await requestNova(prompt, options, { refId });
 
-      if (priceHistoryRequestRef.current !== historyRequestId) {
-        return;
-      }
+      const {
+        insight: parsedInsight,
+        dataset: parsedDataset,
+        fallbackSummary: parsedFallbackSummary,
+        fallbackLines: parsedFallbackLines,
+        strategyOverlays: parsedStrategyOverlays,
+        chart: parsedChart,
+      } = activeDefinition.parseReply(reply);
 
-      if (!history.length) {
-        throw new Error("CoinGecko returned no price history for this token.");
-      }
+      const normalizedChart = parsedChart ?? null;
 
-      setPriceHistory(history);
-      const assetLabel = tokenFromState || coinId;
-      chartProjection = buildChartProjectionPayload(history, monteCarloHorizon, assetLabel);
-      setMonteCarloTrajectory(chartProjection.projection.length ? chartProjection.projection : null);
-      projectionSeries = chartProjection.projection.map((point) => ({
-        timestamp: point.x,
-        price: point.y,
-        date: new Date(point.x).toISOString().slice(0, 10),
-      }));
-      setProjectionStartTimestamp(projectionSeries[0]?.timestamp ?? 0);
+      const historicalFromChart = normalizedChart?.historical_data ?? [];
+      setPriceHistory(historicalFromChart);
 
-      if (activeCalculatorId === "trend-following" && chartProjection) {
+      const projectionFromChart = normalizedChart?.projection ?? [];
+      setForecastProjection(projectionFromChart);
+      const projectionStart =
+        projectionFromChart.length && projectionFromChart[0]?.timestamp
+          ? new Date(projectionFromChart[0].timestamp).getTime()
+          : 0;
+      setProjectionStartTimestamp(Number.isFinite(projectionStart) ? projectionStart : 0);
+
+      let trendSimulation: TrendFollowingSimulation | null = null;
+
+      if (activeCalculatorId === "trend-following" && normalizedChart) {
         const maPeriodValue = Number((currentState as Record<string, unknown>).maPeriod ?? 50);
         const initialCapitalValue = Number((currentState as Record<string, unknown>).initialCapital ?? 10000);
 
         if (Number.isFinite(maPeriodValue) && Number.isFinite(initialCapitalValue)) {
           trendSimulation = simulateTrendFollowingStrategy({
-            chartProjection,
+            chartProjection: normalizedChart,
             maPeriod: maPeriodValue,
             initialCapital: initialCapitalValue,
           });
@@ -594,7 +600,7 @@ export function CalculatorHubSection() {
         }
       }
 
-      if (activeCalculatorId === "dca" && chartProjection) {
+      if (activeCalculatorId === "dca" && projectionFromChart.length) {
         const amountValue = Number((currentState as Record<string, unknown>).amount ?? 0);
         const intervalValue = typeof currentState.interval === "string" ? currentState.interval : "bi-weekly";
         const durationValue = typeof currentState.duration === "string" ? currentState.duration : "6 months";
@@ -602,6 +608,20 @@ export function CalculatorHubSection() {
         const durationMonths = resolveDurationToMonths(durationValue);
 
         if (Number.isFinite(amountValue) && amountValue > 0) {
+          const projectionSeries = projectionFromChart
+            .map((point) => {
+              const ts = new Date(point.timestamp).getTime();
+              if (!Number.isFinite(ts) || !Number.isFinite(point.mean)) {
+                return null;
+              }
+              return {
+                timestamp: ts,
+                price: point.mean,
+                date: point.timestamp.slice(0, 10),
+              };
+            })
+            .filter((entry): entry is { timestamp: number; price: number; date: string } => Boolean(entry));
+
           const simulation = simulateDcaStrategy({
             projectionSeries,
             amountPerContribution: amountValue,
@@ -615,49 +635,6 @@ export function CalculatorHubSection() {
       } else {
         setDcaSimulation(null);
       }
-    } catch (historyError) {
-      if (priceHistoryRequestRef.current !== historyRequestId) {
-        return;
-      }
-
-      const message =
-        historyError instanceof Error
-          ? historyError.message
-          : "Unable to load price history from CoinGecko.";
-      setPriceHistoryError(message);
-      setError(message);
-      setIsLoading(false);
-      return;
-    } finally {
-      if (priceHistoryRequestRef.current === historyRequestId) {
-        setIsPriceHistoryLoading(false);
-      }
-    }
-
-    try {
-      const extras: Record<string, unknown> = {};
-      if (trendSimulation) {
-        extras.trendSimulation = trendSimulation;
-      }
-      if (dcaSimulation) {
-        extras.strategySimulation = dcaSimulation;
-      }
-
-      const { prompt, options } = activeDefinition.getRequestConfig(
-        currentState as any,
-        chartProjection,
-        extras,
-      );
-      const refId = ensureNovaRefId("calculator");
-      const { reply } = await requestNova(prompt, options, { refId });
-
-      const {
-        insight: parsedInsight,
-        dataset: parsedDataset,
-        fallbackSummary: parsedFallbackSummary,
-        fallbackLines: parsedFallbackLines,
-        strategyOverlays: parsedStrategyOverlays,
-      } = activeDefinition.parseReply(reply);
 
       const trendResult =
         activeCalculatorId === "trend-following"
@@ -704,6 +681,7 @@ export function CalculatorHubSection() {
           : "Something went wrong when requesting the calculator output.";
 
       setError(message);
+      setPriceHistoryError(message);
       setNovaDataset([]);
       setInsight(null);
       setFallbackLines([]);
@@ -711,6 +689,7 @@ export function CalculatorHubSection() {
       setDcaSimulation(null);
       setSummaryMessage("Nova couldn't complete this request. Please adjust your inputs and try again.");
     } finally {
+      setIsPriceHistoryLoading(false);
       setIsLoading(false);
     }
   };
@@ -728,12 +707,11 @@ export function CalculatorHubSection() {
     try {
       await clearNovaHistory(refId);
       void resetNovaRefId("calculator");
-      priceHistoryRequestRef.current += 1;
       setNovaDataset([]);
       setPriceHistory([]);
       setPriceHistoryError(null);
       setIsPriceHistoryLoading(false);
-      setMonteCarloTrajectory(null);
+      setForecastProjection([]);
       setStrategyOverlays([]);
       setDcaSimulation(null);
       setProjectionStartTimestamp(0);
@@ -776,11 +754,10 @@ export function CalculatorHubSection() {
     setInsight(null);
     setFallbackLines([]);
     setSummaryMessage(nextDefinition?.initialSummary ?? defaultSummary);
-    priceHistoryRequestRef.current += 1;
     setPriceHistory([]);
     setPriceHistoryError(null);
     setIsPriceHistoryLoading(false);
-    setMonteCarloTrajectory(null);
+    setForecastProjection([]);
     setStrategyOverlays([]);
     setDcaSimulation(null);
     setProjectionStartTimestamp(0);
@@ -823,12 +800,8 @@ export function CalculatorHubSection() {
       seriesLabel={seriesLabel}
       technicalOverlays={technicalOverlays}
       eventMarkers={combinedEventMarkers}
-      onMonteCarloPath={handleMonteCarloPathUpdate}
-      monteCarloHorizon={monteCarloHorizon}
-      loadingMessage="Fetching price history from CoinGecko…"
-      emptyMessage={
-        priceHistoryError ?? "Run the projection to visualize one year of CoinGecko price history."
-      }
+      loadingMessage="Fetching the forecast and chart…"
+      emptyMessage={priceHistoryError ?? "Run the projection to visualize the forecasted path."}
     />
   );
 

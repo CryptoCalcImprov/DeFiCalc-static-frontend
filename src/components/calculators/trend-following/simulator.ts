@@ -26,9 +26,9 @@ function buildCombinedSeries(chartProjection: ChartProjectionData) {
 
   const projection = chartProjection.projection
     .map((point) => ({
-      timestamp: point.x,
-      date: formatDateFromTimestamp(point.x),
-      price: point.y,
+      timestamp: new Date(point.timestamp).getTime(),
+      date: formatDateFromTimestamp(new Date(point.timestamp).getTime()),
+      price: point.mean,
     }))
     .filter((item) => Number.isFinite(item.timestamp) && Number.isFinite(item.price));
 

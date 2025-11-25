@@ -17,7 +17,7 @@ export type RequestNovaOptions = {
 const DEFAULT_BODY = {
   model: DEFAULT_MODEL,
   verbosity: "medium",
-  max_tokens: 2000,
+  max_tokens: 8000,
   reasoning: false,
   reasoning_params: {},
   image_urls: [] as string[],
