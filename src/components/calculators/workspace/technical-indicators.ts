@@ -121,3 +121,111 @@ export function buildDipTriggerSeries(
 
   return { recentHighs, thresholdLine, dipEvents };
 }
+
+export type ForecastDipSeries = {
+  thresholdLine: TechnicalPoint[];
+  dipEvents: TechnicalPoint[];
+};
+
+/**
+ * Detects dips in a forecast context by comparing sample path against forecast mean.
+ * Triggers when sample path falls below mean by the threshold percentage.
+ */
+export function buildForecastDipSeries(
+  samplePath: TimeSeriesValuePoint[],
+  forecastMean: TimeSeriesValuePoint[],
+  thresholdPercent: number,
+): ForecastDipSeries {
+  const normalizedThreshold = Number.isFinite(thresholdPercent) ? thresholdPercent : 0;
+  const thresholdFactor = Math.max(0, normalizedThreshold / 100);
+  const thresholdLine: TechnicalPoint[] = [];
+  const dipEvents: TechnicalPoint[] = [];
+
+  if (thresholdFactor === 0 || !samplePath.length || !forecastMean.length) {
+    return { thresholdLine, dipEvents };
+  }
+
+  // Create a map of timestamps to mean values for quick lookup
+  const meanMap = new Map<number, number>();
+  forecastMean.forEach((point) => {
+    meanMap.set(point.x, point.y);
+  });
+
+  // Check each sample path point
+  for (const point of samplePath) {
+    const meanValue = meanMap.get(point.x);
+    if (!meanValue || !Number.isFinite(meanValue)) {
+      continue;
+    }
+
+    const thresholdValue = meanValue * (1 - thresholdFactor);
+    thresholdLine.push({ x: point.x, y: thresholdValue });
+
+    // Trigger if sample path is below threshold
+    if (point.y <= thresholdValue) {
+      dipEvents.push({ x: point.x, y: point.y });
+    }
+  }
+
+  return { thresholdLine, dipEvents };
+}
+
+export type TrendCrossoverSeries = {
+  maSeries: TechnicalPoint[];
+  buySignals: TechnicalPoint[];
+  sellSignals: TechnicalPoint[];
+};
+
+/**
+ * Detects MA crossovers on a price series.
+ * Buy signal: price crosses ABOVE MA
+ * Sell signal: price crosses BELOW MA
+ */
+export function buildMACrossoverSeries(
+  priceSeries: TimeSeriesValuePoint[],
+  maPeriod: number,
+): TrendCrossoverSeries {
+  const sortedPoints = sortPoints(priceSeries);
+  const maSeries = buildMovingAverageSeries(sortedPoints, maPeriod);
+  const buySignals: TechnicalPoint[] = [];
+  const sellSignals: TechnicalPoint[] = [];
+
+  if (!maSeries.length) {
+    return { maSeries, buySignals, sellSignals };
+  }
+
+  // Create a map of timestamps to MA values for quick lookup
+  const maMap = new Map<number, number>();
+  maSeries.forEach((point) => {
+    maMap.set(point.x, point.y);
+  });
+
+  let previousPosition: 'above' | 'below' | null = null;
+
+  // Start checking after MA has enough data points
+  for (let i = maPeriod - 1; i < sortedPoints.length; i += 1) {
+    const currentPoint = sortedPoints[i];
+    const maValue = maMap.get(currentPoint.x);
+
+    if (!maValue || !Number.isFinite(maValue)) {
+      continue;
+    }
+
+    const currentPosition = currentPoint.y > maValue ? 'above' : 'below';
+
+    // Detect crossovers
+    if (previousPosition !== null && previousPosition !== currentPosition) {
+      if (currentPosition === 'above') {
+        // Crossed above = buy signal
+        buySignals.push({ x: currentPoint.x, y: currentPoint.y });
+      } else {
+        // Crossed below = sell signal
+        sellSignals.push({ x: currentPoint.x, y: currentPoint.y });
+      }
+    }
+
+    previousPosition = currentPosition;
+  }
+
+  return { maSeries, buySignals, sellSignals };
+}

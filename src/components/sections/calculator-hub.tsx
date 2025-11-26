@@ -27,13 +27,16 @@ import { ensureNovaRefId, resetNovaRefId } from "@/lib/nova-session";
 import { searchAssets } from "@/lib/coingecko-client";
 import {
   buildDipTriggerSeries,
+  buildForecastDipSeries,
   buildMovingAverageSeries,
+  buildMACrossoverSeries,
   buildSeriesFromCandles,
   type TimeSeriesValuePoint,
 } from "@/components/calculators/workspace/technical-indicators";
 import { parseTrendFollowingReply } from "@/components/calculators/trend-following/parser";
 import { formatSummaryLines } from "@/components/calculators/utils/summary";
 import { simulateDcaStrategy, type DcaSimulation } from "@/components/calculators/dca/simulator";
+import { generateSamplePath } from "@/components/calculators/utils/sample-path";
 
 const defaultCalculatorId = calculatorDefinitions[0]?.id ?? "";
 const defaultDefinition = defaultCalculatorId ? findCalculatorDefinition<any>(defaultCalculatorId) : undefined;
@@ -41,7 +44,7 @@ const defaultDefinition = defaultCalculatorId ? findCalculatorDefinition<any>(de
 const defaultSummary =
   defaultDefinition?.initialSummary ?? "Run a projection to see Nova’s perspective on this plan.";
 
-const DISPLAY_WINDOW_MONTHS = 3;
+const DISPLAY_WINDOW_MONTHS = 1;
 const DURATION_TO_FORECAST_PARAM: Record<string, string> = {
   "3 months": "three_months",
   "6 months": "six_months",
@@ -169,6 +172,7 @@ export function CalculatorHubSection() {
     (activeDefinition?.getSeriesLabel ? activeDefinition.getSeriesLabel(formState as any) : undefined) ?? "Modeled price";
 
   const dipThresholdString = String((formState as Record<string, unknown>).dipThreshold ?? "");
+  const maPeriodString = String((formState as Record<string, unknown>).maPeriod ?? "50");
   const durationInput = typeof formState.duration === "string" ? formState.duration : undefined;
   const { displayDataset, displayWindowStart } = useMemo(() => {
     if (!priceHistory.length) {
@@ -223,6 +227,7 @@ export function CalculatorHubSection() {
 
     const overlays: PriceTrajectoryOverlay[] = [];
     const markers: PriceTrajectoryEventMarker[] = [];
+    let samplePathSeries: TimeSeriesValuePoint[] = [];
 
     if (forecastProjection.length) {
       const meanOverlayPoints: PriceTrajectoryOverlay["data"] = [];
@@ -264,9 +269,9 @@ export function CalculatorHubSection() {
         const upperPoints = downsampleSeries(upperOverlayPoints, MAX_FORECAST_LINE_POINTS);
         overlays.push({
           id: "forecast-upper",
-          label: "90th percentile",
+          label: "Bullish",
           data: upperPoints,
-          color: "rgba(59, 130, 246, 0.8)",
+          color: "rgba(34, 197, 94, 0.8)",
           strokeWidth: 1.5,
           borderDash: [3, 3],
           tension: 0,
@@ -279,7 +284,7 @@ export function CalculatorHubSection() {
         const lowerPoints = downsampleSeries(lowerOverlayPoints, MAX_FORECAST_LINE_POINTS);
         overlays.push({
           id: "forecast-lower",
-          label: "10th percentile",
+          label: "Bearish",
           data: lowerPoints,
           color: "rgba(239, 68, 68, 0.8)",
           strokeWidth: 1.5,
@@ -289,24 +294,37 @@ export function CalculatorHubSection() {
           clipToWindow: false,
         });
       }
+
+      // Generate a sample path for visual texture
+      const lastHistoricalPrice = priceHistory.length
+        ? priceHistory[priceHistory.length - 1].close
+        : forecastProjection[0]?.mean ?? 0;
+
+      if (lastHistoricalPrice > 0) {
+        const samplePathPoints = generateSamplePath(forecastProjection, lastHistoricalPrice, 42);
+        if (samplePathPoints.length) {
+          samplePathSeries = samplePathPoints;
+          const downsampledSamplePath = downsampleSeries(samplePathPoints, MAX_FORECAST_LINE_POINTS);
+          overlays.push({
+            id: "forecast-sample-path",
+            label: "Sample path",
+            data: downsampledSamplePath,
+            color: "rgba(255, 255, 255, 0.6)",
+            strokeWidth: 1.5,
+            tension: 0.2,
+            pointRadius: 0,
+            clipToWindow: false,
+          });
+        }
+      }
     }
 
+    // Combine historical series with sample path for calculations that need volatility
+    const historicalWithSamplePath: TimeSeriesValuePoint[] = samplePathSeries.length
+      ? [...historicalSeries, ...samplePathSeries].sort((a, b) => a.x - b.x)
+      : historicalSeries;
+
     if (activeCalculatorId === "dca") {
-      overlays.push(
-        {
-          id: "dca-sma-20",
-          label: "20-day SMA",
-          data: buildMovingAverageSeries(combinedSeries, 20),
-          color: "rgba(56, 189, 248, 0.95)",
-        },
-        {
-          id: "dca-sma-60",
-          label: "60-day SMA",
-          data: buildMovingAverageSeries(combinedSeries, 60),
-          color: "rgba(129, 140, 248, 0.9)",
-          borderDash: [4, 4],
-        },
-      );
       if (dcaSimulation?.points.length) {
         markers.push({
           id: "dca-scheduled-buys",
@@ -336,67 +354,114 @@ export function CalculatorHubSection() {
         });
       }
     } else if (activeCalculatorId === "buy-the-dip") {
-      overlays.push({
-        id: "buy-dip-sma-20",
-        label: "20-day SMA",
-        data: buildMovingAverageSeries(combinedSeries, 20),
-        color: "rgba(16, 185, 129, 0.85)",
-      });
-
       const parsedThreshold = Number.parseFloat(dipThresholdString);
       const normalizedThreshold = Number.isFinite(parsedThreshold) ? parsedThreshold : 10;
-      const dipSeries = buildDipTriggerSeries(combinedSeries, normalizedThreshold, 30);
+      
+      // Detect dips on the sample path itself
+      if (samplePathSeries.length) {
+        const dipSeries = buildDipTriggerSeries(samplePathSeries, normalizedThreshold, 30);
 
-      if (dipSeries.recentHighs.length) {
-        overlays.push({
-          id: "buy-dip-recent-high",
-          label: "30-day recent high",
-          data: dipSeries.recentHighs,
-          color: "rgba(251, 191, 36, 0.9)",
-          borderDash: [6, 4],
-        });
-      }
+        // Only show buy markers, no threshold or rolling high lines
+        if (dipSeries.dipEvents.length) {
+          markers.push({
+            id: "buy-dip-events",
+            label: "Dip-triggered buys",
+            points: dipSeries.dipEvents.map((point) => ({
+              ...point,
+              meta: {
+                action: `Buy: ${normalizedThreshold}% dip`,
+                price: point.y,
+                date: new Date(point.x).toISOString().slice(0, 10),
+              },
+            })),
+            backgroundColor: "rgba(16, 185, 129, 0.85)",
+            borderColor: "rgba(5, 150, 105, 1)",
+            radius: 5,
+          });
+        }
+      } else if (historicalWithSamplePath.length) {
+        // Fallback to historical data if no sample path
+        const dipSeries = buildDipTriggerSeries(historicalWithSamplePath, normalizedThreshold, 30);
 
-      if (dipSeries.thresholdLine.length) {
-        overlays.push({
-          id: "buy-dip-threshold",
-          label: `${normalizedThreshold}% dip threshold`,
-          data: dipSeries.thresholdLine,
-          color: "rgba(248, 113, 113, 0.9)",
-          borderDash: [2, 4],
-          strokeWidth: 1.5,
-        });
-      }
-
-      if (dipSeries.dipEvents.length) {
-        markers.push({
-          id: "buy-dip-events",
-          label: "Dip triggers",
-          points: dipSeries.dipEvents.map((point) => ({
-            ...point,
-            meta: {
-              action: `${normalizedThreshold}% dip trigger`,
-              price: point.y,
-              date: new Date(point.x).toISOString().slice(0, 10),
-            },
-          })),
-          backgroundColor: "rgba(239, 68, 68, 0.7)",
-          borderColor: "rgba(220, 38, 38, 1)",
-          radius: 5,
-        });
+        if (dipSeries.dipEvents.length) {
+          markers.push({
+            id: "buy-dip-events",
+            label: "Dip-triggered buys",
+            points: dipSeries.dipEvents.map((point) => ({
+              ...point,
+              meta: {
+                action: `Buy: ${normalizedThreshold}% dip`,
+                price: point.y,
+                date: new Date(point.x).toISOString().slice(0, 10),
+              },
+            })),
+            backgroundColor: "rgba(16, 185, 129, 0.85)",
+            borderColor: "rgba(5, 150, 105, 1)",
+            radius: 5,
+          });
+        }
       }
     } else if (activeCalculatorId === "trend-following") {
-      const definedPeriods = [50, 100, 200];
-      definedPeriods.forEach((period, index) => {
-        overlays.push({
-          id: `trend-ma-${period}`,
-          label: `${period}-day SMA`,
-          data: buildMovingAverageSeries(combinedSeries, period),
-          color: index === 0 ? "rgba(59, 130, 246, 0.95)" : index === 1 ? "rgba(16, 185, 129, 0.9)" : "rgba(236, 72, 153, 0.9)",
-          borderDash: index === 0 ? undefined : [4, 4],
-          strokeWidth: 2,
-        });
-      });
+      // Get the MA period from form state
+      const maPeriod = Number.parseInt(maPeriodString, 10);
+
+      if (Number.isFinite(maPeriod) && samplePathSeries.length) {
+        // Detect crossovers on the sample path
+        const crossoverData = buildMACrossoverSeries(
+          [...historicalSeries, ...samplePathSeries],
+          maPeriod
+        );
+
+        // Add the selected MA line
+        if (crossoverData.maSeries.length) {
+          overlays.push({
+            id: `trend-ma-${maPeriod}`,
+            label: `${maPeriod}-day SMA`,
+            data: crossoverData.maSeries,
+            color: "rgba(59, 130, 246, 0.95)",
+            strokeWidth: 2.5,
+            pointRadius: 0,
+          });
+        }
+
+        // Add buy signals (green markers)
+        if (crossoverData.buySignals.length) {
+          markers.push({
+            id: "trend-buy-signals",
+            label: "Buy signals (price > MA)",
+            points: crossoverData.buySignals.map((point) => ({
+              ...point,
+              meta: {
+                action: "Buy signal",
+                price: point.y,
+                date: new Date(point.x).toISOString().slice(0, 10),
+              },
+            })),
+            backgroundColor: "rgba(16, 185, 129, 0.85)",
+            borderColor: "rgba(5, 150, 105, 1)",
+            radius: 5,
+          });
+        }
+
+        // Add sell signals (red markers)
+        if (crossoverData.sellSignals.length) {
+          markers.push({
+            id: "trend-sell-signals",
+            label: "Sell signals (price < MA)",
+            points: crossoverData.sellSignals.map((point) => ({
+              ...point,
+              meta: {
+                action: "Sell signal",
+                price: point.y,
+                date: new Date(point.x).toISOString().slice(0, 10),
+              },
+            })),
+            backgroundColor: "rgba(239, 68, 68, 0.85)",
+            borderColor: "rgba(220, 38, 38, 1)",
+            radius: 5,
+          });
+        }
+      }
     }
 
     const clipHistoricalPoints = <T extends { x: number }>(points: T[]) => {
@@ -430,13 +495,23 @@ export function CalculatorHubSection() {
     activeCalculatorId,
     combinedSeries,
     dipThresholdString,
+    maPeriodString,
     dcaSimulation,
     projectionStartTimestamp,
     displayWindowStart,
     forecastProjection,
+    priceHistory,
+    forecastMeanSeries,
+    historicalSeries,
   ]);
 
   const strategyEventMarkers = useMemo<PriceTrajectoryEventMarker[]>(() => {
+    // For buy-the-dip and trend-following, we generate markers on the sample path in the frontend
+    // Skip Nova's strategy overlays to avoid duplicate markers
+    if (activeCalculatorId === "buy-the-dip" || activeCalculatorId === "trend-following") {
+      return [];
+    }
+
     if (!strategyOverlays.length) {
       return [];
     }
@@ -503,7 +578,7 @@ export function CalculatorHubSection() {
         } as PriceTrajectoryEventMarker;
       })
       .filter(Boolean) as PriceTrajectoryEventMarker[];
-  }, [strategyOverlays]);
+  }, [strategyOverlays, activeCalculatorId]);
 
   const combinedEventMarkers = useMemo(
     () => [...eventMarkers, ...strategyEventMarkers],

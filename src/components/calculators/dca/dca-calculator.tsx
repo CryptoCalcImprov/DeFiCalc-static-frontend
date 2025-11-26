@@ -33,12 +33,17 @@ function buildPrompt(formState: DcaFormState, forecastParams?: Record<string, un
   const forecastParamsPayload = forecastParams ? JSON.stringify(forecastParams) : "{}";
 
   return joinPromptLines([
-    "Use the forecast MCP tool to fetch price history and a forecast path.",
-    `Call the tool with FORECAST_PARAMS and use its chart.history and chart.projection (mean, percentile_10, percentile_90).`,
-    "Only use the `get_forecast` MCP tool for this run; do not call `get_coindesk_history`, `calculate_expression`, or any other tools.",
-    "Perform all calculations directly from the returned projection; do not invoke calculate_expression.",
-    "Do not invent additional price paths—anchor analysis on the returned projection.",
-    "You must include the returned chart in your JSON under a top-level `chart` key with `history` and `projection` arrays.",
+    "IMPORTANT: Call ONLY the `get_forecast` MCP tool. Do NOT call any other tools.",
+    "The `get_forecast` tool returns BOTH historical data AND projections - you do NOT need `get_coindesk_history`.",
+    "Do NOT call: get_coindesk_history, calculate_expression, or any other tool.",
+    "",
+    `Call get_forecast with FORECAST_PARAMS and analyze the chart.projection data (mean, percentile_10, percentile_90).`,
+    "Perform all calculations directly from the returned projection; do not invoke any calculation tools.",
+    "",
+    "IMPORTANT: Do NOT include the chart data in your response.",
+    "The chart data is already captured from the tool call - you only need to provide the insight.",
+    "Focus on analysis and metrics, not echoing data.",
+    "",
     `Strategy: invest ${amount} USD of ${normalizedToken} on a ${interval} cadence for ${duration}.`,
     "",
     "FORECAST_PARAMS:",
@@ -85,12 +90,14 @@ function buildPrompt(formState: DcaFormState, forecastParams?: Record<string, un
     "      }",
     "    ],",
     '    "notes": ["Include optional closing reminders or action items when helpful."]',
-    "  }",
-    '  ,"chart": {',
+    "  },",
+    '  "chart": {',
     '    "history": [',
+    "      // Include ALL OHLC candles from the MCP tool response",
     '      { "timestamp": "YYYY-MM-DDTHH:MM:SSZ", "open": 0, "high": 0, "low": 0, "close": 0 }',
     "    ],",
     '    "projection": [',
+    "      // Include EVERY forecast data point from the MCP tool - do NOT reduce to start/end only",
     '      { "timestamp": "YYYY-MM-DDTHH:MM:SSZ", "mean": 0, "percentile_10": 0, "percentile_90": 0 }',
     "    ]",
     "  }",
@@ -208,7 +215,7 @@ export const dcaCalculatorDefinition: CalculatorDefinition<DcaFormState> = {
     const prompt = buildPrompt(formState, forecastParams);
 
     return buildNovaRequestOptions(prompt, {
-      max_tokens: 18000,
+      max_tokens: 50000,
       ...(forecastParams ? { bodyExtras: { forecast_params: forecastParams } } : {}),
     });
   },
