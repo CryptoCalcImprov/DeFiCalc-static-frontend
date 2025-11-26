@@ -2,12 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChartConfiguration } from "chart.js";
-import type {} from "chartjs-chart-financial";
-import type {} from "chartjs-plugin-zoom";
 
 import type { CoinGeckoCandle } from "@/components/calculators/types";
 import { CalculatorSpinner } from "@/components/calculators/workspace/CalculatorSpinner";
 import { LoadingDots } from "@/components/ui/loading-dots";
+import {
+  estimateDriftAndVolatility,
+  generateMonteCarloPath,
+  MonteCarloHorizons,
+  type MonteCarloHorizon,
+  type MonteCarloTrajectoryPoint,
+} from "@/lib/monte-carlo";
 
 const PRICE_AXIS_DECIMAL_LIMIT = 6;
 const PRICE_TOOLTIP_DECIMAL_LIMIT = 4;
@@ -54,22 +59,14 @@ function formatTooltipPrice(value: number): string {
   return `$${value.toFixed(decimals)}`;
 }
 
-type ChartJsModule = typeof import("chart.js/auto");
-type ChartConstructor = ChartJsModule extends { default: infer T } ? T : never;
+type ChartConstructor = typeof import("chart.js/auto") extends { default: infer T } ? T : never;
 type ChartInstance = ChartConstructor extends new (...args: any[]) => infer R ? R : never;
-type ChartTooltipModule = typeof import("chart.js");
-
-let chartJsModuleRef: ChartJsModule | null = null;
-let chartConstructorRef: ChartConstructor | null = null;
-let chartTooltipModuleRef: ChartTooltipModule | null = null;
-let hasRegisteredPlugins = false;
 
 export type PriceTrajectoryOverlay = {
   id: string;
   label: string;
   data: { x: number; y: number }[];
   color: string;
-  clipToWindow?: boolean;
   backgroundColor?: string;
   borderDash?: number[];
   strokeWidth?: number;
@@ -114,6 +111,8 @@ type PriceTrajectoryPanelProps = {
   emptyMessage?: string;
   technicalOverlays?: PriceTrajectoryOverlay[];
   eventMarkers?: PriceTrajectoryEventMarker[];
+  onMonteCarloPath?: (trajectory: MonteCarloTrajectoryPoint[] | null) => void;
+  monteCarloHorizon?: MonteCarloHorizon;
 };
 
 export function PriceTrajectoryPanel({
@@ -125,6 +124,8 @@ export function PriceTrajectoryPanel({
   emptyMessage = "Run the projection to visualize one year of CoinGecko price history.",
   technicalOverlays = [],
   eventMarkers = [],
+  onMonteCarloPath,
+  monteCarloHorizon,
 }: PriceTrajectoryPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartInstance | null>(null);
@@ -133,7 +134,63 @@ export function PriceTrajectoryPanel({
 
   const hasDataset = dataset.length > 0;
 
-  const overlaysForRendering = useMemo(() => technicalOverlays, [technicalOverlays]);
+  const monteCarloOverlay = useMemo(() => {
+    if (!dataset.length) {
+      return null;
+    }
+
+    const closes = dataset.map((candle) => candle.close);
+    const stats = estimateDriftAndVolatility(closes);
+    if (!stats) {
+      return null;
+    }
+
+    const latestCandle = dataset[dataset.length - 1];
+    const horizonMonths = monteCarloHorizon ?? MonteCarloHorizons.SIX_MONTHS;
+    const trajectory = generateMonteCarloPath({
+      startPrice: latestCandle.close,
+      startTimestamp: new Date(latestCandle.date).getTime(),
+      drift: stats.drift,
+      volatility: stats.volatility,
+      config: {
+        horizonMonths,
+        stepDays: 1,
+        seed: 13579,
+      },
+    });
+
+    if (!trajectory.length) {
+      return null;
+    }
+
+    return {
+      id: "monte-carlo-path",
+      label: "Monte Carlo projection",
+      data: trajectory,
+      color: "#FBA94C",
+      backgroundColor: "rgba(251, 169, 76, 0.15)",
+      strokeWidth: 2.5,
+      borderDash: [6, 4],
+      tension: 0.3,
+      pointRadius: 0,
+      fill: false,
+      yAxisID: undefined,
+      order: 50,
+    };
+  }, [dataset, monteCarloHorizon]);
+
+  useEffect(() => {
+    const trajectory = (monteCarloOverlay?.data ?? null) as MonteCarloTrajectoryPoint[] | null;
+    onMonteCarloPath?.(trajectory);
+  }, [monteCarloOverlay, onMonteCarloPath]);
+
+  const overlaysForRendering = useMemo(() => {
+    if (!monteCarloOverlay) {
+      return technicalOverlays;
+    }
+
+    return [...technicalOverlays, monteCarloOverlay];
+  }, [technicalOverlays, monteCarloOverlay]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -271,45 +328,10 @@ export function PriceTrajectoryPanel({
   }, [hasDataset]);
 
 
-  const ensureChartModulesRegistered = (): ChartConstructor | null => {
-    if (typeof window === "undefined") {
-      return null;
-    }
-
-    if (!chartJsModuleRef || !chartConstructorRef || !chartTooltipModuleRef) {
-      const chartModule = require("chart.js/auto");
-      const tooltipModule = require("chart.js");
-      chartJsModuleRef = chartModule;
-      chartTooltipModuleRef = tooltipModule;
-      chartConstructorRef = (chartModule.default ?? chartModule) as ChartConstructor;
-
-      const globalRef = typeof window !== "undefined" ? window : globalThis;
-      if (globalRef && !(globalRef as Record<string, unknown>).Chart) {
-        (globalRef as Record<string, unknown>).Chart = chartConstructorRef;
-      }
-    }
-
-    if (!hasRegisteredPlugins && chartConstructorRef) {
-      require("chartjs-chart-financial/dist/chartjs-chart-financial.min.js");
-      const adapterModule = require("chartjs-adapter-date-fns");
-      const resolvedAdapter = adapterModule?.default ?? adapterModule;
-      if (resolvedAdapter && (chartConstructorRef as any)._adapters) {
-        (chartConstructorRef as any)._adapters._date = resolvedAdapter;
-      }
-      const zoomModule = require("chartjs-plugin-zoom");
-      const zoomPluginModule = zoomModule.default ?? zoomModule;
-      chartConstructorRef.register(zoomPluginModule);
-      registerCursorOffsetTooltip(chartConstructorRef, chartTooltipModuleRef as Record<string, unknown>);
-      hasRegisteredPlugins = true;
-    }
-
-    return chartConstructorRef;
-  };
-
   useEffect(() => {
     let isMounted = true;
 
-    const renderChart = () => {
+    const renderChart = async () => {
       const canvas = canvasRef.current;
       if (!canvas) {
         return;
@@ -322,10 +344,33 @@ export function PriceTrajectoryPanel({
       }
 
       try {
-        const ChartJs = ensureChartModulesRegistered();
-        if (!ChartJs || !isMounted || !canvas) {
+        const [chartModule, financialModule, timeAdapterModule, zoomModule] = await Promise.all([
+          import("chart.js/auto"),
+          import("chartjs-chart-financial"),
+          import("chartjs-adapter-date-fns"),
+          import("chartjs-plugin-zoom"),
+        ]);
+        if (!isMounted || !canvas) {
           return;
         }
+
+        const ChartJs = chartModule.default as ChartConstructor;
+
+        // Register financial chart controller and element
+        // chartjs-chart-financial exports CandlestickController and CandlestickElement
+        const { CandlestickController, CandlestickElement } = financialModule as any;
+        if (CandlestickController && CandlestickElement) {
+          ChartJs.register(CandlestickController, CandlestickElement);
+        }
+        
+        // Register time adapter for date formatting on x-axis
+        if (timeAdapterModule?.default) {
+          ChartJs.register(timeAdapterModule.default);
+        }
+        if (zoomModule?.default) {
+          ChartJs.register(zoomModule.default);
+        }
+        registerCursorOffsetTooltip(ChartJs, chartModule as Record<string, unknown>);
 
         chartRef.current?.destroy();
 
@@ -603,7 +648,7 @@ export function PriceTrajectoryPanel({
       }
     };
 
-    renderChart();
+    void renderChart();
 
     return () => {
       isMounted = false;
