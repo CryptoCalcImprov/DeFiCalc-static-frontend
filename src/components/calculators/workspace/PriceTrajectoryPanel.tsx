@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChartConfiguration } from "chart.js";
+import type {} from "chartjs-chart-financial";
+import type {} from "chartjs-plugin-zoom";
 
 import type { CoinGeckoCandle } from "@/components/calculators/types";
 import { CalculatorSpinner } from "@/components/calculators/workspace/CalculatorSpinner";
@@ -52,14 +54,22 @@ function formatTooltipPrice(value: number): string {
   return `$${value.toFixed(decimals)}`;
 }
 
-type ChartConstructor = typeof import("chart.js/auto") extends { default: infer T } ? T : never;
+type ChartJsModule = typeof import("chart.js/auto");
+type ChartConstructor = ChartJsModule extends { default: infer T } ? T : never;
 type ChartInstance = ChartConstructor extends new (...args: any[]) => infer R ? R : never;
+type ChartTooltipModule = typeof import("chart.js");
+
+let chartJsModuleRef: ChartJsModule | null = null;
+let chartConstructorRef: ChartConstructor | null = null;
+let chartTooltipModuleRef: ChartTooltipModule | null = null;
+let hasRegisteredPlugins = false;
 
 export type PriceTrajectoryOverlay = {
   id: string;
   label: string;
   data: { x: number; y: number }[];
   color: string;
+  clipToWindow?: boolean;
   backgroundColor?: string;
   borderDash?: number[];
   strokeWidth?: number;
@@ -261,10 +271,45 @@ export function PriceTrajectoryPanel({
   }, [hasDataset]);
 
 
+  const ensureChartModulesRegistered = (): ChartConstructor | null => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    if (!chartJsModuleRef || !chartConstructorRef || !chartTooltipModuleRef) {
+      const chartModule = require("chart.js/auto");
+      const tooltipModule = require("chart.js");
+      chartJsModuleRef = chartModule;
+      chartTooltipModuleRef = tooltipModule;
+      chartConstructorRef = (chartModule.default ?? chartModule) as ChartConstructor;
+
+      const globalRef = typeof window !== "undefined" ? window : globalThis;
+      if (globalRef && !(globalRef as Record<string, unknown>).Chart) {
+        (globalRef as Record<string, unknown>).Chart = chartConstructorRef;
+      }
+    }
+
+    if (!hasRegisteredPlugins && chartConstructorRef) {
+      require("chartjs-chart-financial/dist/chartjs-chart-financial.min.js");
+      const adapterModule = require("chartjs-adapter-date-fns");
+      const resolvedAdapter = adapterModule?.default ?? adapterModule;
+      if (resolvedAdapter && (chartConstructorRef as any)._adapters) {
+        (chartConstructorRef as any)._adapters._date = resolvedAdapter;
+      }
+      const zoomModule = require("chartjs-plugin-zoom");
+      const zoomPluginModule = zoomModule.default ?? zoomModule;
+      chartConstructorRef.register(zoomPluginModule);
+      registerCursorOffsetTooltip(chartConstructorRef, chartTooltipModuleRef as Record<string, unknown>);
+      hasRegisteredPlugins = true;
+    }
+
+    return chartConstructorRef;
+  };
+
   useEffect(() => {
     let isMounted = true;
 
-    const renderChart = async () => {
+    const renderChart = () => {
       const canvas = canvasRef.current;
       if (!canvas) {
         return;
@@ -277,33 +322,10 @@ export function PriceTrajectoryPanel({
       }
 
       try {
-        const [chartModule, financialModule, timeAdapterModule, zoomModule] = await Promise.all([
-          import("chart.js/auto"),
-          import("chartjs-chart-financial"),
-          import("chartjs-adapter-date-fns"),
-          import("chartjs-plugin-zoom"),
-        ]);
-        if (!isMounted || !canvas) {
+        const ChartJs = ensureChartModulesRegistered();
+        if (!ChartJs || !isMounted || !canvas) {
           return;
         }
-
-        const ChartJs = chartModule.default as ChartConstructor;
-
-        // Register financial chart controller and element
-        // chartjs-chart-financial exports CandlestickController and CandlestickElement
-        const { CandlestickController, CandlestickElement } = financialModule as any;
-        if (CandlestickController && CandlestickElement) {
-          ChartJs.register(CandlestickController, CandlestickElement);
-        }
-        
-        // Register time adapter for date formatting on x-axis
-        if (timeAdapterModule?.default) {
-          ChartJs.register(timeAdapterModule.default);
-        }
-        if (zoomModule?.default) {
-          ChartJs.register(zoomModule.default);
-        }
-        registerCursorOffsetTooltip(ChartJs, chartModule as Record<string, unknown>);
 
         chartRef.current?.destroy();
 
@@ -581,7 +603,7 @@ export function PriceTrajectoryPanel({
       }
     };
 
-    void renderChart();
+    renderChart();
 
     return () => {
       isMounted = false;

@@ -36,6 +36,8 @@ function buildPrompt(formState: TrendFollowingFormState, forecastParams?: Record
   return joinPromptLines([
     "Use the forecast MCP tool to fetch price history and a forward projection.",
     "Call the tool with FORECAST_PARAMS and rely on chart.history and chart.projection (mean, percentile_10, percentile_90).",
+    "Only use the `get_forecast` MCP tool for this run; do not call `get_coindesk_history`, `calculate_expression`, or other tools.",
+    "Compute all metrics locally from the projection; do not invoke calculate_expression.",
     "Use those prices to explain how the strategy would trade. Do not synthesize new price series.",
     "You must include the returned chart under a top-level `chart` key with `history` and `projection` arrays.",
     `Strategy: start with ${initialCapital} USD. Go long ${normalizedToken} when price exceeds the ${maPeriod}-day moving average; otherwise hold stablecoin. Project across ${duration}.`,

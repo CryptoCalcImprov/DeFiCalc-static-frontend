@@ -74,7 +74,7 @@ module.exports = function nextConfig(phase) {
     // Increase timeout for dev server requests (handles long image generation)
     config.experimental = {
       ...config.experimental,
-      proxyTimeout: 300000, // 5 minutes in milliseconds
+      proxyTimeout: 600000, // 10 minutes in milliseconds
     };
   }
 

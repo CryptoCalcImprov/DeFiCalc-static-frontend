@@ -36,6 +36,8 @@ function buildPrompt(formState: BuyTheDipFormState, forecastParams?: Record<stri
   return joinPromptLines([
     "Use the forecast MCP tool to fetch price history and a forecast path.",
     "Call the tool with FORECAST_PARAMS and rely on chart.history and chart.projection (mean, percentile_10, percentile_90).",
+    "Only use the `get_forecast` MCP tool for this run; do not call `get_coindesk_history`, `calculate_expression`, or other tools.",
+    "Perform all math from the returned projection; do not invoke calculate_expression.",
     "Do not invent additional prices—anchor annotations to the returned projection.",
     "You must include the returned chart under a top-level `chart` key with `history` and `projection` arrays.",
     `Strategy: deploy ${budget} USD to buy ${normalizedToken} after ${dipThreshold}%+ drops from recent highs within ${duration}.`,

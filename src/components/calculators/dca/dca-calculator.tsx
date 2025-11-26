@@ -35,6 +35,8 @@ function buildPrompt(formState: DcaFormState, forecastParams?: Record<string, un
   return joinPromptLines([
     "Use the forecast MCP tool to fetch price history and a forecast path.",
     `Call the tool with FORECAST_PARAMS and use its chart.history and chart.projection (mean, percentile_10, percentile_90).`,
+    "Only use the `get_forecast` MCP tool for this run; do not call `get_coindesk_history`, `calculate_expression`, or any other tools.",
+    "Perform all calculations directly from the returned projection; do not invoke calculate_expression.",
     "Do not invent additional price paths—anchor analysis on the returned projection.",
     "You must include the returned chart in your JSON under a top-level `chart` key with `history` and `projection` arrays.",
     `Strategy: invest ${amount} USD of ${normalizedToken} on a ${interval} cadence for ${duration}.`,

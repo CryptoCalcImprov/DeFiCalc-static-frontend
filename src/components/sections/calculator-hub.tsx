@@ -50,6 +50,8 @@ const DURATION_TO_FORECAST_PARAM: Record<string, string> = {
   "3 years": "three_years",
 };
 
+const MAX_FORECAST_LINE_POINTS = 400;
+
 const DURATION_TO_MONTHS: Record<string, number> = {
   "3 months": 3,
   "6 months": 6,
@@ -89,6 +91,26 @@ function resolveIntervalToDays(interval?: unknown): number {
 
   const normalized = interval.trim().toLowerCase();
   return INTERVAL_TO_DAYS[normalized] ?? 14;
+}
+
+function downsampleSeries<T extends { x: number; y: number }>(points: T[], maxPoints: number): T[] {
+  if (!Array.isArray(points) || points.length <= maxPoints || maxPoints <= 0) {
+    return points;
+  }
+
+  const stride = Math.ceil(points.length / maxPoints);
+  const result: T[] = [];
+
+  for (let index = 0; index < points.length; index += stride) {
+    result.push(points[index]);
+  }
+
+  const lastPoint = points[points.length - 1];
+  if (result[result.length - 1] !== lastPoint) {
+    result.push(lastPoint);
+  }
+
+  return result;
 }
 
 async function searchCoinGeckoAssetId(query: string): Promise<string | null> {
@@ -224,41 +246,47 @@ export function CalculatorHubSection() {
       });
 
       if (meanOverlayPoints.length) {
+        const meanPoints = downsampleSeries(meanOverlayPoints, MAX_FORECAST_LINE_POINTS);
         overlays.push({
           id: "forecast-mean",
           label: "Forecast mean",
-          data: meanOverlayPoints,
+          data: meanPoints,
           color: "rgba(251, 169, 76, 0.95)",
           strokeWidth: 2.5,
           borderDash: [6, 4],
-          tension: 0.25,
+          tension: 0,
           pointRadius: 0,
+          clipToWindow: false,
         });
       }
 
       if (upperOverlayPoints.length) {
+        const upperPoints = downsampleSeries(upperOverlayPoints, MAX_FORECAST_LINE_POINTS);
         overlays.push({
           id: "forecast-upper",
           label: "90th percentile",
-          data: upperOverlayPoints,
+          data: upperPoints,
           color: "rgba(59, 130, 246, 0.8)",
           strokeWidth: 1.5,
           borderDash: [3, 3],
-          tension: 0.2,
+          tension: 0,
           pointRadius: 0,
+          clipToWindow: false,
         });
       }
 
       if (lowerOverlayPoints.length) {
+        const lowerPoints = downsampleSeries(lowerOverlayPoints, MAX_FORECAST_LINE_POINTS);
         overlays.push({
           id: "forecast-lower",
           label: "10th percentile",
-          data: lowerOverlayPoints,
+          data: lowerPoints,
           color: "rgba(239, 68, 68, 0.8)",
           strokeWidth: 1.5,
           borderDash: [3, 3],
-          tension: 0.2,
+          tension: 0,
           pointRadius: 0,
+          clipToWindow: false,
         });
       }
     }
@@ -380,10 +408,14 @@ export function CalculatorHubSection() {
       projectionStartTimestamp ? points.filter((point) => point.x >= projectionStartTimestamp) : points;
 
     const filteredOverlays = overlays
-      .map((overlay) => ({
-        ...overlay,
-        data: clipHistoricalPoints(overlay.data),
-      }))
+      .map((overlay) => {
+        const shouldClip = overlay.clipToWindow !== false;
+        const data = shouldClip ? clipHistoricalPoints(overlay.data) : overlay.data;
+        return {
+          ...overlay,
+          data,
+        };
+      })
       .filter((overlay) => overlay.data.length);
 
     const filteredMarkers = markers

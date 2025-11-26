@@ -21,6 +21,7 @@ const DEFAULT_BODY = {
   reasoning: false,
   reasoning_params: {},
   image_urls: [] as string[],
+  streaming: false,
 };
 
 function createRequestUrl() {
