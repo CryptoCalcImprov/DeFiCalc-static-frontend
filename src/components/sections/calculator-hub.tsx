@@ -98,6 +98,8 @@ const FORECAST_SCENARIO_COLORS: Record<ForecastScenario, string> = {
   bullish: "#22C55E",
 };
 
+const SCENARIO_STRATEGY_COLOR = "#FACC15"; // amber
+
 const FORECAST_SCENARIO_KEYS: ForecastScenario[] = ["likely", "bearish", "bullish"];
 
 function resolveDurationToMonths(duration?: unknown): number {
@@ -495,6 +497,27 @@ export function CalculatorHubSection() {
       }
       const scenarioSimulation = forecastScenarioSimulations[activeScenario];
       if (scenarioSimulation?.points.length) {
+        overlays.push({
+          id: "dca-scenario-line",
+          label: "Scheduled buys",
+          data: scenarioSimulation.points
+            .map((point) => {
+              const timestamp = new Date(point.date).getTime();
+              if (!Number.isFinite(timestamp) || !Number.isFinite(point.price)) {
+                return null;
+              }
+              return {
+                x: timestamp,
+                y: point.price,
+              };
+            })
+            .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
+          color: SCENARIO_STRATEGY_COLOR,
+          strokeWidth: 2,
+          borderDash: [2, 4],
+          pointRadius: 0,
+          order: 2000,
+        });
         markers.push({
           id: "dca-sample-schedule",
           label: "Scheduled buys",
@@ -517,8 +540,8 @@ export function CalculatorHubSection() {
               };
             })
             .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
-          backgroundColor: "rgba(236, 72, 153, 0.85)",
-          borderColor: "rgba(219, 39, 119, 1)",
+          backgroundColor: SCENARIO_STRATEGY_COLOR,
+          borderColor: SCENARIO_STRATEGY_COLOR,
           radius: 4,
         });
       }
@@ -799,6 +822,13 @@ export function CalculatorHubSection() {
         const resolvedDurationMonths = resolveDurationToMonths(rawDuration);
         dcaResolvedDurationMonths = resolvedDurationMonths;
         projectionMonthsOverride = resolvedDurationMonths;
+        const rawAmount = Number((currentState as Record<string, unknown>).amount ?? 0);
+        const intervalValue = typeof currentState.interval === "string" ? currentState.interval : "bi-weekly";
+        const intervalDays = resolveIntervalToDays(intervalValue);
+        const durationMonths = dcaResolvedDurationMonths ?? resolveDurationToMonths(rawDuration);
+        dcaAmountValue = rawAmount;
+        dcaIntervalDaysValue = intervalDays;
+        dcaDurationMonthsValue = durationMonths;
         const forecastDuration = resolveForecastDuration(rawDuration);
         const forecastPayload = await requestLongTermForecast({
           assetId: coinId,
@@ -920,21 +950,12 @@ export function CalculatorHubSection() {
       }
 
       if (activeCalculatorId === "dca" && chartProjection) {
-        const amountValue = Number((currentState as Record<string, unknown>).amount ?? 0);
-        const intervalValue = typeof currentState.interval === "string" ? currentState.interval : "bi-weekly";
-        const durationValue = typeof currentState.duration === "string" ? currentState.duration : "6 months";
-        const intervalDays = resolveIntervalToDays(intervalValue);
-        const durationMonths = dcaResolvedDurationMonths ?? resolveDurationToMonths(durationValue);
-        dcaAmountValue = amountValue;
-        dcaIntervalDaysValue = intervalDays;
-        dcaDurationMonthsValue = durationMonths;
-
-        if (Number.isFinite(amountValue) && amountValue > 0) {
+        if (Number.isFinite(dcaAmountValue) && dcaAmountValue > 0) {
           const simulation = simulateDcaStrategy({
             projectionSeries,
-            amountPerContribution: amountValue,
-            intervalDays,
-            durationMonths,
+            amountPerContribution: dcaAmountValue,
+            intervalDays: dcaIntervalDaysValue,
+            durationMonths: dcaDurationMonthsValue,
           });
           setDcaSimulation(simulation);
         } else {

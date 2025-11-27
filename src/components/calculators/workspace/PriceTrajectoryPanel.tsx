@@ -417,7 +417,15 @@ export function PriceTrajectoryPanel({
           };
         });
 
-        const overlayDatasets = [...overlaysForRendering]
+        const scenarioOverlayIndex = overlaysForRendering.findIndex((overlay) => overlay.id === "dca-scenario-line");
+        const scenarioOverlay =
+          scenarioOverlayIndex >= 0 ? overlaysForRendering[scenarioOverlayIndex] : undefined;
+        const overlaysForLines =
+          scenarioOverlayIndex >= 0
+            ? overlaysForRendering.filter((_, index) => index !== scenarioOverlayIndex)
+            : overlaysForRendering;
+
+        const overlayDatasets = [...overlaysForLines]
           .sort((left, right) => (left.order ?? 0) - (right.order ?? 0))
           .map((overlay) => ({
             type: "line" as const,
@@ -426,12 +434,13 @@ export function PriceTrajectoryPanel({
             borderColor: overlay.color,
             borderWidth: overlay.strokeWidth ?? 2,
             backgroundColor: overlay.backgroundColor ?? "rgba(0,0,0,0)",
-          fill: overlay.fill ?? false,
-          tension: overlay.tension ?? 0.25,
-          borderDash: overlay.borderDash,
-          pointRadius: overlay.pointRadius ?? 0,
-          yAxisID: overlay.yAxisID ?? "y",
-        }));
+            fill: overlay.fill ?? false,
+            tension: overlay.tension ?? 0.25,
+            borderDash: overlay.borderDash,
+            pointRadius: overlay.pointRadius ?? 0,
+            yAxisID: overlay.yAxisID ?? "y",
+            order: overlay.order ?? 0,
+          }));
 
         const markerDatasets = eventMarkers.map((marker) => ({
           type: "bubble" as const,
@@ -447,7 +456,40 @@ export function PriceTrajectoryPanel({
           borderWidth: 2,
           showLine: false,
           yAxisID: marker.yAxisID ?? "y",
+          order: 500,
         }));
+
+        const scenarioLinePlugin =
+          scenarioOverlay && scenarioOverlay.data.length
+            ? {
+                id: "scenario-line-plugin",
+                afterDatasetsDraw(chart: any) {
+                  const points = scenarioOverlay.data;
+                  if (!points.length) {
+                    return;
+                  }
+                  const ctx = chart.ctx;
+                  const xScale = chart.scales.x;
+                  const yScale = chart.scales.y;
+                  ctx.save();
+                  ctx.strokeStyle = scenarioOverlay.color ?? "#FACC15";
+                  ctx.lineWidth = scenarioOverlay.strokeWidth ?? 2.5;
+                  ctx.setLineDash(scenarioOverlay.borderDash ?? [2, 4]);
+                  ctx.beginPath();
+                  points.forEach((point, index) => {
+                    const x = xScale.getPixelForValue(point.x);
+                    const y = yScale.getPixelForValue(point.y);
+                    if (index === 0) {
+                      ctx.moveTo(x, y);
+                    } else {
+                      ctx.lineTo(x, y);
+                    }
+                  });
+                  ctx.stroke();
+                  ctx.restore();
+                },
+              }
+            : null;
 
         const projectionCandlestickData = projectionCandles?.map((candle) => ({
           x: new Date(candle.date).getTime(),
@@ -465,6 +507,7 @@ export function PriceTrajectoryPanel({
                 type: "candlestick",
                 label: seriesLabel,
                 data: candlestickData,
+                order: -20,
                 borderColors: {
                   up: "#36D6C3", // Teal for bullish candles
                   down: "#EF4444", // Red for bearish candles
@@ -482,6 +525,7 @@ export function PriceTrajectoryPanel({
                       type: "candlestick" as const,
                       label: projectionCandlesLabel,
                       data: projectionCandlestickData,
+                      order: -10,
                       borderColor: projectionCandlesColor,
                       borderColors: {
                         up: projectionCandlesColor,
@@ -704,6 +748,10 @@ export function PriceTrajectoryPanel({
             },
           },
         };
+
+        if (scenarioLinePlugin) {
+          config.plugins = [...(config.plugins ?? []), scenarioLinePlugin];
+        }
 
         chartRef.current = new ChartJs(canvas, config);
       } catch (error) {
