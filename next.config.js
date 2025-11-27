@@ -60,14 +60,19 @@ module.exports = function nextConfig(phase) {
   };
 
   if (phase === PHASE_DEVELOPMENT_SERVER && novaDevProxyTarget) {
-    const sanitizedTarget = novaDevProxyTarget.endsWith("/ai")
-      ? novaDevProxyTarget
-      : `${novaDevProxyTarget.replace(/\/$/, "")}/ai`;
+    const trimmedTarget = novaDevProxyTarget.replace(/\/$/, "");
+    const aiDestination = trimmedTarget.endsWith("/ai") ? trimmedTarget : `${trimmedTarget}/ai`;
+    const gatewayBase = aiDestination.replace(/\/ai$/i, "");
+    const mcpDestination = `${gatewayBase}/mcp-tools`;
 
     config.rewrites = async () => [
       {
         source: "/ai",
-        destination: sanitizedTarget
+        destination: aiDestination
+      },
+      {
+        source: "/mcp-tools",
+        destination: mcpDestination
       }
     ];
 

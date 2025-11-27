@@ -113,6 +113,13 @@ type PriceTrajectoryPanelProps = {
   eventMarkers?: PriceTrajectoryEventMarker[];
   onMonteCarloPath?: (trajectory: MonteCarloTrajectoryPoint[] | null) => void;
   monteCarloHorizon?: MonteCarloHorizon;
+  projectionPath?: MonteCarloTrajectoryPoint[] | null;
+  projectionLabel?: string;
+  projectionColor?: string;
+  generateFallbackProjection?: boolean;
+  projectionCandles?: CoinGeckoCandle[] | null;
+  projectionCandlesLabel?: string;
+  projectionCandlesColor?: string;
 };
 
 export function PriceTrajectoryPanel({
@@ -126,6 +133,13 @@ export function PriceTrajectoryPanel({
   eventMarkers = [],
   onMonteCarloPath,
   monteCarloHorizon,
+  projectionPath = null,
+  projectionLabel = "Forecast projection",
+  projectionColor = "#FBA94C",
+  generateFallbackProjection = true,
+  projectionCandles = null,
+  projectionCandlesLabel = "Scenario projection",
+  projectionCandlesColor = "#60A5FA",
 }: PriceTrajectoryPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartInstance | null>(null);
@@ -134,8 +148,25 @@ export function PriceTrajectoryPanel({
 
   const hasDataset = dataset.length > 0;
 
-  const monteCarloOverlay = useMemo(() => {
-    if (!dataset.length) {
+  const projectionOverlay = useMemo(() => {
+    if (projectionPath?.length) {
+      return {
+        id: "forecast-path",
+        label: projectionLabel,
+        data: projectionPath,
+        color: projectionColor,
+        backgroundColor: "rgba(251, 169, 76, 0.15)",
+        strokeWidth: 2.5,
+        borderDash: [6, 4],
+        tension: 0.3,
+        pointRadius: 0,
+        fill: false,
+        yAxisID: undefined,
+        order: 50,
+      };
+    }
+
+    if (!generateFallbackProjection || !dataset.length) {
       return null;
     }
 
@@ -164,10 +195,10 @@ export function PriceTrajectoryPanel({
     }
 
     return {
-      id: "monte-carlo-path",
+      id: "forecast-path",
       label: "Monte Carlo projection",
       data: trajectory,
-      color: "#FBA94C",
+      color: projectionColor,
       backgroundColor: "rgba(251, 169, 76, 0.15)",
       strokeWidth: 2.5,
       borderDash: [6, 4],
@@ -177,20 +208,20 @@ export function PriceTrajectoryPanel({
       yAxisID: undefined,
       order: 50,
     };
-  }, [dataset, monteCarloHorizon]);
+  }, [dataset, generateFallbackProjection, projectionColor, projectionLabel, projectionPath, monteCarloHorizon]);
 
   useEffect(() => {
-    const trajectory = (monteCarloOverlay?.data ?? null) as MonteCarloTrajectoryPoint[] | null;
+    const trajectory = (projectionOverlay?.data ?? null) as MonteCarloTrajectoryPoint[] | null;
     onMonteCarloPath?.(trajectory);
-  }, [monteCarloOverlay, onMonteCarloPath]);
+  }, [projectionOverlay, onMonteCarloPath, projectionCandles, projectionCandlesColor, projectionCandlesLabel]);
 
   const overlaysForRendering = useMemo(() => {
-    if (!monteCarloOverlay) {
+    if (!projectionOverlay) {
       return technicalOverlays;
     }
 
-    return [...technicalOverlays, monteCarloOverlay];
-  }, [technicalOverlays, monteCarloOverlay]);
+    return [...technicalOverlays, projectionOverlay];
+  }, [technicalOverlays, projectionOverlay]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -418,6 +449,14 @@ export function PriceTrajectoryPanel({
           yAxisID: marker.yAxisID ?? "y",
         }));
 
+        const projectionCandlestickData = projectionCandles?.map((candle) => ({
+          x: new Date(candle.date).getTime(),
+          o: candle.open,
+          h: candle.high,
+          l: candle.low,
+          c: candle.close,
+        }));
+
         const config: ChartConfiguration = {
           type: "candlestick",
           data: {
@@ -437,6 +476,27 @@ export function PriceTrajectoryPanel({
                   unchanged: "rgba(148, 163, 184, 0.5)", // Gray with transparency for unchanged
                 },
               },
+              ...(projectionCandlestickData?.length
+                ? [
+                    {
+                      type: "candlestick" as const,
+                      label: projectionCandlesLabel,
+                      data: projectionCandlestickData,
+                      borderColor: projectionCandlesColor,
+                      borderColors: {
+                        up: projectionCandlesColor,
+                        down: projectionCandlesColor,
+                        unchanged: projectionCandlesColor,
+                      },
+                      backgroundColors: {
+                        up: "rgba(0,0,0,0)",
+                        down: "rgba(0,0,0,0)",
+                        unchanged: "rgba(0,0,0,0)",
+                      },
+                      borderWidth: 1.5,
+                    },
+                  ]
+                : []),
               ...overlayDatasets,
               ...markerDatasets,
             ],
@@ -450,12 +510,15 @@ export function PriceTrajectoryPanel({
             },
             plugins: {
               legend: {
+                display: true,
                 labels: {
                   color: "#E6EFFA",
                   font: {
                     size: 12,
                   },
+                  filter: (legendItem) => legendItem.datasetIndex !== 0,
                 },
+                onClick: () => undefined,
               },
               tooltip: {
                 backgroundColor: "rgba(6, 21, 34, 0.92)",
@@ -655,7 +718,16 @@ export function PriceTrajectoryPanel({
       chartRef.current?.destroy();
       chartRef.current = null;
     };
-  }, [dataset, hasDataset, seriesLabel, overlaysForRendering, eventMarkers]);
+  }, [
+    dataset,
+    hasDataset,
+    seriesLabel,
+    overlaysForRendering,
+    eventMarkers,
+    projectionCandles,
+    projectionCandlesLabel,
+    projectionCandlesColor,
+  ]);
 
   return (
     <div className="card-surface rounded-2xl bg-gradient-to-br from-slate-950/70 via-slate-950/50 to-slate-900/25 p-4 sm:rounded-3xl sm:p-6">

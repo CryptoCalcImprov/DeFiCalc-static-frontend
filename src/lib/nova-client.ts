@@ -14,6 +14,23 @@ export type RequestNovaOptions = {
   refId?: string;
 };
 
+export type McpToolCallRequest = {
+  name: string;
+  arguments?: Record<string, unknown>;
+};
+
+export type McpToolCallResultContent = {
+  type: string;
+  text?: string;
+  [key: string]: unknown;
+};
+
+export type McpToolCallResult = {
+  content?: McpToolCallResultContent[];
+  isError?: boolean;
+  [key: string]: unknown;
+};
+
 const DEFAULT_BODY = {
   model: DEFAULT_MODEL,
   verbosity: "medium",
@@ -23,25 +40,51 @@ const DEFAULT_BODY = {
   image_urls: [] as string[],
 };
 
-function createRequestUrl() {
-  const baseUrl =
-    process.env.NODE_ENV !== "development" ? process.env.NEXT_PUBLIC_NOVA_API_URL?.trim() : undefined;
-  let requestUrl = "/ai";
-
-  if (baseUrl) {
-    const sanitized = baseUrl.endsWith("/ai") ? baseUrl : `${baseUrl.replace(/\/$/, "")}/ai`;
-    requestUrl = sanitized;
-  }
-
+function toAbsoluteUrl(requestUrl: string) {
   try {
     const parsedUrl = new URL(
       requestUrl,
-      requestUrl.startsWith("http") ? undefined : typeof window !== "undefined" ? window.location.origin : undefined,
+      requestUrl.startsWith("http")
+        ? undefined
+        : typeof window !== "undefined"
+          ? window.location.origin
+          : undefined,
     );
     return parsedUrl.toString();
   } catch (error) {
     return requestUrl;
   }
+}
+
+function resolveGatewayEndpoints() {
+  const baseUrl =
+    process.env.NODE_ENV !== "development" ? process.env.NEXT_PUBLIC_NOVA_API_URL?.trim() : undefined;
+
+  const defaults = {
+    ai: "/ai",
+    mcp: "/mcp-tools",
+  };
+
+  if (!baseUrl) {
+    return defaults;
+  }
+
+  const trimmed = baseUrl.replace(/\/+$/, "");
+  const aiEndpoint = trimmed.endsWith("/ai") ? trimmed : `${trimmed}/ai`;
+  const gatewayRoot = aiEndpoint.replace(/\/ai$/i, "");
+  const mcpEndpoint = gatewayRoot ? `${gatewayRoot}/mcp-tools` : defaults.mcp;
+
+  return { ai: aiEndpoint, mcp: mcpEndpoint };
+}
+
+function createRequestUrl() {
+  const { ai } = resolveGatewayEndpoints();
+  return toAbsoluteUrl(ai);
+}
+
+function createMcpToolsUrl() {
+  const { mcp } = resolveGatewayEndpoints();
+  return toAbsoluteUrl(mcp);
 }
 
 function buildHeaders(options?: Partial<RequestInit>) {
@@ -108,6 +151,48 @@ async function executeNovaFetch(
     headers,
     body,
   });
+}
+
+export async function callMcpTools(
+  tools: McpToolCallRequest[],
+  options: Partial<RequestInit> = {},
+): Promise<McpToolCallResult[]> {
+  if (!tools.length) {
+    return [];
+  }
+
+  const requestUrl = createMcpToolsUrl();
+  const headers = buildHeaders(options);
+
+  const apiKey = process.env.NEXT_PUBLIC_NOVA_API_KEY?.trim();
+  if (apiKey) {
+    headers.set("x-api-key", apiKey);
+    headers.set("Authorization", `Bearer ${apiKey}`);
+  }
+
+  const response = await fetch(requestUrl, {
+    method: "POST",
+    ...options,
+    headers,
+    body: JSON.stringify({ tools }),
+  });
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(text || `MCP tools request failed with status ${response.status}`);
+  }
+
+  if (!text) {
+    return [];
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    console.error("[Nova] Failed to parse MCP response:", error);
+    throw new Error("Unable to parse MCP tools response payload.");
+  }
 }
 
 export async function requestNova(

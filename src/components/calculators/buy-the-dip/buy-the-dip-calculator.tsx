@@ -188,10 +188,10 @@ export function BuyTheDipCalculatorForm({
             onChange={handleFieldChange("duration")}
             className="rounded-xl border border-ocean/60 bg-surface/90 px-3 py-1.5 text-sm text-slate-50 focus:border-mint focus:bg-surface/95 focus:outline-none focus:ring-1 focus:ring-mint/35 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
           >
+            <option value="1 month">1 month</option>
             <option value="3 months">3 months</option>
             <option value="6 months">6 months</option>
             <option value="1 year">1 year</option>
-            <option value="2 years">2 years</option>
           </select>
         </label>
       </div>

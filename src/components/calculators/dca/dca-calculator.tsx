@@ -20,6 +20,7 @@ export type DcaFormState = {
   amount: string;
   interval: string;
   duration: string;
+  scenario?: "likely" | "bearish" | "bullish";
 };
 
 const defaultFormState: DcaFormState = {
@@ -28,6 +29,7 @@ const defaultFormState: DcaFormState = {
   amount: "500",
   interval: "bi-weekly",
   duration: "6 months",
+  scenario: "likely",
 };
 
 const initialSummaryMessage = "Run the projection to see Nova's perspective on this plan.";
@@ -123,6 +125,13 @@ export function DcaCalculatorForm({
       handleFieldChangeBuilder(field)(event.target.value);
     };
 
+  const selectedScenario = formState.scenario ?? "likely";
+  const scenarioOptions: Array<{ value: NonNullable<DcaFormState["scenario"]>; label: string }> = [
+    { value: "likely", label: "Likely" },
+    { value: "bearish", label: "Bearish" },
+    { value: "bullish", label: "Bullish" },
+  ];
+
   return (
     <form
       className="card-surface flex flex-col gap-4 rounded-2xl bg-gradient-to-br from-slate-950/75 via-slate-950/55 to-slate-900/30 p-4 sm:gap-5 sm:rounded-3xl sm:p-6"
@@ -179,12 +188,34 @@ export function DcaCalculatorForm({
             onChange={handleFieldChange("duration")}
             className="rounded-xl border border-ocean/60 bg-surface/90 px-3 py-1.5 text-sm text-slate-50 focus:border-mint focus:bg-surface/95 focus:outline-none focus:ring-1 focus:ring-mint/35 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
           >
+            <option value="1 month">1 month</option>
             <option value="3 months">3 months</option>
             <option value="6 months">6 months</option>
             <option value="1 year">1 year</option>
-            <option value="2 years">2 years</option>
           </select>
         </label>
+      </div>
+      <div className="rounded-2xl border border-ocean/60 bg-surface/60 p-3 sm:p-4">
+        <div className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-slate-300 sm:text-sm">
+          <span>Scenario</span>
+        </div>
+        <div className="mt-3 flex gap-2">
+          {scenarioOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => handleFieldChangeBuilder("scenario")(option.value)}
+              className={[
+                "flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition sm:px-4",
+                selectedScenario === option.value
+                  ? "border-mint bg-mint/20 text-slate-50"
+                  : "border-slate-700/70 text-slate-400 hover:text-slate-100",
+              ].join(" ")}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
       <button
         type="submit"
