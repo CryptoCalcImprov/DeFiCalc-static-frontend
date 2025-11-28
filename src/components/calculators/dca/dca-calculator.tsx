@@ -116,6 +116,9 @@ export function DcaCalculatorForm({
   onSubmit,
   isLoading,
   error,
+  onRequestInsights,
+  canRequestInsights = false,
+  isRequestingInsights = false,
 }: CalculatorFormProps<DcaFormState>) {
   const handleFieldChangeBuilder = buildFieldChangeHandler<DcaFormState>(onFormStateChange);
 
@@ -131,6 +134,7 @@ export function DcaCalculatorForm({
     { value: "bearish", label: "Bearish" },
     { value: "bullish", label: "Bullish" },
   ];
+  const insightButtonEnabled = canRequestInsights;
 
   return (
     <form
@@ -217,16 +221,31 @@ export function DcaCalculatorForm({
           ))}
         </div>
       </div>
-      <button
-        type="submit"
-        className="inline-flex items-center justify-center gap-2 rounded-full bg-cta-gradient px-4 py-2.5 text-xs font-semibold text-slate-50 shadow-lg shadow-[rgba(58,198,255,0.24)] transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-mint sm:px-5 sm:py-3 sm:text-sm"
-        disabled={isLoading}
-      >
-        {isLoading ? "Generating projection..." : "Run DCA projection"}
-        <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-          <path d="M5 3l6 5-6 5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <button
+          type="submit"
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-cta-gradient px-4 py-2.5 text-xs font-semibold text-slate-50 shadow-lg shadow-[rgba(58,198,255,0.24)] transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-mint sm:px-5 sm:py-3 sm:text-sm"
+          disabled={isLoading}
+        >
+          {isLoading ? "Generating projection..." : "Run DCA projection"}
+          <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+            <path d="M5 3l6 5-6 5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className={[
+            "inline-flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 sm:px-5 sm:py-3 sm:text-sm",
+            insightButtonEnabled
+              ? "bg-cta-gradient text-slate-50 shadow-lg shadow-[rgba(58,198,255,0.24)] hover:brightness-110 focus-visible:ring-mint"
+              : "border border-slate-700/70 bg-slate-800/60 text-slate-400 focus-visible:ring-slate-400/70",
+          ].join(" ")}
+          disabled={!insightButtonEnabled}
+          onClick={onRequestInsights}
+        >
+          {isRequestingInsights ? "Generating insights..." : "Generate insights"}
+        </button>
+      </div>
       {error ? <p className="text-sm text-critical">{error}</p> : null}
     </form>
   );

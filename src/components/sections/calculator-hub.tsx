@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useMemo, useRef, useState, useCallback } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { calculatorDefinitions, findCalculatorDefinition } from "@/components/calculators";
 import type {
@@ -23,7 +23,7 @@ import { simulateTrendFollowingStrategy } from "@/components/calculators/trend-f
 import { simulateBuyTheDipStrategy, type BuyTheDipSimulation } from "@/components/calculators/buy-the-dip/simulator";
 import { SummaryPanel } from "@/components/calculators/workspace/SummaryPanel";
 import { Button } from "@/components/ui/button";
-import { clearNovaHistory } from "@/lib/nova-client";
+import { clearNovaHistory, requestNova } from "@/lib/nova-client";
 import { ensureNovaRefId, resetNovaRefId } from "@/lib/nova-session";
 import { searchAssets, getMarketChart } from "@/lib/coingecko-client";
 import {
@@ -34,6 +34,8 @@ import {
 } from "@/components/calculators/workspace/technical-indicators";
 import { simulateDcaStrategy, type DcaSimulation } from "@/components/calculators/dca/simulator";
 import { normalizeTrendMaPeriodValue } from "@/components/calculators/trend-following/settings";
+import { parseTrendFollowingReply } from "@/components/calculators/trend-following/parser";
+import { formatSummaryLines } from "@/components/calculators/utils/summary";
 import {
   FORECAST_DURATION_MAP,
   requestLongTermForecast,
@@ -408,6 +410,11 @@ export function CalculatorHubSection() {
   const [forecastPercentileOverlays, setForecastPercentileOverlays] = useState<PriceTrajectoryOverlay[]>([]);
   const [scenarioSampleCandlesMap, setScenarioSampleCandlesMap] = useState<ScenarioCandlesByCalculator>({});
   const [scenarioSimulationsMap, setScenarioSimulationsMap] = useState<ScenarioSimulationsByCalculator>({});
+  const [latestChartProjection, setLatestChartProjection] = useState<ChartProjectionData | null>(null);
+  const [latestExtras, setLatestExtras] = useState<Record<string, unknown> | null>(null);
+  const [isInsightsLoading, setIsInsightsLoading] = useState(false);
+  const [lastSubmittedState, setLastSubmittedState] = useState<Record<string, unknown> | null>(null);
+  const [hasProjectionReady, setHasProjectionReady] = useState(false);
 
   const activeDefinition = findCalculatorDefinition<any>(activeCalculatorId);
 
@@ -734,6 +741,11 @@ export function CalculatorHubSection() {
     setPriceHistory([]);
     setProjectionStartTimestamp(0);
     setDcaSimulation(null);
+    setLatestChartProjection(null);
+    setLatestExtras(null);
+    setLastSubmittedState(null);
+    setHasProjectionReady(false);
+    setIsInsightsLoading(false);
     setForecastPercentileOverlays([]);
     setScenarioSampleCandlesMap((previous) => ({
       ...previous,
@@ -1015,6 +1027,23 @@ export function CalculatorHubSection() {
       } else {
         setDcaSimulation(null);
       }
+
+      const extrasForNova: Record<string, unknown> = {};
+      if (trendSimulation) {
+        extrasForNova.trendSimulation = trendSimulation;
+      }
+      if (dcaSimulation) {
+        extrasForNova.strategySimulation = dcaSimulation;
+      }
+      setLatestExtras(extrasForNova);
+      setLatestChartProjection(chartProjection);
+      setLastSubmittedState(currentState as Record<string, unknown>);
+      setSummaryMessage("Projection updated. Generate insights to see Nova’s take on this scenario.");
+      setFallbackLines([]);
+      setInsight(null);
+      setHasProjectionReady(true);
+      setIsLoading(false);
+      return;
       const completionSummary =
         "Projection updated. Nova insights will be available once the analysis button is wired up.";
       setSummaryMessage(completionSummary);
@@ -1043,8 +1072,88 @@ export function CalculatorHubSection() {
         [activeCalculatorId]: createEmptyScenarioSimulations(),
       }));
       setIsPriceHistoryLoading(false);
+      setLatestChartProjection(null);
+      setLatestExtras(null);
+      setLastSubmittedState(null);
+      setHasProjectionReady(false);
       setIsLoading(false);
       return;
+    }
+  };
+
+  const handleGenerateInsights = async () => {
+    if (!activeDefinition || !latestChartProjection || CALCULATOR_NOVA_DISABLED) {
+      return;
+    }
+
+    const requestState = (lastSubmittedState ?? formState) as Record<string, unknown>;
+    const extras = latestExtras ?? {};
+
+    setIsInsightsLoading(true);
+    setError(null);
+    setSummaryMessage(activeDefinition.pendingSummary ?? "Generating Nova’s latest projection...");
+
+    try {
+      const { prompt, options } = activeDefinition.getRequestConfig(
+        requestState as any,
+        latestChartProjection,
+        extras,
+      );
+      const refId = ensureNovaRefId("calculator");
+      const { reply } = await requestNova(prompt, options, { refId });
+
+      const {
+        insight: parsedInsight,
+        dataset: parsedDataset,
+        fallbackSummary: parsedFallbackSummary,
+        fallbackLines: parsedFallbackLines,
+        strategyOverlays: parsedStrategyOverlays,
+      } = activeDefinition.parseReply(reply);
+
+      const trendResult =
+        activeCalculatorId === "trend-following" ? parseTrendFollowingReply(reply) : null;
+
+      setInsight(parsedInsight ?? null);
+      setNovaDataset(parsedDataset);
+      setStrategyOverlays(parsedStrategyOverlays ?? []);
+
+      if (parsedInsight) {
+        setSummaryMessage("");
+        setFallbackLines([]);
+      } else {
+        let fallbackSummaryText = parsedFallbackSummary;
+        let fallbackSummaryLines = parsedFallbackLines ?? [];
+
+        if (
+          !fallbackSummaryText &&
+          !fallbackSummaryLines.length &&
+          activeCalculatorId === "trend-following" &&
+          trendResult?.summary
+        ) {
+          fallbackSummaryText = trendResult.summary;
+          fallbackSummaryLines = formatSummaryLines(trendResult.summary);
+        }
+
+        setFallbackLines(fallbackSummaryLines);
+        const summaryText =
+          fallbackSummaryText ??
+          (fallbackSummaryLines.length ? "" : "Nova did not return a structured summary for this run.");
+        setSummaryMessage(summaryText);
+      }
+    } catch (novaError) {
+      console.error("[CalculatorHub] Request error:", novaError);
+      const message =
+        novaError instanceof Error
+          ? novaError.message
+          : "Something went wrong when requesting the calculator output.";
+      setError(message);
+      setNovaDataset([]);
+      setInsight(null);
+      setFallbackLines([]);
+      setStrategyOverlays([]);
+      setSummaryMessage("Nova couldn't complete this request. Please adjust your inputs and try again.");
+    } finally {
+      setIsInsightsLoading(false);
     }
   };
 
@@ -1080,6 +1189,10 @@ export function CalculatorHubSection() {
       }));
       setInsight(null);
       setFallbackLines([]);
+      setLatestChartProjection(null);
+      setLatestExtras(null);
+      setLastSubmittedState(null);
+      setIsInsightsLoading(false);
       setSummaryMessage(activeDefinition?.initialSummary ?? defaultSummary);
     } catch (historyError) {
       console.error("[CalculatorHub] Failed to clear Nova history:", historyError);
@@ -1170,6 +1283,12 @@ export function CalculatorHubSection() {
     ? `${FORECAST_SCENARIO_LABELS[activeScenario]} path`
     : undefined;
   const scenarioProjectionColor = hasScenarioProjection ? FORECAST_SCENARIO_COLORS[activeScenario] : undefined;
+  const canRequestInsights =
+    hasProjectionReady &&
+    Boolean(latestChartProjection) &&
+    !isPriceHistoryLoading &&
+    !isLoading &&
+    !isInsightsLoading;
 
   const priceTrajectoryPanel = (
     <PriceTrajectoryPanel
@@ -1222,6 +1341,9 @@ export function CalculatorHubSection() {
             onSubmit={handleSubmit}
             isLoading={isLoading}
             error={error}
+            onRequestInsights={handleGenerateInsights}
+            canRequestInsights={canRequestInsights}
+            isRequestingInsights={isInsightsLoading}
           />
         ) : (
           <div className="card-surface flex flex-col items-center justify-center rounded-2xl border border-dashed border-ocean/55 bg-slate-950/40 p-6 text-center text-sm text-muted">
@@ -1234,7 +1356,7 @@ export function CalculatorHubSection() {
           insight={insight}
           fallbackLines={fallbackLines}
           fallbackMessage={summaryMessage}
-          isLoading={isLoading && !CALCULATOR_NOVA_DISABLED}
+          isLoading={isInsightsLoading && !CALCULATOR_NOVA_DISABLED}
           loadingMessage="Nova is compiling the summary and risk notes for this scenario."
         />
       }

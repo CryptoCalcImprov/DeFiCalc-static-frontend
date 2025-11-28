@@ -94,6 +94,9 @@ export type CalculatorFormProps<FormState> = {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   isLoading: boolean;
   error: string | null;
+  onRequestInsights?: () => void;
+  canRequestInsights?: boolean;
+  isRequestingInsights?: boolean;
 };
 
 export type CalculatorRequestConfig = {
