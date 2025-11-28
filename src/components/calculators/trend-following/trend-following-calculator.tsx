@@ -1,6 +1,6 @@
 "use client";
 
-import type { ChangeEvent } from "react";
+import { useEffect, useMemo, type ChangeEvent } from "react";
 
 import type {
   CalculatorDefinition,
@@ -15,6 +15,7 @@ import { buildNovaRequestOptions } from "@/components/calculators/utils/request"
 import { TokenSelector } from "@/components/calculators/workspace/TokenSelector";
 import { simulateTrendFollowingStrategy } from "@/components/calculators/trend-following/simulator";
 import type { TrendFollowingSimulation } from "@/components/calculators/trend-following/types";
+import { getDefaultTrendMaPeriod } from "@/components/calculators/trend-following/settings";
 
 export type TrendFollowingFormState = {
   token: string;
@@ -29,7 +30,7 @@ const defaultFormState: TrendFollowingFormState = {
   token: "BTC",
   tokenId: "bitcoin",
   initialCapital: "10000",
-  maPeriod: "50",
+  maPeriod: getDefaultTrendMaPeriod("1 year"),
   duration: "1 year",
   scenario: "likely",
 };
@@ -138,6 +139,22 @@ export function TrendFollowingCalculatorForm({
       handleFieldChangeBuilder(field)(event.target.value);
     };
 
+  const resolvedMaPeriod = useMemo(
+    () => getDefaultTrendMaPeriod(formState.duration),
+    [formState.duration],
+  );
+
+  useEffect(() => {
+    if (formState.maPeriod !== resolvedMaPeriod) {
+      onFormStateChange("maPeriod", resolvedMaPeriod);
+    }
+  }, [formState.maPeriod, onFormStateChange, resolvedMaPeriod]);
+
+  const handleDurationChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const nextDuration = event.target.value;
+    handleFieldChangeBuilder("duration")(nextDuration);
+  };
+
   const selectedScenario = formState.scenario ?? "likely";
   const scenarioOptions: Array<{ value: NonNullable<TrendFollowingFormState["scenario"]>; label: string }> = [
     { value: "likely", label: "Likely" },
@@ -184,21 +201,18 @@ export function TrendFollowingCalculatorForm({
         </label>
         <label className="flex flex-col gap-1.5 text-xs font-medium text-slate-200 sm:gap-2 sm:text-sm">
           Moving average period
-          <select
-            value={formState.maPeriod}
-            onChange={handleFieldChange("maPeriod")}
-            className="rounded-xl border border-ocean/60 bg-surface/90 px-3 py-1.5 text-sm text-slate-50 focus:border-mint focus:bg-surface/95 focus:outline-none focus:ring-1 focus:ring-mint/35 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
-          >
-            <option value="50">50-day MA</option>
-            <option value="100">100-day MA</option>
-            <option value="200">200-day MA</option>
-          </select>
+          <input
+            type="text"
+            value={`${resolvedMaPeriod}-day MA`}
+            readOnly
+            className="rounded-xl border border-ocean/60 bg-surface/80 px-3 py-1.5 text-sm text-slate-400 shadow-inner sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
+          />
         </label>
         <label className="flex flex-col gap-1.5 text-xs font-medium text-slate-200 sm:gap-2 sm:text-sm">
           Duration
           <select
             value={formState.duration}
-            onChange={handleFieldChange("duration")}
+            onChange={handleDurationChange}
             className="rounded-xl border border-ocean/60 bg-surface/90 px-3 py-1.5 text-sm text-slate-50 focus:border-mint focus:bg-surface/95 focus:outline-none focus:ring-1 focus:ring-mint/35 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
           >
             <option value="1 month">1 month</option>

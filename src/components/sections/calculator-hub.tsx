@@ -41,6 +41,7 @@ import type { MonteCarloHorizon, MonteCarloTrajectoryPoint } from "@/lib/monte-c
 import { parseTrendFollowingReply } from "@/components/calculators/trend-following/parser";
 import { formatSummaryLines } from "@/components/calculators/utils/summary";
 import { simulateDcaStrategy, type DcaSimulation } from "@/components/calculators/dca/simulator";
+import { normalizeTrendMaPeriodValue } from "@/components/calculators/trend-following/settings";
 import {
   FORECAST_DURATION_MAP,
   requestLongTermForecast,
@@ -149,6 +150,18 @@ function createEmptyScenarioSimulations(): ForecastScenarioSimulations {
   };
 }
 
+function isPointBasedSimulation(
+  simulation: DcaSimulation | TrendFollowingSimulation | BuyTheDipSimulation | null,
+): simulation is DcaSimulation | BuyTheDipSimulation {
+  return Boolean(simulation && "points" in simulation && Array.isArray(simulation.points));
+}
+
+function isTrendFollowingSimulation(
+  simulation: DcaSimulation | TrendFollowingSimulation | BuyTheDipSimulation | null,
+): simulation is TrendFollowingSimulation {
+  return Boolean(simulation && "crossovers" in simulation && Array.isArray(simulation.crossovers));
+}
+
 function normalizeSampleScenario(label?: string): ForecastScenario | null {
   if (!label) {
     return null;
@@ -206,7 +219,9 @@ function buildForecastTrajectory(
         ? point.mean
         : typeof point.percentile_50 === "number"
           ? point.percentile_50
-          : null;
+          : typeof point.percentile_10 === "number" && typeof point.percentile_90 === "number"
+            ? (point.percentile_10 + point.percentile_90) / 2
+            : null;
     const p10Value = typeof point.percentile_10 === "number" ? point.percentile_10 : null;
     const p90Value = typeof point.percentile_90 === "number" ? point.percentile_90 : null;
 
@@ -457,6 +472,14 @@ export function CalculatorHubSection() {
 
   const dipThresholdString = String((formState as Record<string, unknown>).dipThreshold ?? "");
   const durationInput = typeof formState.duration === "string" ? formState.duration : undefined;
+  const trendMaPeriodInput = (formState as Record<string, unknown>).maPeriod;
+
+  const trendMaPeriodValue = useMemo(() => {
+    if (activeCalculatorId !== "trend-following") {
+      return null;
+    }
+    return normalizeTrendMaPeriodValue(trendMaPeriodInput, durationInput);
+  }, [activeCalculatorId, trendMaPeriodInput, durationInput]);
   const monteCarloHorizon = useMemo(
     () => resolveDurationToMonteCarloHorizon(durationInput),
     [durationInput],
@@ -481,6 +504,13 @@ export function CalculatorHubSection() {
 
   const historicalSeries = useMemo<TimeSeriesValuePoint[]>(() => buildSeriesFromCandles(priceHistory), [priceHistory]);
 
+  const activeScenarioSeries = useMemo<TimeSeriesValuePoint[]>(() => {
+    if (!activeScenarioCandles.length) {
+      return [];
+    }
+    return buildSeriesFromCandles(activeScenarioCandles);
+  }, [activeScenarioCandles]);
+
   const combinedSeries = useMemo<TimeSeriesValuePoint[]>(() => {
     if (!monteCarloTrajectory?.length) {
       return historicalSeries;
@@ -499,40 +529,70 @@ export function CalculatorHubSection() {
     const overlays: PriceTrajectoryOverlay[] = [];
     const markers: PriceTrajectoryEventMarker[] = [];
 
-    if (monteCarloTrajectory?.length) {
-      overlays.push({
-        id: "forecast-mean",
-        label: "Mean projection",
-        data: monteCarloTrajectory.map((point) => ({ x: point.x, y: point.y })),
-        color: "#38BDF8",
-        strokeWidth: 2,
-        borderDash: [6, 4],
-        pointRadius: 0,
-        order: 5,
-      });
-    }
-
     if (["dca", "trend-following", "buy-the-dip"].includes(activeCalculatorId)) {
       if (forecastPercentileOverlays.length) {
         overlays.push(...forecastPercentileOverlays);
       }
-      const scenarioSimulation = activeScenarioSimulation as DcaSimulation | TrendFollowingSimulation | null;
-      if (scenarioSimulation && "points" in scenarioSimulation && Array.isArray(scenarioSimulation.points) && scenarioSimulation.points.length) {
+      const scenarioSimulation = activeScenarioSimulation as DcaSimulation | TrendFollowingSimulation | BuyTheDipSimulation | null;
+      const scenarioStrategyLabel =
+        activeCalculatorId === "trend-following" ? "MA crossovers" : "Scheduled buys";
+
+      const strategyEntries: {
+        point: { x: number; y: number };
+        meta: {
+          action?: string;
+          amount?: number;
+          quantity?: number;
+          price: number;
+          date: string;
+          description?: string;
+        };
+      }[] = [];
+
+      if (isPointBasedSimulation(scenarioSimulation)) {
+        scenarioSimulation.points.forEach((point) => {
+          const timestamp = new Date(point.date).getTime();
+          if (!Number.isFinite(timestamp) || !Number.isFinite(point.price)) {
+            return;
+          }
+          strategyEntries.push({
+            point: { x: timestamp, y: point.price },
+            meta: {
+              action: `Buy $${point.amount.toFixed(2)}`,
+              amount: point.amount,
+              quantity: point.quantity,
+              price: point.price,
+              date: point.date,
+            },
+          });
+        });
+      } else if (isTrendFollowingSimulation(scenarioSimulation)) {
+        scenarioSimulation.crossovers.forEach((crossover) => {
+          const timestamp = new Date(crossover.date).getTime();
+          if (!Number.isFinite(timestamp) || !Number.isFinite(crossover.price)) {
+            return;
+          }
+          const action =
+            crossover.signal === "enter"
+              ? "Enter long (price above MA)"
+              : "Exit to cash (price below MA)";
+          strategyEntries.push({
+            point: { x: timestamp, y: crossover.price },
+            meta: {
+              action,
+              description: "Moving average crossover",
+              price: crossover.price,
+              date: crossover.date,
+            },
+          });
+        });
+      }
+
+      if (strategyEntries.length) {
         overlays.push({
           id: "scenario-strategy-line",
-          label: "Scheduled buys",
-          data: scenarioSimulation.points
-            .map((point) => {
-              const timestamp = new Date(point.date).getTime();
-              if (!Number.isFinite(timestamp) || !Number.isFinite(point.price)) {
-                return null;
-              }
-              return {
-                x: timestamp,
-                y: point.price,
-              };
-            })
-            .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
+          label: scenarioStrategyLabel,
+          data: strategyEntries.map((entry) => entry.point),
           color: SCENARIO_STRATEGY_COLOR,
           strokeWidth: 2,
           borderDash: [2, 4],
@@ -541,119 +601,40 @@ export function CalculatorHubSection() {
         });
         markers.push({
           id: "scenario-strategy-points",
-          label: "Scheduled buys",
-          points: scenarioSimulation.points
-            .map((point) => {
-              const timestamp = new Date(point.date).getTime();
-              if (!Number.isFinite(timestamp) || !Number.isFinite(point.price)) {
-                return null;
-              }
-              return {
-                x: timestamp,
-                y: point.price,
-                meta: {
-                  action: `Buy $${point.amount.toFixed(2)}`,
-                  amount: point.amount,
-                  quantity: point.quantity,
-                  price: point.price,
-                  date: point.date,
-                },
-              };
-            })
-            .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
+          label: scenarioStrategyLabel,
+          points: strategyEntries.map((entry) => ({
+            x: entry.point.x,
+            y: entry.point.y,
+            meta: entry.meta,
+          })),
           backgroundColor: SCENARIO_STRATEGY_COLOR,
           borderColor: SCENARIO_STRATEGY_COLOR,
           radius: 4,
         });
       }
-    } else if (activeCalculatorId === "trend-following") {
-      const trendScenarioSimulation = activeScenarioSimulation as TrendFollowingSimulation | null;
-      if (trendScenarioSimulation?.crossovers.length) {
-        markers.push({
-          id: "scenario-strategy-points",
-          label: "Modeled crossovers",
-          points: trendScenarioSimulation.crossovers
-            .map((point) => {
-              const timestamp = new Date(point.date).getTime();
-              if (!Number.isFinite(timestamp) || !Number.isFinite(point.price)) {
-                return null;
-              }
-              return {
-                x: timestamp,
-                y: point.price,
-                meta: {
-                  action: "Crossover",
-                  price: point.price,
-                  date: point.date,
-                },
-              };
-            })
-            .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
-          backgroundColor: SCENARIO_STRATEGY_COLOR,
-          borderColor: SCENARIO_STRATEGY_COLOR,
-          radius: 5,
-        });
+    }
+
+    if (activeCalculatorId === "trend-following") {
+      const selectedMaPeriod =
+        typeof trendMaPeriodValue === "number" && Number.isFinite(trendMaPeriodValue)
+          ? trendMaPeriodValue
+          : null;
+      if (selectedMaPeriod && selectedMaPeriod > 1) {
+        const maSource = activeScenarioSeries.length
+          ? [...historicalSeries, ...activeScenarioSeries]
+          : historicalSeries;
+        const maSeries = buildMovingAverageSeries(maSource, selectedMaPeriod);
+        if (maSeries.length) {
+          overlays.push({
+            id: "trend-selected-ma",
+            label: `${selectedMaPeriod}-day MA`,
+            data: maSeries,
+            color: "rgba(96, 165, 250, 0.95)",
+            borderDash: [6, 4],
+            strokeWidth: 2,
+          });
+        }
       }
-    } else if (activeCalculatorId === "buy-the-dip") {
-      const buyScenarioSimulation = activeScenarioSimulation as BuyTheDipSimulation | null;
-      if (buyScenarioSimulation?.points.length) {
-        overlays.push({
-          id: "scenario-strategy-line",
-          label: "Scheduled buys",
-          data: buyScenarioSimulation.points
-            .map((point) => {
-              const timestamp = new Date(point.date).getTime();
-              if (!Number.isFinite(timestamp) || !Number.isFinite(point.price)) {
-                return null;
-              }
-              return { x: timestamp, y: point.price };
-            })
-            .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
-          color: SCENARIO_STRATEGY_COLOR,
-          strokeWidth: 2,
-          borderDash: [2, 4],
-          pointRadius: 0,
-          order: 2000,
-        });
-        markers.push({
-          id: "scenario-strategy-points",
-          label: "Scheduled buys",
-          points: buyScenarioSimulation.points
-            .map((point) => {
-              const timestamp = new Date(point.date).getTime();
-              if (!Number.isFinite(timestamp) || !Number.isFinite(point.price)) {
-                return null;
-              }
-              return {
-                x: timestamp,
-                y: point.price,
-                meta: {
-                  action: `Buy $${point.amount.toFixed(2)}`,
-                  amount: point.amount,
-                  quantity: point.quantity,
-                  price: point.price,
-                  date: point.date,
-                },
-              };
-            })
-            .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
-          backgroundColor: SCENARIO_STRATEGY_COLOR,
-          borderColor: SCENARIO_STRATEGY_COLOR,
-          radius: 4,
-        });
-      }
-    } else if (activeCalculatorId === "trend-following") {
-      const definedPeriods = [50, 100, 200];
-      definedPeriods.forEach((period, index) => {
-        overlays.push({
-          id: `trend-ma-${period}`,
-          label: `${period}-day SMA`,
-          data: buildMovingAverageSeries(combinedSeries, period),
-          color: index === 0 ? "rgba(59, 130, 246, 0.95)" : index === 1 ? "rgba(16, 185, 129, 0.9)" : "rgba(236, 72, 153, 0.9)",
-          borderDash: index === 0 ? undefined : [4, 4],
-          strokeWidth: 2,
-        });
-      });
     }
 
     const clipHistoricalPoints = <T extends { x: number }>(points: T[]) => {
@@ -665,10 +646,16 @@ export function CalculatorHubSection() {
       projectionStartTimestamp ? points.filter((point) => point.x >= projectionStartTimestamp) : points;
 
     const filteredOverlays = overlays
-      .map((overlay) => ({
-        ...overlay,
-        data: clipHistoricalPoints(overlay.data),
-      }))
+      .map((overlay) => {
+        const clippedData =
+          overlay.id === "scenario-strategy-line"
+            ? clipStrategyPoints(clipHistoricalPoints(overlay.data))
+            : clipHistoricalPoints(overlay.data);
+        return {
+          ...overlay,
+          data: clippedData,
+        };
+      })
       .filter((overlay) => overlay.data.length);
 
     const filteredMarkers = markers
@@ -686,7 +673,9 @@ export function CalculatorHubSection() {
     displayWindowStart,
     forecastPercentileOverlays,
     activeScenarioSimulation,
-    monteCarloTrajectory,
+    trendMaPeriodValue,
+    historicalSeries,
+    activeScenarioSeries,
   ]);
 
 
@@ -705,8 +694,8 @@ export function CalculatorHubSection() {
         border: "rgba(248, 113, 113, 1)",
       },
       annotation: {
-        background: "rgba(236, 72, 153, 0.95)", // neon pink for strategy annotations
-        border: "rgba(219, 39, 119, 1)",
+        background: SCENARIO_STRATEGY_COLOR,
+        border: SCENARIO_STRATEGY_COLOR,
       },
     };
 
@@ -892,6 +881,18 @@ export function CalculatorHubSection() {
         const trajectorySet = buildForecastTrajectory(forecastPayload.chart?.projection, history);
         forecastTrajectory = trajectorySet.mean.length ? trajectorySet.mean : null;
         const overlays: PriceTrajectoryOverlay[] = [];
+        if (trajectorySet.mean.length) {
+          overlays.push({
+            id: "forecast-mean",
+            label: "Mean projection",
+            data: trajectorySet.mean.map((point) => ({ x: point.x, y: point.y })),
+            color: "#38BDF8",
+            strokeWidth: 2,
+            borderDash: [6, 4],
+            pointRadius: 0,
+            order: 5,
+          });
+        }
         if (trajectorySet.percentile10.length) {
           overlays.push({
             id: "forecast-p10",
@@ -916,6 +917,8 @@ export function CalculatorHubSection() {
         }
         setForecastPercentileOverlays(overlays);
 
+        const trendDurationValue = typeof currentState.duration === "string" ? currentState.duration : undefined;
+
         if (activeCalculatorId === "dca") {
           const rawAmount = Number((currentState as Record<string, unknown>).amount ?? 0);
           const intervalValue = typeof currentState.interval === "string" ? currentState.interval : "bi-weekly";
@@ -926,7 +929,10 @@ export function CalculatorHubSection() {
           dcaDurationMonthsValue = durationMonths;
         } else if (activeCalculatorId === "trend-following") {
           trendInitialCapitalValue = Number((currentState as Record<string, unknown>).initialCapital ?? 0);
-          trendMaPeriodValue = Number((currentState as Record<string, unknown>).maPeriod ?? 50);
+          trendMaPeriodValue = normalizeTrendMaPeriodValue(
+            (currentState as Record<string, unknown>).maPeriod,
+            trendDurationValue,
+          );
         } else if (activeCalculatorId === "buy-the-dip") {
           buyBudgetValue = Number((currentState as Record<string, unknown>).budget ?? 0);
           buyDipThresholdValue = Number((currentState as Record<string, unknown>).dipThreshold ?? 0);
@@ -1056,7 +1062,10 @@ export function CalculatorHubSection() {
       setIsPriceHistoryLoading(false);
 
       if (activeCalculatorId === "trend-following" && chartProjection) {
-        const maPeriodValue = Number((currentState as Record<string, unknown>).maPeriod ?? 50);
+        const maPeriodValue = normalizeTrendMaPeriodValue(
+          (currentState as Record<string, unknown>).maPeriod,
+          typeof currentState.duration === "string" ? currentState.duration : undefined,
+        );
         const initialCapitalValue = Number((currentState as Record<string, unknown>).initialCapital ?? 10000);
 
         if (Number.isFinite(maPeriodValue) && Number.isFinite(initialCapitalValue)) {
@@ -1066,18 +1075,7 @@ export function CalculatorHubSection() {
             initialCapital: initialCapitalValue,
           });
 
-          if (trendSimulation.crossovers.length) {
-            simulationOverlay = {
-              id: "trend-sim-crossovers",
-              label: "Modeled crossovers",
-              type: "annotation",
-              points: trendSimulation.crossovers,
-              metadata: { source: "simulated" },
-            };
-            setStrategyOverlays([simulationOverlay]);
-          } else {
-            setStrategyOverlays([]);
-          }
+          setStrategyOverlays([]);
         } else {
           setStrategyOverlays([]);
         }

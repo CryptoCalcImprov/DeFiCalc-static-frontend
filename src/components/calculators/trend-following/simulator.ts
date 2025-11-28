@@ -83,6 +83,7 @@ export function simulateTrendFollowingStrategy({
     let updatedCash = cash;
     let updatedBtcUnits = btcUnits;
 
+    let crossoverSignal: TrendFollowingCrossoverPoint["signal"] | null = null;
     if (targetPosition !== position) {
       if (targetPosition === 1) {
         // Enter long
@@ -90,15 +91,18 @@ export function simulateTrendFollowingStrategy({
           updatedBtcUnits = updatedCash / point.price;
           updatedCash = 0;
         }
+        crossoverSignal = "enter";
       } else {
         // Exit to stablecoin
         updatedCash = updatedBtcUnits * point.price;
         updatedBtcUnits = 0;
+        crossoverSignal = "exit";
       }
 
       crossovers.push({
         date: point.date,
         price: point.price,
+        signal: crossoverSignal,
       });
     }
 

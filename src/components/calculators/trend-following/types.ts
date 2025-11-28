@@ -9,6 +9,7 @@ export type TrendFollowingDataPoint = {
 export type TrendFollowingCrossoverPoint = {
   date: string;
   price: number;
+  signal: "enter" | "exit";
 };
 
 export type TrendFollowingSimulationMetrics = {
