@@ -410,10 +410,7 @@ export function CalculatorHubSection() {
   const [forecastPercentileOverlays, setForecastPercentileOverlays] = useState<PriceTrajectoryOverlay[]>([]);
   const [scenarioSampleCandlesMap, setScenarioSampleCandlesMap] = useState<ScenarioCandlesByCalculator>({});
   const [scenarioSimulationsMap, setScenarioSimulationsMap] = useState<ScenarioSimulationsByCalculator>({});
-  const [latestChartProjection, setLatestChartProjection] = useState<ChartProjectionData | null>(null);
-  const [latestExtras, setLatestExtras] = useState<Record<string, unknown> | null>(null);
   const [isInsightsLoading, setIsInsightsLoading] = useState(false);
-  const [lastSubmittedState, setLastSubmittedState] = useState<Record<string, unknown> | null>(null);
   const [hasProjectionReady, setHasProjectionReady] = useState(false);
 
   const activeDefinition = findCalculatorDefinition<any>(activeCalculatorId);
@@ -741,9 +738,6 @@ export function CalculatorHubSection() {
     setPriceHistory([]);
     setProjectionStartTimestamp(0);
     setDcaSimulation(null);
-    setLatestChartProjection(null);
-    setLatestExtras(null);
-    setLastSubmittedState(null);
     setHasProjectionReady(false);
     setIsInsightsLoading(false);
     setForecastPercentileOverlays([]);
@@ -1028,27 +1022,10 @@ export function CalculatorHubSection() {
         setDcaSimulation(null);
       }
 
-      const extrasForNova: Record<string, unknown> = {};
-      if (trendSimulation) {
-        extrasForNova.trendSimulation = trendSimulation;
-      }
-      if (dcaSimulation) {
-        extrasForNova.strategySimulation = dcaSimulation;
-      }
-      setLatestExtras(extrasForNova);
-      setLatestChartProjection(chartProjection);
-      setLastSubmittedState(currentState as Record<string, unknown>);
       setSummaryMessage("Projection updated. Generate insights to see Nova’s take on this scenario.");
       setFallbackLines([]);
       setInsight(null);
       setHasProjectionReady(true);
-      setIsLoading(false);
-      return;
-      const completionSummary =
-        "Projection updated. Nova insights will be available once the analysis button is wired up.";
-      setSummaryMessage(completionSummary);
-      setFallbackLines([]);
-      setIsPriceHistoryLoading(false);
       setIsLoading(false);
       return;
     } catch (historyError) {
@@ -1072,9 +1049,6 @@ export function CalculatorHubSection() {
         [activeCalculatorId]: createEmptyScenarioSimulations(),
       }));
       setIsPriceHistoryLoading(false);
-      setLatestChartProjection(null);
-      setLatestExtras(null);
-      setLastSubmittedState(null);
       setHasProjectionReady(false);
       setIsLoading(false);
       return;
@@ -1082,12 +1056,50 @@ export function CalculatorHubSection() {
   };
 
   const handleGenerateInsights = async () => {
-    if (!activeDefinition || !latestChartProjection || CALCULATOR_NOVA_DISABLED) {
+    if (!activeDefinition || !hasProjectionReady) {
+      return;
+    }
+    if (CALCULATOR_NOVA_DISABLED) {
+      setError("Nova insights are disabled in this environment.");
+      return;
+    }
+    if (!priceHistory.length || !activeScenarioCandles.length) {
+      setError("Run the projection to generate the scenario path before requesting insights.");
       return;
     }
 
-    const requestState = (lastSubmittedState ?? formState) as Record<string, unknown>;
-    const extras = latestExtras ?? {};
+    const scenarioSeries = buildProjectionSeriesFromCandles(activeScenarioCandles);
+    if (!scenarioSeries.length) {
+      setError("Unable to generate the scenario path for this projection.");
+      return;
+    }
+
+    const projectionTrajectory = scenarioSeries.map((point) => ({
+      x: point.timestamp,
+      y: point.price,
+    }));
+    const durationString = typeof formState.duration === "string" ? formState.duration : undefined;
+    const projectionMonths = resolveDurationToMonths(durationString);
+    const assetLabel =
+      typeof formState.token === "string" && formState.token.trim().length
+        ? formState.token.trim()
+        : "asset";
+
+    const scenarioChartProjection = buildChartProjectionPayload(
+      priceHistory,
+      assetLabel,
+      projectionTrajectory,
+      projectionMonths,
+    );
+
+    const extras: Record<string, unknown> = {};
+    if (activeScenarioSimulation) {
+      if (activeCalculatorId === "trend-following") {
+        extras.trendSimulation = activeScenarioSimulation;
+      } else {
+        extras.strategySimulation = activeScenarioSimulation;
+      }
+    }
 
     setIsInsightsLoading(true);
     setError(null);
@@ -1095,8 +1107,8 @@ export function CalculatorHubSection() {
 
     try {
       const { prompt, options } = activeDefinition.getRequestConfig(
-        requestState as any,
-        latestChartProjection,
+        formState as any,
+        scenarioChartProjection,
         extras,
       );
       const refId = ensureNovaRefId("calculator");
@@ -1189,9 +1201,6 @@ export function CalculatorHubSection() {
       }));
       setInsight(null);
       setFallbackLines([]);
-      setLatestChartProjection(null);
-      setLatestExtras(null);
-      setLastSubmittedState(null);
       setIsInsightsLoading(false);
       setSummaryMessage(activeDefinition?.initialSummary ?? defaultSummary);
     } catch (historyError) {
@@ -1285,7 +1294,7 @@ export function CalculatorHubSection() {
   const scenarioProjectionColor = hasScenarioProjection ? FORECAST_SCENARIO_COLORS[activeScenario] : undefined;
   const canRequestInsights =
     hasProjectionReady &&
-    Boolean(latestChartProjection) &&
+    hasScenarioProjection &&
     !isPriceHistoryLoading &&
     !isLoading &&
     !isInsightsLoading;

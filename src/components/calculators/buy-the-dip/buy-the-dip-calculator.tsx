@@ -41,13 +41,14 @@ function buildPrompt(formState: BuyTheDipFormState, chartProjection?: ChartProje
   const projectionPayload = chartProjection ? JSON.stringify(chartProjection) : "null";
 
   return joinPromptLines([
-    "You are given CHART_PROJECTION, a sanitized chart that mixes historical candles with a Monte Carlo forecast.",
-    "Do not invent additional prices—only annotate the provided projection.",
+    "Below is the projection data the calculator already displayed. It combines historical candles with the currently selected scenario path.",
+    "Analyze only these prices—do not invent new ones. Whenever you explain averages, deployment percentages, or returns, call the calculate_expression tool, show the expression you evaluated (e.g., deployed_budget / total_budget), round the result to at most 5 decimal places, and use the tool no more than twice in total.",
+    "Every numeric value you mention (even when copying from the schedule) must be rounded to at most five decimal places before returning the JSON.",
     `Strategy: deploy ${budget} USD to buy ${normalizedToken} after ${dipThreshold}%+ drops from recent highs within ${duration}.`,
     "",
-    "Return JSON only. Use the schema below, which includes `insight` and a `strategy_overlays` array for your annotations.",
+    "Return a single JSON object (schema below) that explains the plan in friendly language. Focus on insights, execution tips, and risk mitigations; do not list every individual buy or reference internal terms like STRATEGY_SIMULATION.",
     "",
-    "CHART_PROJECTION:",
+    "Projection data (JSON):",
     projectionPayload,
     "",
     "Response schema:",
