@@ -1,5 +1,4 @@
 import type { FormEvent } from "react";
-import type { MonteCarloTrajectoryPoint } from "@/lib/monte-carlo";
 
 export type TimeSeriesPoint = {
   date: string;
@@ -67,7 +66,7 @@ export type ChartProjectionMetadata = {
 
 export type ChartProjectionData = {
   historical_data: CoinGeckoCandle[];
-  projection: MonteCarloTrajectoryPoint[];
+  projection: ProjectionPoint[];
   metadata: ChartProjectionMetadata;
 };
 
@@ -118,4 +117,8 @@ export type CalculatorDefinition<FormState> = {
   getSeriesLabel?: (formState: FormState) => string;
   initialSummary?: string;
   pendingSummary?: string;
+};
+export type ProjectionPoint = {
+  x: number;
+  y: number;
 };

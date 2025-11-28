@@ -32,12 +32,6 @@ import {
   buildSeriesFromCandles,
   type TimeSeriesValuePoint,
 } from "@/components/calculators/workspace/technical-indicators";
-import {
-  estimateDriftAndVolatility,
-  generateMonteCarloPath,
-  MonteCarloHorizons,
-} from "@/lib/monte-carlo";
-import type { MonteCarloHorizon, MonteCarloTrajectoryPoint } from "@/lib/monte-carlo";
 import { parseTrendFollowingReply } from "@/components/calculators/trend-following/parser";
 import { formatSummaryLines } from "@/components/calculators/utils/summary";
 import { simulateDcaStrategy, type DcaSimulation } from "@/components/calculators/dca/simulator";
@@ -58,13 +52,7 @@ const defaultSummary =
 
 const PRICE_HISTORY_CACHE_TTL_MS = 1000 * 60 * 2;
 const DISPLAY_WINDOW_MONTHS = 3;
-const DURATION_TO_MONTE_CARLO_HORIZON: Record<string, MonteCarloHorizon> = {
-  "1 month": MonteCarloHorizons.ONE_MONTH,
-  "3 months": MonteCarloHorizons.THREE_MONTHS,
-  "6 months": MonteCarloHorizons.SIX_MONTHS,
-  "1 year": MonteCarloHorizons.ONE_YEAR,
-};
-
+const DEFAULT_PROJECTION_MONTHS = 6;
 const DURATION_TO_MONTHS: Record<string, number> = {
   "1 month": 1,
   "3 months": 3,
@@ -125,15 +113,6 @@ function resolveIntervalToDays(interval?: unknown): number {
   return INTERVAL_TO_DAYS[normalized] ?? 14;
 }
 
-function resolveDurationToMonteCarloHorizon(duration?: unknown): MonteCarloHorizon | undefined {
-  if (typeof duration !== "string") {
-    return undefined;
-  }
-
-  const normalized = duration.trim().toLowerCase();
-  return DURATION_TO_MONTE_CARLO_HORIZON[normalized];
-}
-
 function createEmptySampleCandles(): ForecastSampleCandles {
   return {
     likely: [],
@@ -188,10 +167,15 @@ function resolveForecastDuration(duration?: unknown): ForecastDurationKey {
   return FORECAST_DURATION_MAP[normalized] ?? DEFAULT_FORECAST_DURATION;
 }
 
+type ProjectionTrajectoryPoint = {
+  x: number;
+  y: number;
+};
+
 type ForecastTrajectorySet = {
-  mean: MonteCarloTrajectoryPoint[];
-  percentile10: MonteCarloTrajectoryPoint[];
-  percentile90: MonteCarloTrajectoryPoint[];
+  mean: ProjectionTrajectoryPoint[];
+  percentile10: ProjectionTrajectoryPoint[];
+  percentile90: ProjectionTrajectoryPoint[];
 };
 
 function buildForecastTrajectory(
@@ -236,7 +220,7 @@ function buildForecastTrajectory(
     }
   });
 
-  const sortSeries = (points: MonteCarloTrajectoryPoint[]) => points.sort((a, b) => a.x - b.x);
+  const sortSeries = (points: ProjectionTrajectoryPoint[]) => points.sort((a, b) => a.x - b.x);
   sortSeries(series.mean);
   sortSeries(series.percentile10);
   sortSeries(series.percentile90);
@@ -245,7 +229,7 @@ function buildForecastTrajectory(
   if (lastHistorical) {
     const historicalTimestamp = new Date(lastHistorical.date).getTime();
     if (Number.isFinite(historicalTimestamp) && Number.isFinite(lastHistorical.close)) {
-      const prepend = (points: MonteCarloTrajectoryPoint[]) => {
+      const prepend = (points: ProjectionTrajectoryPoint[]) => {
         if (!points.length) {
           return;
         }
@@ -345,42 +329,21 @@ function buildDisplayWindow(history: CoinGeckoCandle[]): CoinGeckoCandle[] {
 
 function buildChartProjectionPayload(
   history: CoinGeckoCandle[],
-  horizon: MonteCarloHorizon | undefined,
   asset: string,
-  projectionOverride?: MonteCarloTrajectoryPoint[] | null,
+  projectionOverride?: ProjectionTrajectoryPoint[] | null,
   projectionHorizonOverride?: number,
 ): ChartProjectionData {
   const windowedHistory = buildDisplayWindow(history);
-  const projectionSource = windowedHistory.length ? windowedHistory : history;
-  let projection: MonteCarloTrajectoryPoint[] = [];
-
-  if (projectionOverride?.length) {
-    projection = projectionOverride;
-  } else if (projectionSource.length >= 2) {
-    const stats = estimateDriftAndVolatility(projectionSource.map((point) => point.close));
-    const startCandle = projectionSource[projectionSource.length - 1];
-    if (stats && startCandle) {
-      const horizonMonths = horizon ?? MonteCarloHorizons.SIX_MONTHS;
-      projection = generateMonteCarloPath({
-        startPrice: startCandle.close,
-        startTimestamp: new Date(startCandle.date).getTime(),
-        drift: stats.drift,
-        volatility: stats.volatility,
-        config: {
-          horizonMonths,
-          stepDays: 1,
-          seed: 13579,
-        },
-      });
-    }
-  }
+  const projection =
+    projectionOverride?.length && projectionOverride.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+      ? projectionOverride
+      : [];
 
   const latestCandle = history[history.length - 1];
   const metadata = {
     asset: asset || "asset",
     as_of: latestCandle?.date ?? new Date().toISOString().slice(0, 10),
-    projection_horizon_months:
-      projectionHorizonOverride ?? horizon ?? MonteCarloHorizons.SIX_MONTHS,
+    projection_horizon_months: projectionHorizonOverride ?? DEFAULT_PROJECTION_MONTHS,
   };
 
   return {
@@ -441,7 +404,6 @@ export function CalculatorHubSection() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
-  const [monteCarloTrajectory, setMonteCarloTrajectory] = useState<MonteCarloTrajectoryPoint[] | null>(null);
   const [strategyOverlays, setStrategyOverlays] = useState<StrategyOverlay[]>([]);
   const [dcaSimulation, setDcaSimulation] = useState<DcaSimulation | null>(null);
   const [projectionStartTimestamp, setProjectionStartTimestamp] = useState(0);
@@ -480,10 +442,6 @@ export function CalculatorHubSection() {
     }
     return normalizeTrendMaPeriodValue(trendMaPeriodInput, durationInput);
   }, [activeCalculatorId, trendMaPeriodInput, durationInput]);
-  const monteCarloHorizon = useMemo(
-    () => resolveDurationToMonteCarloHorizon(durationInput),
-    [durationInput],
-  );
   const { displayDataset, displayWindowStart } = useMemo(() => {
     if (!priceHistory.length) {
       return { displayDataset: priceHistory, displayWindowStart: 0 };
@@ -511,18 +469,8 @@ export function CalculatorHubSection() {
     return buildSeriesFromCandles(activeScenarioCandles);
   }, [activeScenarioCandles]);
 
-  const combinedSeries = useMemo<TimeSeriesValuePoint[]>(() => {
-    if (!monteCarloTrajectory?.length) {
-      return historicalSeries;
-    }
-
-    const merged = [...historicalSeries, ...monteCarloTrajectory.map((point) => ({ x: point.x, y: point.y }))];
-    merged.sort((a, b) => a.x - b.x);
-    return merged;
-  }, [historicalSeries, monteCarloTrajectory]);
-
   const { technicalOverlays, eventMarkers } = useMemo(() => {
-    if (!combinedSeries.length) {
+    if (!historicalSeries.length) {
       return { technicalOverlays: [], eventMarkers: [] };
     }
 
@@ -668,7 +616,6 @@ export function CalculatorHubSection() {
     return { technicalOverlays: filteredOverlays, eventMarkers: filteredMarkers };
   }, [
     activeCalculatorId,
-    combinedSeries,
     projectionStartTimestamp,
     displayWindowStart,
     forecastPercentileOverlays,
@@ -753,13 +700,6 @@ export function CalculatorHubSection() {
     [eventMarkers, strategyEventMarkers],
   );
 
-  const handleMonteCarloPathUpdate = useCallback(
-    (trajectory: MonteCarloTrajectoryPoint[] | null) => {
-      setMonteCarloTrajectory(trajectory);
-    },
-    [],
-  );
-
   const handleFormStateChange = (field: string, value: unknown): void => {
     setCalculatorStates((previous) => {
       const existingState = (previous[activeCalculatorId] ?? {}) as Record<string, unknown>;
@@ -794,7 +734,6 @@ export function CalculatorHubSection() {
     setPriceHistoryError(null);
     setIsPriceHistoryLoading(true);
     setPriceHistory([]);
-    setMonteCarloTrajectory(null);
     setProjectionStartTimestamp(0);
     setDcaSimulation(null);
     setForecastPercentileOverlays([]);
@@ -820,7 +759,7 @@ export function CalculatorHubSection() {
     let projectionSeries: { timestamp: number; price: number; date: string }[] = [];
     let trendSimulation: TrendFollowingSimulation | null = null;
     let simulationOverlay: StrategyOverlay | null = null;
-    let forecastTrajectory: MonteCarloTrajectoryPoint[] | null = null;
+    let forecastTrajectory: ProjectionTrajectoryPoint[] | null = null;
     let projectionMonthsOverride: number | undefined;
     let dcaResolvedDurationMonths: number | null = null;
     let resolvedHistory: CoinGeckoCandle[] = [];
@@ -951,29 +890,12 @@ export function CalculatorHubSection() {
         }));
       }
 
-      const shouldSkipFallbackProjection =
-        ["dca", "trend-following", "buy-the-dip"].includes(activeCalculatorId) && !forecastTrajectory;
-
-      if (shouldSkipFallbackProjection) {
-        chartProjection = {
-          historical_data: history,
-          projection: [],
-          metadata: {
-            asset: assetLabel,
-            as_of: history.at(-1)?.date ?? new Date().toISOString().slice(0, 10),
-            projection_horizon_months: projectionMonthsOverride ?? MonteCarloHorizons.SIX_MONTHS,
-          },
-        };
-      } else {
-        chartProjection = buildChartProjectionPayload(
-          history,
-          monteCarloHorizon,
-          assetLabel,
-          forecastTrajectory,
-          projectionMonthsOverride,
-        );
-      }
-      setMonteCarloTrajectory(chartProjection.projection.length ? chartProjection.projection : null);
+      chartProjection = buildChartProjectionPayload(
+        history,
+        assetLabel,
+        forecastTrajectory,
+        projectionMonthsOverride,
+      );
       projectionSeries = chartProjection.projection.map((point) => ({
         timestamp: point.x,
         price: point.y,
@@ -1023,7 +945,7 @@ export function CalculatorHubSection() {
                 metadata: {
                   asset: assetLabel,
                   as_of: resolvedHistory.at(-1)?.date ?? new Date().toISOString().slice(0, 10),
-                  projection_horizon_months: projectionMonthsOverride ?? MonteCarloHorizons.SIX_MONTHS,
+                  projection_horizon_months: projectionMonthsOverride ?? DEFAULT_PROJECTION_MONTHS,
                 },
               };
               scenarioSimulations[scenario] = simulateTrendFollowingStrategy({
@@ -1237,7 +1159,6 @@ export function CalculatorHubSection() {
       setPriceHistory([]);
       setPriceHistoryError(null);
       setIsPriceHistoryLoading(false);
-      setMonteCarloTrajectory(null);
       setStrategyOverlays([]);
       setDcaSimulation(null);
       setProjectionStartTimestamp(0);
@@ -1293,7 +1214,6 @@ export function CalculatorHubSection() {
     setPriceHistory([]);
     setPriceHistoryError(null);
     setIsPriceHistoryLoading(false);
-    setMonteCarloTrajectory(null);
     setStrategyOverlays([]);
     setDcaSimulation(null);
     setProjectionStartTimestamp(0);
@@ -1351,11 +1271,6 @@ export function CalculatorHubSection() {
       seriesLabel={seriesLabel}
       technicalOverlays={technicalOverlays}
       eventMarkers={combinedEventMarkers}
-      onMonteCarloPath={handleMonteCarloPathUpdate}
-      monteCarloHorizon={monteCarloHorizon}
-      projectionPath={activeCalculatorId === "dca" ? monteCarloTrajectory : null}
-      projectionLabel={activeCalculatorId === "dca" ? "Nova forecast" : undefined}
-      generateFallbackProjection={false}
       projectionCandles={activeScenarioCandles.length ? activeScenarioCandles : null}
       projectionCandlesLabel={scenarioProjectionLabel}
       projectionCandlesColor={scenarioProjectionColor}
