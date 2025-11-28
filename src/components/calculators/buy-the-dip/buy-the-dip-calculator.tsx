@@ -20,6 +20,7 @@ export type BuyTheDipFormState = {
   budget: string;
   dipThreshold: string;
   duration: string;
+  scenario?: "likely" | "bearish" | "bullish";
 };
 
 const defaultFormState: BuyTheDipFormState = {
@@ -28,6 +29,7 @@ const defaultFormState: BuyTheDipFormState = {
   budget: "5000",
   dipThreshold: "10",
   duration: "6 months",
+  scenario: "likely",
 };
 
 const initialSummaryMessage = "Run the projection to see Nova's perspective on this strategy.";
@@ -130,6 +132,13 @@ export function BuyTheDipCalculatorForm({
       handleFieldChangeBuilder(field)(event.target.value);
     };
 
+  const selectedScenario = formState.scenario ?? "likely";
+  const scenarioOptions: Array<{ value: NonNullable<BuyTheDipFormState["scenario"]>; label: string }> = [
+    { value: "likely", label: "Likely" },
+    { value: "bearish", label: "Bearish" },
+    { value: "bullish", label: "Bullish" },
+  ];
+
   return (
     <form
       className="card-surface flex flex-col gap-4 rounded-2xl bg-gradient-to-br from-slate-950/75 via-slate-950/55 to-slate-900/30 p-4 sm:gap-5 sm:rounded-3xl sm:p-6"
@@ -194,6 +203,28 @@ export function BuyTheDipCalculatorForm({
             <option value="1 year">1 year</option>
           </select>
         </label>
+      </div>
+      <div className="rounded-2xl border border-ocean/60 bg-surface/60 p-3 sm:p-4">
+        <div className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-slate-300 sm:text-sm">
+          <span>Scenario</span>
+        </div>
+        <div className="mt-3 flex gap-2">
+          {scenarioOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => handleFieldChangeBuilder("scenario")(option.value)}
+              className={[
+                "flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition sm:px-4",
+                selectedScenario === option.value
+                  ? "border-mint bg-mint/20 text-slate-50"
+                  : "border-slate-700/70 text-slate-400 hover:text-slate-100",
+              ].join(" ")}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
       <button
         type="submit"

@@ -417,7 +417,7 @@ export function PriceTrajectoryPanel({
           };
         });
 
-        const scenarioOverlayIndex = overlaysForRendering.findIndex((overlay) => overlay.id === "dca-scenario-line");
+        const scenarioOverlayIndex = overlaysForRendering.findIndex((overlay) => overlay.id === "scenario-strategy-line");
         const scenarioOverlay =
           scenarioOverlayIndex >= 0 ? overlaysForRendering[scenarioOverlayIndex] : undefined;
         const overlaysForLines =

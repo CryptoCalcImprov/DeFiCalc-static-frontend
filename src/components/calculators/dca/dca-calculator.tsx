@@ -48,7 +48,7 @@ function buildPrompt(
   return joinPromptLines([
     "You are given a curated chart projection (CHART_PROJECTION) that contains historical candles and a Monte Carlo forecast.",
     "Use the projection data and only the prices provided—do not invent additional price paths.",
-    `Strategy: invest ${amount} USD of ${normalizedToken} on a ${interval} cadence for ${duration}.`,
+    `Strategy: invest a total of ${amount} USD into ${normalizedToken}, distributing buys on a ${interval} cadence for ${duration}.`,
     "",
     "Deliver a single JSON object only. Do not ask questions or add prose outside the schema.",
     "",
@@ -140,7 +140,7 @@ export function DcaCalculatorForm({
       <div>
         <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">Configure your DCA plan</h3>
         <p className="mt-1.5 text-xs text-muted sm:mt-2 sm:text-sm">
-          Adjust token, contribution size, cadence, and horizon to see how Nova models accumulation over time.
+          Adjust token, total contribution size, cadence, and horizon to see how Nova models accumulation over time.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
@@ -157,7 +157,7 @@ export function DcaCalculatorForm({
           />
         </label>
         <label className="flex flex-col gap-1.5 text-xs font-medium text-slate-200 sm:gap-2 sm:text-sm">
-          Contribution amount (USD)
+          Total contribution (USD)
           <input
             type="number"
             min="10"
@@ -165,7 +165,7 @@ export function DcaCalculatorForm({
             value={formState.amount}
             onChange={handleFieldChange("amount")}
             className="rounded-xl border border-ocean/60 bg-surface/90 px-3 py-1.5 text-sm text-slate-50 placeholder:text-slate-500 shadow-inner focus:border-mint focus:bg-surface/95 focus:outline-none focus:ring-1 focus:ring-mint/35 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
-            placeholder="e.g. 500"
+            placeholder="e.g. 5000"
             required
           />
         </label>

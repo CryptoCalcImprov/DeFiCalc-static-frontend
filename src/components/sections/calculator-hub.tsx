@@ -20,6 +20,7 @@ import {
 } from "@/components/calculators/workspace/PriceTrajectoryPanel";
 import type { TrendFollowingSimulation } from "@/components/calculators/trend-following/types";
 import { simulateTrendFollowingStrategy } from "@/components/calculators/trend-following/simulator";
+import { simulateBuyTheDipStrategy, type BuyTheDipSimulation } from "@/components/calculators/buy-the-dip/simulator";
 import { SummaryPanel } from "@/components/calculators/workspace/SummaryPanel";
 import { Button } from "@/components/ui/button";
 import { clearNovaHistory, requestNova } from "@/lib/nova-client";
@@ -85,6 +86,9 @@ const CALCULATOR_NOVA_DISABLED =
 type ForecastScenario = "likely" | "bearish" | "bullish";
 
 type ForecastSampleCandles = Record<ForecastScenario, CoinGeckoCandle[]>;
+type ForecastScenarioSimulations = Record<ForecastScenario, DcaSimulation | TrendFollowingSimulation | BuyTheDipSimulation | null>;
+type ScenarioCandlesByCalculator = Record<string, ForecastSampleCandles>;
+type ScenarioSimulationsByCalculator = Record<string, ForecastScenarioSimulations>;
 
 const FORECAST_SCENARIO_LABELS: Record<ForecastScenario, string> = {
   likely: "Likely",
@@ -427,11 +431,8 @@ export function CalculatorHubSection() {
   const [dcaSimulation, setDcaSimulation] = useState<DcaSimulation | null>(null);
   const [projectionStartTimestamp, setProjectionStartTimestamp] = useState(0);
   const [forecastPercentileOverlays, setForecastPercentileOverlays] = useState<PriceTrajectoryOverlay[]>([]);
-  const [forecastSampleCandles, setForecastSampleCandles] = useState<ForecastSampleCandles>(() =>
-    createEmptySampleCandles(),
-  );
-  const [forecastScenarioSimulations, setForecastScenarioSimulations] =
-    useState<ForecastScenarioSimulations>(() => createEmptyScenarioSimulations());
+  const [scenarioSampleCandlesMap, setScenarioSampleCandlesMap] = useState<ScenarioCandlesByCalculator>({});
+  const [scenarioSimulationsMap, setScenarioSimulationsMap] = useState<ScenarioSimulationsByCalculator>({});
 
   const activeDefinition = findCalculatorDefinition<any>(activeCalculatorId);
 
@@ -442,7 +443,14 @@ export function CalculatorHubSection() {
   const activeScenario: ForecastScenario =
     activeCalculatorId === "dca" && typeof formState.scenario === "string"
       ? (formState.scenario as ForecastScenario)
-      : "likely";
+      : typeof formState.scenario === "string"
+        ? (formState.scenario as ForecastScenario)
+        : "likely";
+
+  const activeScenarioCandles =
+    scenarioSampleCandlesMap[activeCalculatorId]?.[activeScenario] ?? createEmptySampleCandles()[activeScenario];
+  const activeScenarioSimulation =
+    scenarioSimulationsMap[activeCalculatorId]?.[activeScenario] ?? createEmptyScenarioSimulations()[activeScenario];
 
   const seriesLabel =
     (activeDefinition?.getSeriesLabel ? activeDefinition.getSeriesLabel(formState as any) : undefined) ?? "Modeled price";
@@ -491,14 +499,27 @@ export function CalculatorHubSection() {
     const overlays: PriceTrajectoryOverlay[] = [];
     const markers: PriceTrajectoryEventMarker[] = [];
 
-    if (activeCalculatorId === "dca") {
+    if (monteCarloTrajectory?.length) {
+      overlays.push({
+        id: "forecast-mean",
+        label: "Mean projection",
+        data: monteCarloTrajectory.map((point) => ({ x: point.x, y: point.y })),
+        color: "#38BDF8",
+        strokeWidth: 2,
+        borderDash: [6, 4],
+        pointRadius: 0,
+        order: 5,
+      });
+    }
+
+    if (["dca", "trend-following", "buy-the-dip"].includes(activeCalculatorId)) {
       if (forecastPercentileOverlays.length) {
         overlays.push(...forecastPercentileOverlays);
       }
-      const scenarioSimulation = forecastScenarioSimulations[activeScenario];
-      if (scenarioSimulation?.points.length) {
+      const scenarioSimulation = activeScenarioSimulation as DcaSimulation | TrendFollowingSimulation | null;
+      if (scenarioSimulation && "points" in scenarioSimulation && Array.isArray(scenarioSimulation.points) && scenarioSimulation.points.length) {
         overlays.push({
-          id: "dca-scenario-line",
+          id: "scenario-strategy-line",
           label: "Scheduled buys",
           data: scenarioSimulation.points
             .map((point) => {
@@ -519,7 +540,7 @@ export function CalculatorHubSection() {
           order: 2000,
         });
         markers.push({
-          id: "dca-sample-schedule",
+          id: "scenario-strategy-points",
           label: "Scheduled buys",
           points: scenarioSimulation.points
             .map((point) => {
@@ -545,54 +566,80 @@ export function CalculatorHubSection() {
           radius: 4,
         });
       }
-    } else if (activeCalculatorId === "buy-the-dip") {
-      overlays.push({
-        id: "buy-dip-sma-20",
-        label: "20-day SMA",
-        data: buildMovingAverageSeries(combinedSeries, 20),
-        color: "rgba(16, 185, 129, 0.85)",
-      });
-
-      const parsedThreshold = Number.parseFloat(dipThresholdString);
-      const normalizedThreshold = Number.isFinite(parsedThreshold) ? parsedThreshold : 10;
-      const dipSeries = buildDipTriggerSeries(combinedSeries, normalizedThreshold, 30);
-
-      if (dipSeries.recentHighs.length) {
-        overlays.push({
-          id: "buy-dip-recent-high",
-          label: "30-day recent high",
-          data: dipSeries.recentHighs,
-          color: "rgba(251, 191, 36, 0.9)",
-          borderDash: [6, 4],
-        });
-      }
-
-      if (dipSeries.thresholdLine.length) {
-        overlays.push({
-          id: "buy-dip-threshold",
-          label: `${normalizedThreshold}% dip threshold`,
-          data: dipSeries.thresholdLine,
-          color: "rgba(248, 113, 113, 0.9)",
-          borderDash: [2, 4],
-          strokeWidth: 1.5,
-        });
-      }
-
-      if (dipSeries.dipEvents.length) {
+    } else if (activeCalculatorId === "trend-following") {
+      const trendScenarioSimulation = activeScenarioSimulation as TrendFollowingSimulation | null;
+      if (trendScenarioSimulation?.crossovers.length) {
         markers.push({
-          id: "buy-dip-events",
-          label: "Dip triggers",
-          points: dipSeries.dipEvents.map((point) => ({
-            ...point,
-            meta: {
-              action: `${normalizedThreshold}% dip trigger`,
-              price: point.y,
-              date: new Date(point.x).toISOString().slice(0, 10),
-            },
-          })),
-          backgroundColor: "rgba(239, 68, 68, 0.7)",
-          borderColor: "rgba(220, 38, 38, 1)",
+          id: "scenario-strategy-points",
+          label: "Modeled crossovers",
+          points: trendScenarioSimulation.crossovers
+            .map((point) => {
+              const timestamp = new Date(point.date).getTime();
+              if (!Number.isFinite(timestamp) || !Number.isFinite(point.price)) {
+                return null;
+              }
+              return {
+                x: timestamp,
+                y: point.price,
+                meta: {
+                  action: "Crossover",
+                  price: point.price,
+                  date: point.date,
+                },
+              };
+            })
+            .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
+          backgroundColor: SCENARIO_STRATEGY_COLOR,
+          borderColor: SCENARIO_STRATEGY_COLOR,
           radius: 5,
+        });
+      }
+    } else if (activeCalculatorId === "buy-the-dip") {
+      const buyScenarioSimulation = activeScenarioSimulation as BuyTheDipSimulation | null;
+      if (buyScenarioSimulation?.points.length) {
+        overlays.push({
+          id: "scenario-strategy-line",
+          label: "Scheduled buys",
+          data: buyScenarioSimulation.points
+            .map((point) => {
+              const timestamp = new Date(point.date).getTime();
+              if (!Number.isFinite(timestamp) || !Number.isFinite(point.price)) {
+                return null;
+              }
+              return { x: timestamp, y: point.price };
+            })
+            .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
+          color: SCENARIO_STRATEGY_COLOR,
+          strokeWidth: 2,
+          borderDash: [2, 4],
+          pointRadius: 0,
+          order: 2000,
+        });
+        markers.push({
+          id: "scenario-strategy-points",
+          label: "Scheduled buys",
+          points: buyScenarioSimulation.points
+            .map((point) => {
+              const timestamp = new Date(point.date).getTime();
+              if (!Number.isFinite(timestamp) || !Number.isFinite(point.price)) {
+                return null;
+              }
+              return {
+                x: timestamp,
+                y: point.price,
+                meta: {
+                  action: `Buy $${point.amount.toFixed(2)}`,
+                  amount: point.amount,
+                  quantity: point.quantity,
+                  price: point.price,
+                  date: point.date,
+                },
+              };
+            })
+            .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry)),
+          backgroundColor: SCENARIO_STRATEGY_COLOR,
+          borderColor: SCENARIO_STRATEGY_COLOR,
+          radius: 4,
         });
       }
     } else if (activeCalculatorId === "trend-following") {
@@ -635,12 +682,11 @@ export function CalculatorHubSection() {
   }, [
     activeCalculatorId,
     combinedSeries,
-    dipThresholdString,
     projectionStartTimestamp,
     displayWindowStart,
     forecastPercentileOverlays,
-    forecastScenarioSimulations,
-    activeScenario,
+    activeScenarioSimulation,
+    monteCarloTrajectory,
   ]);
 
 
@@ -763,8 +809,14 @@ export function CalculatorHubSection() {
     setProjectionStartTimestamp(0);
     setDcaSimulation(null);
     setForecastPercentileOverlays([]);
-    setForecastSampleCandles(createEmptySampleCandles());
-    setForecastScenarioSimulations(createEmptyScenarioSimulations());
+    setScenarioSampleCandlesMap((previous) => ({
+      ...previous,
+      [activeCalculatorId]: createEmptySampleCandles(),
+    }));
+    setScenarioSimulationsMap((previous) => ({
+      ...previous,
+      [activeCalculatorId]: createEmptyScenarioSimulations(),
+    }));
 
     const tokenFromState = typeof currentState.token === "string" ? currentState.token.trim() : "";
     const explicitTokenId =
@@ -784,9 +836,13 @@ export function CalculatorHubSection() {
     let dcaResolvedDurationMonths: number | null = null;
     let resolvedHistory: CoinGeckoCandle[] = [];
     let forecastSamplePaths: ForecastSamplePath[] = [];
-    let dcaAmountValue = 0;
+    let dcaTotalBudgetValue = 0;
     let dcaIntervalDaysValue = 0;
     let dcaDurationMonthsValue = 0;
+    let trendInitialCapitalValue = 0;
+    let trendMaPeriodValue = 50;
+    let buyBudgetValue = 0;
+    let buyDipThresholdValue = 0;
 
     try {
       const coinId =
@@ -817,19 +873,16 @@ export function CalculatorHubSection() {
       resolvedHistory = history;
       const assetLabel = tokenFromState || coinId;
 
-      if (activeCalculatorId === "dca") {
+      if (["dca", "trend-following", "buy-the-dip"].includes(activeCalculatorId)) {
         const rawDuration = typeof currentState.duration === "string" ? currentState.duration : "6 months";
         const resolvedDurationMonths = resolveDurationToMonths(rawDuration);
-        dcaResolvedDurationMonths = resolvedDurationMonths;
         projectionMonthsOverride = resolvedDurationMonths;
-        const rawAmount = Number((currentState as Record<string, unknown>).amount ?? 0);
-        const intervalValue = typeof currentState.interval === "string" ? currentState.interval : "bi-weekly";
-        const intervalDays = resolveIntervalToDays(intervalValue);
-        const durationMonths = dcaResolvedDurationMonths ?? resolveDurationToMonths(rawDuration);
-        dcaAmountValue = rawAmount;
-        dcaIntervalDaysValue = intervalDays;
-        dcaDurationMonthsValue = durationMonths;
         const forecastDuration = resolveForecastDuration(rawDuration);
+        console.log("[Forecast] Fetching paths", {
+          calculator: activeCalculatorId,
+          token: assetLabel,
+          duration: forecastDuration,
+        });
         const forecastPayload = await requestLongTermForecast({
           assetId: coinId,
           duration: forecastDuration,
@@ -862,21 +915,58 @@ export function CalculatorHubSection() {
           });
         }
         setForecastPercentileOverlays(overlays);
+
+        if (activeCalculatorId === "dca") {
+          const rawAmount = Number((currentState as Record<string, unknown>).amount ?? 0);
+          const intervalValue = typeof currentState.interval === "string" ? currentState.interval : "bi-weekly";
+          const intervalDays = resolveIntervalToDays(intervalValue);
+          const durationMonths = resolvedDurationMonths;
+          dcaTotalBudgetValue = rawAmount;
+          dcaIntervalDaysValue = intervalDays;
+          dcaDurationMonthsValue = durationMonths;
+        } else if (activeCalculatorId === "trend-following") {
+          trendInitialCapitalValue = Number((currentState as Record<string, unknown>).initialCapital ?? 0);
+          trendMaPeriodValue = Number((currentState as Record<string, unknown>).maPeriod ?? 50);
+        } else if (activeCalculatorId === "buy-the-dip") {
+          buyBudgetValue = Number((currentState as Record<string, unknown>).budget ?? 0);
+          buyDipThresholdValue = Number((currentState as Record<string, unknown>).dipThreshold ?? 0);
+        }
       } else {
         projectionMonthsOverride = undefined;
         forecastTrajectory = null;
         setForecastPercentileOverlays([]);
-        setForecastSampleCandles(createEmptySampleCandles());
-        setForecastScenarioSimulations(createEmptyScenarioSimulations());
+        setScenarioSampleCandlesMap((previous) => ({
+          ...previous,
+          [activeCalculatorId]: createEmptySampleCandles(),
+        }));
+        setScenarioSimulationsMap((previous) => ({
+          ...previous,
+          [activeCalculatorId]: createEmptyScenarioSimulations(),
+        }));
       }
 
-      chartProjection = buildChartProjectionPayload(
-        history,
-        monteCarloHorizon,
-        assetLabel,
-        forecastTrajectory,
-        projectionMonthsOverride,
-      );
+      const shouldSkipFallbackProjection =
+        ["dca", "trend-following", "buy-the-dip"].includes(activeCalculatorId) && !forecastTrajectory;
+
+      if (shouldSkipFallbackProjection) {
+        chartProjection = {
+          historical_data: history,
+          projection: [],
+          metadata: {
+            asset: assetLabel,
+            as_of: history.at(-1)?.date ?? new Date().toISOString().slice(0, 10),
+            projection_horizon_months: projectionMonthsOverride ?? MonteCarloHorizons.SIX_MONTHS,
+          },
+        };
+      } else {
+        chartProjection = buildChartProjectionPayload(
+          history,
+          monteCarloHorizon,
+          assetLabel,
+          forecastTrajectory,
+          projectionMonthsOverride,
+        );
+      }
       setMonteCarloTrajectory(chartProjection.projection.length ? chartProjection.projection : null);
       projectionSeries = chartProjection.projection.map((point) => ({
         timestamp: point.x,
@@ -884,42 +974,86 @@ export function CalculatorHubSection() {
         date: new Date(point.x).toISOString().slice(0, 10),
       }));
       setProjectionStartTimestamp(projectionSeries[0]?.timestamp ?? 0);
+      if (["dca", "trend-following", "buy-the-dip"].includes(activeCalculatorId)) {
+        const sampleCandles = buildSampleCandlesFromPaths(forecastSamplePaths, projectionSeries, resolvedHistory);
+        setScenarioSampleCandlesMap((previous) => ({
+          ...previous,
+          [activeCalculatorId]: sampleCandles,
+        }));
+
+        const scenarioSimulations = createEmptyScenarioSimulations();
+        FORECAST_SCENARIO_KEYS.forEach((scenario) => {
+          const candles = sampleCandles[scenario];
+          if (!candles.length) {
+            return;
+          }
+          const scenarioSeries = buildProjectionSeriesFromCandles(candles);
+          if (!scenarioSeries.length) {
+            return;
+          }
+
+          if (activeCalculatorId === "dca") {
+            const amountValid =
+              Number.isFinite(dcaTotalBudgetValue) &&
+              dcaTotalBudgetValue > 0 &&
+              Number.isFinite(dcaIntervalDaysValue) &&
+              dcaIntervalDaysValue > 0 &&
+              Number.isFinite(dcaDurationMonthsValue) &&
+              dcaDurationMonthsValue > 0;
+            if (amountValid) {
+              scenarioSimulations[scenario] = simulateDcaStrategy({
+                projectionSeries: scenarioSeries,
+                totalBudget: dcaTotalBudgetValue,
+                intervalDays: dcaIntervalDaysValue,
+                durationMonths: dcaDurationMonthsValue,
+              });
+            }
+          } else if (activeCalculatorId === "trend-following") {
+            if (Number.isFinite(trendInitialCapitalValue) && trendInitialCapitalValue > 0) {
+              const projectionTrajectory = scenarioSeries.map((point) => ({ x: point.timestamp, y: point.price }));
+              const scenarioChartProjection: ChartProjectionData = {
+                historical_data: resolvedHistory,
+                projection: projectionTrajectory,
+                metadata: {
+                  asset: assetLabel,
+                  as_of: resolvedHistory.at(-1)?.date ?? new Date().toISOString().slice(0, 10),
+                  projection_horizon_months: projectionMonthsOverride ?? MonteCarloHorizons.SIX_MONTHS,
+                },
+              };
+              scenarioSimulations[scenario] = simulateTrendFollowingStrategy({
+                chartProjection: scenarioChartProjection,
+                initialCapital: trendInitialCapitalValue,
+                maPeriod: trendMaPeriodValue,
+              });
+            }
+          } else if (activeCalculatorId === "buy-the-dip") {
+            if (Number.isFinite(buyBudgetValue) && buyBudgetValue > 0 && Number.isFinite(buyDipThresholdValue)) {
+              scenarioSimulations[scenario] = simulateBuyTheDipStrategy({
+                projectionCandles: candles,
+                dipThresholdPct: buyDipThresholdValue,
+                totalBudget: buyBudgetValue,
+              });
+            }
+          }
+        });
+
+        setScenarioSimulationsMap((previous) => ({
+          ...previous,
+          [activeCalculatorId]: scenarioSimulations,
+        }));
+      } else {
+        setScenarioSampleCandlesMap((previous) => ({
+          ...previous,
+          [activeCalculatorId]: createEmptySampleCandles(),
+        }));
+        setScenarioSimulationsMap((previous) => ({
+          ...previous,
+          [activeCalculatorId]: createEmptyScenarioSimulations(),
+        }));
+      }
+
       setPriceHistory(resolvedHistory);
       setIsPriceHistoryLoading(false);
-      if (activeCalculatorId === "dca") {
-        const sampleCandles = buildSampleCandlesFromPaths(forecastSamplePaths, projectionSeries, resolvedHistory);
-        setForecastSampleCandles(sampleCandles);
-        const scenarioSimulations = createEmptyScenarioSimulations();
-        const amountValid =
-          Number.isFinite(dcaAmountValue) &&
-          dcaAmountValue > 0 &&
-          Number.isFinite(dcaIntervalDaysValue) &&
-          dcaIntervalDaysValue > 0 &&
-          Number.isFinite(dcaDurationMonthsValue) &&
-          dcaDurationMonthsValue > 0;
-        if (amountValid) {
-          FORECAST_SCENARIO_KEYS.forEach((scenario) => {
-            const candles = sampleCandles[scenario];
-            if (!candles.length) {
-              return;
-            }
-            const scenarioSeries = buildProjectionSeriesFromCandles(candles);
-            if (!scenarioSeries.length) {
-              return;
-            }
-            scenarioSimulations[scenario] = simulateDcaStrategy({
-              projectionSeries: scenarioSeries,
-              amountPerContribution: dcaAmountValue,
-              intervalDays: dcaIntervalDaysValue,
-              durationMonths: dcaDurationMonthsValue,
-            });
-          });
-        }
-        setForecastScenarioSimulations(scenarioSimulations);
-      } else {
-        setForecastSampleCandles(createEmptySampleCandles());
-        setForecastScenarioSimulations(createEmptyScenarioSimulations());
-      }
 
       if (activeCalculatorId === "trend-following" && chartProjection) {
         const maPeriodValue = Number((currentState as Record<string, unknown>).maPeriod ?? 50);
@@ -950,10 +1084,10 @@ export function CalculatorHubSection() {
       }
 
       if (activeCalculatorId === "dca" && chartProjection) {
-        if (Number.isFinite(dcaAmountValue) && dcaAmountValue > 0) {
+        if (Number.isFinite(dcaTotalBudgetValue) && dcaTotalBudgetValue > 0) {
           const simulation = simulateDcaStrategy({
             projectionSeries,
-            amountPerContribution: dcaAmountValue,
+            totalBudget: dcaTotalBudgetValue,
             intervalDays: dcaIntervalDaysValue,
             durationMonths: dcaDurationMonthsValue,
           });
@@ -976,8 +1110,14 @@ export function CalculatorHubSection() {
       setPriceHistoryError(message);
       setError(message);
       setForecastPercentileOverlays([]);
-      setForecastSampleCandles(createEmptySampleCandles());
-      setForecastScenarioSimulations(createEmptyScenarioSimulations());
+      setScenarioSampleCandlesMap((previous) => ({
+        ...previous,
+        [activeCalculatorId]: createEmptySampleCandles(),
+      }));
+      setScenarioSimulationsMap((previous) => ({
+        ...previous,
+        [activeCalculatorId]: createEmptyScenarioSimulations(),
+      }));
       setIsPriceHistoryLoading(false);
       setIsLoading(false);
       return;
@@ -1067,8 +1207,14 @@ export function CalculatorHubSection() {
       setStrategyOverlays(simulationOverlay ? [simulationOverlay] : []);
       setDcaSimulation(null);
       setForecastPercentileOverlays([]);
-      setForecastSampleCandles(createEmptySampleCandles());
-      setForecastScenarioSimulations(createEmptyScenarioSimulations());
+      setScenarioSampleCandlesMap((previous) => ({
+        ...previous,
+        [nextId]: createEmptySampleCandles(),
+      }));
+      setScenarioSimulationsMap((previous) => ({
+        ...previous,
+        [nextId]: createEmptyScenarioSimulations(),
+      }));
       setSummaryMessage("Nova couldn't complete this request. Please adjust your inputs and try again.");
     } finally {
       setIsLoading(false);
@@ -1098,7 +1244,14 @@ export function CalculatorHubSection() {
       setDcaSimulation(null);
       setProjectionStartTimestamp(0);
       setForecastPercentileOverlays([]);
-      setForecastSampleCandles(createEmptySampleCandles());
+      setScenarioSampleCandlesMap((previous) => ({
+        ...previous,
+        [activeCalculatorId]: createEmptySampleCandles(),
+      }));
+      setScenarioSimulationsMap((previous) => ({
+        ...previous,
+        [activeCalculatorId]: createEmptyScenarioSimulations(),
+      }));
       setInsight(null);
       setFallbackLines([]);
       setSummaryMessage(activeDefinition?.initialSummary ?? defaultSummary);
@@ -1147,8 +1300,14 @@ export function CalculatorHubSection() {
     setDcaSimulation(null);
     setProjectionStartTimestamp(0);
     setForecastPercentileOverlays([]);
-    setForecastSampleCandles(createEmptySampleCandles());
-    setForecastScenarioSimulations(createEmptyScenarioSimulations());
+    setScenarioSampleCandlesMap((previous) => ({
+      ...previous,
+      [nextId]: createEmptySampleCandles(),
+    }));
+    setScenarioSimulationsMap((previous) => ({
+      ...previous,
+      [nextId]: createEmptyScenarioSimulations(),
+    }));
 
     setCalculatorStates((previous) => {
       if (previous[nextId]) {
@@ -1181,6 +1340,12 @@ export function CalculatorHubSection() {
   };
 
   const CalculatorFormComponent = activeDefinition?.Form ?? null;
+  const hasScenarioProjection = activeScenarioCandles.length > 0;
+  const scenarioProjectionLabel = hasScenarioProjection
+    ? `${FORECAST_SCENARIO_LABELS[activeScenario]} path`
+    : undefined;
+  const scenarioProjectionColor = hasScenarioProjection ? FORECAST_SCENARIO_COLORS[activeScenario] : undefined;
+
   const priceTrajectoryPanel = (
     <PriceTrajectoryPanel
       dataset={displayDataset}
@@ -1192,18 +1357,10 @@ export function CalculatorHubSection() {
       monteCarloHorizon={monteCarloHorizon}
       projectionPath={activeCalculatorId === "dca" ? monteCarloTrajectory : null}
       projectionLabel={activeCalculatorId === "dca" ? "Nova forecast" : undefined}
-      generateFallbackProjection={activeCalculatorId !== "dca"}
-      projectionCandles={
-        activeCalculatorId === "dca" && forecastSampleCandles[activeScenario]?.length
-          ? forecastSampleCandles[activeScenario]
-          : null
-      }
-      projectionCandlesLabel={
-        activeCalculatorId === "dca" ? `${FORECAST_SCENARIO_LABELS[activeScenario]} path` : undefined
-      }
-      projectionCandlesColor={
-        activeCalculatorId === "dca" ? FORECAST_SCENARIO_COLORS[activeScenario] : undefined
-      }
+      generateFallbackProjection={false}
+      projectionCandles={activeScenarioCandles.length ? activeScenarioCandles : null}
+      projectionCandlesLabel={scenarioProjectionLabel}
+      projectionCandlesColor={scenarioProjectionColor}
       loadingMessage="Fetching price history from CoinGecko…"
       emptyMessage={
         priceHistoryError ?? "Run the projection to visualize one year of CoinGecko price history."
