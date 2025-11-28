@@ -1,7 +1,15 @@
 const DEFAULT_MODEL = "gpt-5-mini";
-const NOVA_DISABLED =
-  typeof process !== "undefined" &&
-  process.env.NEXT_PUBLIC_DISABLE_NOVA?.trim().toLowerCase() === "true";
+
+function resolveBooleanEnv(value?: string): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+  return value.trim().toLowerCase() === "true";
+}
+
+const NOVA_DISABLED = resolveBooleanEnv(
+  typeof process !== "undefined" ? process.env.NEXT_PUBLIC_DISABLE_NOVA : undefined,
+);
 
 export type RequestNovaResult = {
   reply: string;

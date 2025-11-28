@@ -68,9 +68,16 @@ const INTERVAL_TO_DAYS: Record<string, number> = {
   monthly: 30,
 };
 
-const CALCULATOR_NOVA_DISABLED =
-  typeof process !== "undefined" &&
-  process.env.NEXT_PUBLIC_DISABLE_CALCULATOR_NOVA?.trim().toLowerCase() === "true";
+function resolveBooleanEnv(value?: string): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+  return value.trim().toLowerCase() === "true";
+}
+
+const CALCULATOR_NOVA_DISABLED = resolveBooleanEnv(
+  typeof process !== "undefined" ? process.env.NEXT_PUBLIC_DISABLE_CALCULATOR_NOVA : undefined,
+);
 
 type ForecastScenario = "likely" | "bearish" | "bullish";
 

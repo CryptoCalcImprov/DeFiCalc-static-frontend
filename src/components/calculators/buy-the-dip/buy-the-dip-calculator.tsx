@@ -42,13 +42,13 @@ function buildPrompt(formState: BuyTheDipFormState, chartProjection?: ChartProje
 
   return joinPromptLines([
     "Below is the projection data the calculator already displayed. It combines historical candles with the currently selected scenario path.",
-    "Analyze only these prices—do not invent new ones. Whenever you explain averages, deployment percentages, or returns, call the calculate_expression tool, show the expression you evaluated (e.g., deployed_budget / total_budget), round the result to at most 5 decimal places, and use the tool no more than twice in total.",
-    "Every numeric value you mention (even when copying from the schedule) must be rounded to at most five decimal places before returning the JSON.",
+    "Analyze only these prices—do not invent new ones. Whenever you explain averages, deployment percentages, or returns, call the calculate_expression tool (max twice), show the expression you evaluated (e.g., deployed_budget / total_budget), round to at most 5 decimals, and keep the tone friendly.",
+    "Every numeric value you mention (even when copying from the data) must be rounded to at most five decimals before returning the response.",
     `Strategy: deploy ${budget} USD to buy ${normalizedToken} after ${dipThreshold}%+ drops from recent highs within ${duration}.`,
     "",
-    "Return a single JSON object (schema below) that explains the plan in friendly language. Focus on insights, execution tips, and risk mitigations; do not list every individual buy or reference internal terms like STRATEGY_SIMULATION.",
+    "Return a single structured response (schema below) that explains the plan in friendly language. Focus on insights, execution tips, and risk mitigations; do not list every individual buy or reference internal terms like STRATEGY_SIMULATION.",
     "",
-    "Projection data (JSON):",
+    "Projection data:",
     projectionPayload,
     "",
     "Response schema:",
@@ -110,7 +110,7 @@ function buildPrompt(formState: BuyTheDipFormState, chartProjection?: ChartProje
     "  ]",
     "}",
     "",
-    "Follow the schema exactly and do not emit markdown or additional prose.",
+    "Follow the schema exactly, keep explanations conversational, and prioritize insights, tips, and risk mitigations over long numeric lists.",
   ]);
 }
 

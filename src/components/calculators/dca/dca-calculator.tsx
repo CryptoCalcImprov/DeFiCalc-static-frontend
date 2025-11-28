@@ -43,26 +43,41 @@ function buildPrompt(
   const { token, amount, interval, duration } = formState;
   const normalizedToken = token.trim() || "the selected asset";
   const projectionPayload = chartProjection ? JSON.stringify(chartProjection) : "null";
-  const simulationPayload = simulation ? JSON.stringify(simulation) : "null";
+  const simulationSummaryPayload = simulation
+    ? JSON.stringify({
+        summary: {
+          totalInvested: Number(simulation.metrics.totalInvested?.toFixed(5)),
+          totalQuantity: Number(simulation.metrics.totalQuantity?.toFixed(5)),
+          averagePrice: Number(simulation.metrics.averagePrice?.toFixed(5)),
+          contributions: simulation.points.length,
+          firstDate: simulation.points[0]?.date ?? null,
+          lastDate: simulation.points.at(-1)?.date ?? null,
+        },
+        sampleBuys: simulation.points.slice(0, 3).map((point) => ({
+          date: point.date,
+          amount: Number(point.amount.toFixed(5)),
+          price: Number(point.price.toFixed(5)),
+          quantity: Number(point.quantity.toFixed(5)),
+        })),
+      })
+    : "null";
 
   return joinPromptLines([
-    "Below is the projection data that the calculator already rendered. It contains the historical candles plus the scenario path currently on the chart.",
-    "Use only this data—do not invent additional price paths. Whenever you reference returns or cost basis, call the calculate_expression tool (and no other tools), show the exact expression (e.g., total_invested / total_quantity), round the result to at most 5 decimal places, and limit yourself to at most two calculate_expression calls in total.",
-    "Every numeric value you mention (including amounts copied from the schedule) must be rounded to at most five decimal places before you return the JSON.",
+    "Below is the projection data the calculator rendered (historical candles + the active scenario path).",
+    "Explain the strategy using this data only. When referencing performance or cost basis, call the calculate_expression tool (max twice), show the expression (e.g., total_invested / total_quantity), round results to 5 decimals, and keep the tone friendly.",
+    "All numbers you mention must be rounded to at most 5 decimals even if copied from the data.",
     `Strategy: invest a total of ${amount} USD into ${normalizedToken}, distributing buys on a ${interval} cadence for ${duration}.`,
     "",
-    "A pre-computed buy schedule is also included so you can reference the exact buy dates, quantities, and totals without recomputing anything.",
+    "A summary of the pre-computed buy schedule (first/last dates, totals, and a few sample buys) is provided so you can reference the cadence without listing every order.",
     "",
-    "Projection data (JSON):",
+    "Projection data:",
     projectionPayload,
     "",
-    "Pre-computed buy schedule (JSON):",
-    simulationPayload,
-    "",
-    "Use the schedule as-is: cite those buy dates, contribution amounts, and totals in your explanation instead of recalculating them.",
+    "Buy schedule summary:",
+    simulationSummaryPayload,
     "Focus on plain-language insights (what the strategy is doing well, improvement tips, major risks, and mitigations) rather than repeating raw schedule rows. Avoid internal labels such as STRATEGY_SIMULATION.",
     "",
-    "Response schema (return a single JSON object):",
+    "Respond with a single structured object shaped exactly like this:",
     "{",
     '  "insight": {',
     '    "calculator": {',
