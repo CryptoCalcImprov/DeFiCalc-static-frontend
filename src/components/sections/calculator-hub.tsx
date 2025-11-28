@@ -23,7 +23,7 @@ import { simulateTrendFollowingStrategy } from "@/components/calculators/trend-f
 import { simulateBuyTheDipStrategy, type BuyTheDipSimulation } from "@/components/calculators/buy-the-dip/simulator";
 import { SummaryPanel } from "@/components/calculators/workspace/SummaryPanel";
 import { Button } from "@/components/ui/button";
-import { clearNovaHistory, requestNova } from "@/lib/nova-client";
+import { clearNovaHistory } from "@/lib/nova-client";
 import { ensureNovaRefId, resetNovaRefId } from "@/lib/nova-session";
 import { searchAssets, getMarketChart } from "@/lib/coingecko-client";
 import {
@@ -32,8 +32,6 @@ import {
   buildSeriesFromCandles,
   type TimeSeriesValuePoint,
 } from "@/components/calculators/workspace/technical-indicators";
-import { parseTrendFollowingReply } from "@/components/calculators/trend-following/parser";
-import { formatSummaryLines } from "@/components/calculators/utils/summary";
 import { simulateDcaStrategy, type DcaSimulation } from "@/components/calculators/dca/simulator";
 import { normalizeTrendMaPeriodValue } from "@/components/calculators/trend-following/settings";
 import {
@@ -758,7 +756,6 @@ export function CalculatorHubSection() {
     let chartProjection: ChartProjectionData | undefined;
     let projectionSeries: { timestamp: number; price: number; date: string }[] = [];
     let trendSimulation: TrendFollowingSimulation | null = null;
-    let simulationOverlay: StrategyOverlay | null = null;
     let forecastTrajectory: ProjectionTrajectoryPoint[] | null = null;
     let projectionMonthsOverride: number | undefined;
     let dcaResolvedDurationMonths: number | null = null;
@@ -1018,6 +1015,13 @@ export function CalculatorHubSection() {
       } else {
         setDcaSimulation(null);
       }
+      const completionSummary =
+        "Projection updated. Nova insights will be available once the analysis button is wired up.";
+      setSummaryMessage(completionSummary);
+      setFallbackLines([]);
+      setIsPriceHistoryLoading(false);
+      setIsLoading(false);
+      return;
     } catch (historyError) {
       if (priceHistoryRequestRef.current !== historyRequestId) {
         return;
@@ -1041,103 +1045,6 @@ export function CalculatorHubSection() {
       setIsPriceHistoryLoading(false);
       setIsLoading(false);
       return;
-    }
-
-    try {
-      const extras: Record<string, unknown> = {};
-      if (trendSimulation) {
-        extras.trendSimulation = trendSimulation;
-      }
-      if (dcaSimulation) {
-        extras.strategySimulation = dcaSimulation;
-      }
-
-      if (CALCULATOR_NOVA_DISABLED) {
-        setSummaryMessage("Nova insights are temporarily disabled while we wire up the forecast endpoint.");
-        setFallbackLines([]);
-        setIsPriceHistoryLoading(false);
-        setIsLoading(false);
-        return;
-      }
-
-      const { prompt, options } = activeDefinition.getRequestConfig(
-        currentState as any,
-        chartProjection,
-        extras,
-      );
-      const refId = ensureNovaRefId("calculator");
-      const { reply } = await requestNova(prompt, options, { refId });
-
-      const {
-        insight: parsedInsight,
-        dataset: parsedDataset,
-        fallbackSummary: parsedFallbackSummary,
-        fallbackLines: parsedFallbackLines,
-        strategyOverlays: parsedStrategyOverlays,
-      } = activeDefinition.parseReply(reply);
-
-      const trendResult =
-        activeCalculatorId === "trend-following"
-          ? parseTrendFollowingReply(reply)
-          : null;
-
-      setInsight(parsedInsight ?? null);
-      setNovaDataset(parsedDataset);
-
-      const overlaysToUse = simulationOverlay
-        ? [simulationOverlay]
-        : parsedStrategyOverlays ?? [];
-      setStrategyOverlays(overlaysToUse);
-
-      if (parsedInsight) {
-        setSummaryMessage("");
-        setFallbackLines([]);
-      } else {
-        let fallbackSummaryText = parsedFallbackSummary;
-        let fallbackSummaryLines = parsedFallbackLines ?? [];
-
-        if (
-          !fallbackSummaryText &&
-          !fallbackSummaryLines.length &&
-          activeCalculatorId === "trend-following" &&
-          trendResult?.summary
-        ) {
-          fallbackSummaryText = trendResult.summary;
-          fallbackSummaryLines = formatSummaryLines(trendResult.summary);
-        }
-
-        setFallbackLines(fallbackSummaryLines);
-        const summaryText =
-          fallbackSummaryText ??
-          (fallbackSummaryLines.length ? "" : "Nova did not return a structured summary for this run.");
-        setSummaryMessage(summaryText);
-      }
-
-    } catch (novaError) {
-      console.error("[CalculatorHub] Request error:", novaError);
-      const message =
-        novaError instanceof Error
-          ? novaError.message
-          : "Something went wrong when requesting the calculator output.";
-
-      setError(message);
-      setNovaDataset([]);
-      setInsight(null);
-      setFallbackLines([]);
-      setStrategyOverlays(simulationOverlay ? [simulationOverlay] : []);
-      setDcaSimulation(null);
-      setForecastPercentileOverlays([]);
-      setScenarioSampleCandlesMap((previous) => ({
-        ...previous,
-        [nextId]: createEmptySampleCandles(),
-      }));
-      setScenarioSimulationsMap((previous) => ({
-        ...previous,
-        [nextId]: createEmptyScenarioSimulations(),
-      }));
-      setSummaryMessage("Nova couldn't complete this request. Please adjust your inputs and try again.");
-    } finally {
-      setIsLoading(false);
     }
   };
 
