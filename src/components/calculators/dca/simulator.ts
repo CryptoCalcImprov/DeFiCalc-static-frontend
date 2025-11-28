@@ -22,7 +22,7 @@ const MS_PER_DAY = 86_400_000;
 
 type SimulationParams = {
   projectionSeries: { timestamp: number; price: number; date: string }[];
-  amountPerContribution: number;
+  totalBudget: number;
   intervalDays: number;
   durationMonths: number;
 };
@@ -41,12 +41,12 @@ function findEntry(series: SimulationParams["projectionSeries"], target: number)
 
 export function simulateDcaStrategy({
   projectionSeries,
-  amountPerContribution,
+  totalBudget,
   intervalDays,
   durationMonths,
 }: SimulationParams): DcaSimulation {
   if (
-    amountPerContribution <= 0 ||
+    totalBudget <= 0 ||
     intervalDays <= 0 ||
     durationMonths <= 0 ||
     !projectionSeries.length
@@ -65,10 +65,11 @@ export function simulateDcaStrategy({
 
   const durationMs = durationMonths * 30 * MS_PER_DAY;
   const intervalMs = intervalDays * MS_PER_DAY;
-  const contributions = Math.max(1, Math.floor(durationMs / intervalMs));
+  const contributions = Math.max(1, Math.ceil(durationMs / intervalMs));
   const points: DcaSimulationPoint[] = [];
   const startTs = projectionSeries[0].timestamp;
   let totalQuantity = 0;
+  let remainingBudget = totalBudget;
 
   for (let i = 0; i < contributions; i += 1) {
     const targetTs = startTs + i * intervalMs;
@@ -76,17 +77,22 @@ export function simulateDcaStrategy({
     if (!entry) {
       break;
     }
-    const quantity = entry.price > 0 ? amountPerContribution / entry.price : 0;
+    const contributionsRemaining = contributions - i;
+    const plannedAmount = totalBudget / contributions;
+    const amount =
+      contributionsRemaining === 1 ? remainingBudget : Math.min(plannedAmount, remainingBudget);
+    remainingBudget = Math.max(0, remainingBudget - amount);
+    const quantity = entry.price > 0 ? amount / entry.price : 0;
     points.push({
       date: entry.date,
       price: entry.price,
-      amount: amountPerContribution,
+      amount,
       quantity,
     });
     totalQuantity += quantity;
   }
 
-  const totalInvested = amountPerContribution * points.length;
+  const totalInvested = points.reduce((sum, point) => sum + point.amount, 0);
   const averagePrice = totalQuantity > 0 ? totalInvested / totalQuantity : 0;
 
   return {

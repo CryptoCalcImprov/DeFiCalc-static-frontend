@@ -132,7 +132,7 @@ export default function HomePage() {
                     </div>
                   </label>
                   <label className="flex flex-col gap-1.5 text-xs font-medium text-slate-200 sm:gap-2 sm:text-sm">
-                    Contribution amount (USD)
+                    Total contribution (USD)
                     <div className="rounded-xl border border-ocean/60 bg-surface/90 px-3 py-2 text-sm text-slate-50 shadow-inner sm:rounded-2xl sm:px-4 sm:text-base">
                       500
                     </div>

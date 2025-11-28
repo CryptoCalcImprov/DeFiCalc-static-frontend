@@ -20,6 +20,7 @@ export type BuyTheDipFormState = {
   budget: string;
   dipThreshold: string;
   duration: string;
+  scenario?: "likely" | "bearish" | "bullish";
 };
 
 const defaultFormState: BuyTheDipFormState = {
@@ -28,6 +29,7 @@ const defaultFormState: BuyTheDipFormState = {
   budget: "5000",
   dipThreshold: "10",
   duration: "6 months",
+  scenario: "likely",
 };
 
 const initialSummaryMessage = "Run the projection to see Nova's perspective on this strategy.";
@@ -39,13 +41,14 @@ function buildPrompt(formState: BuyTheDipFormState, chartProjection?: ChartProje
   const projectionPayload = chartProjection ? JSON.stringify(chartProjection) : "null";
 
   return joinPromptLines([
-    "You are given CHART_PROJECTION, a sanitized chart that mixes historical candles with a Monte Carlo forecast.",
-    "Do not invent additional prices—only annotate the provided projection.",
+    "Below is the projection data the calculator already displayed. It combines historical candles with the currently selected scenario path.",
+    "Analyze only these prices—do not invent new ones. Whenever you explain averages, deployment percentages, or returns, call the calculate_expression tool (max twice), show the expression you evaluated (e.g., deployed_budget / total_budget), round to at most 5 decimals, and keep the tone friendly.",
+    "Every numeric value you mention (even when copying from the data) must be rounded to at most five decimals before returning the response.",
     `Strategy: deploy ${budget} USD to buy ${normalizedToken} after ${dipThreshold}%+ drops from recent highs within ${duration}.`,
     "",
-    "Return JSON only. Use the schema below, which includes `insight` and a `strategy_overlays` array for your annotations.",
+    "Return a single structured response (schema below) that explains the plan in friendly language. Focus on insights, execution tips, and risk mitigations; do not list every individual buy or reference internal terms like STRATEGY_SIMULATION.",
     "",
-    "CHART_PROJECTION:",
+    "Projection data:",
     projectionPayload,
     "",
     "Response schema:",
@@ -107,7 +110,7 @@ function buildPrompt(formState: BuyTheDipFormState, chartProjection?: ChartProje
     "  ]",
     "}",
     "",
-    "Follow the schema exactly and do not emit markdown or additional prose.",
+    "Follow the schema exactly, keep explanations conversational, and prioritize insights, tips, and risk mitigations over long numeric lists.",
   ]);
 }
 
@@ -121,6 +124,9 @@ export function BuyTheDipCalculatorForm({
   onSubmit,
   isLoading,
   error,
+  onRequestInsights,
+  canRequestInsights = false,
+  isRequestingInsights = false,
 }: CalculatorFormProps<BuyTheDipFormState>) {
   const handleFieldChangeBuilder = buildFieldChangeHandler<BuyTheDipFormState>(onFormStateChange);
 
@@ -129,6 +135,14 @@ export function BuyTheDipCalculatorForm({
     (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       handleFieldChangeBuilder(field)(event.target.value);
     };
+
+  const selectedScenario = formState.scenario ?? "likely";
+  const scenarioOptions: Array<{ value: NonNullable<BuyTheDipFormState["scenario"]>; label: string }> = [
+    { value: "likely", label: "Likely" },
+    { value: "bearish", label: "Bearish" },
+    { value: "bullish", label: "Bullish" },
+  ];
+  const insightButtonEnabled = canRequestInsights;
 
   return (
     <form
@@ -188,23 +202,60 @@ export function BuyTheDipCalculatorForm({
             onChange={handleFieldChange("duration")}
             className="rounded-xl border border-ocean/60 bg-surface/90 px-3 py-1.5 text-sm text-slate-50 focus:border-mint focus:bg-surface/95 focus:outline-none focus:ring-1 focus:ring-mint/35 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
           >
+            <option value="1 month">1 month</option>
             <option value="3 months">3 months</option>
             <option value="6 months">6 months</option>
             <option value="1 year">1 year</option>
-            <option value="2 years">2 years</option>
           </select>
         </label>
       </div>
-      <button
-        type="submit"
-        className="inline-flex items-center justify-center gap-2 rounded-full bg-cta-gradient px-4 py-2.5 text-xs font-semibold text-slate-50 shadow-lg shadow-[rgba(58,198,255,0.24)] transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-mint sm:px-5 sm:py-3 sm:text-sm"
-        disabled={isLoading}
-      >
-        {isLoading ? "Generating projection..." : "Run buy-the-dip projection"}
-        <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-          <path d="M5 3l6 5-6 5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
+      <div className="rounded-2xl border border-ocean/60 bg-surface/60 p-3 sm:p-4">
+        <div className="flex items-center justify-between text-xs font-medium uppercase tracking-wide text-slate-300 sm:text-sm">
+          <span>Scenario</span>
+        </div>
+        <div className="mt-3 flex gap-2">
+          {scenarioOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => handleFieldChangeBuilder("scenario")(option.value)}
+              className={[
+                "flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition sm:px-4",
+                selectedScenario === option.value
+                  ? "border-mint bg-mint/20 text-slate-50"
+                  : "border-slate-700/70 text-slate-400 hover:text-slate-100",
+              ].join(" ")}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <button
+          type="submit"
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-cta-gradient px-4 py-2.5 text-xs font-semibold text-slate-50 shadow-lg shadow-[rgba(58,198,255,0.24)] transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-mint sm:px-5 sm:py-3 sm:text-sm"
+          disabled={isLoading}
+        >
+          {isLoading ? "Generating projection..." : "Run buy-the-dip projection"}
+          <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+            <path d="M5 3l6 5-6 5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className={[
+            "inline-flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 sm:px-5 sm:py-3 sm:text-sm",
+            insightButtonEnabled
+              ? "bg-cta-gradient text-slate-50 shadow-lg shadow-[rgba(58,198,255,0.24)] hover:brightness-110 focus-visible:ring-mint"
+              : "border border-slate-700/70 bg-slate-800/60 text-slate-400 focus-visible:ring-slate-400/70",
+          ].join(" ")}
+          disabled={!insightButtonEnabled}
+          onClick={onRequestInsights}
+        >
+          {isRequestingInsights ? "Generating insights..." : "Generate insights"}
+        </button>
+      </div>
       {error ? <p className="text-sm text-critical">{error}</p> : null}
     </form>
   );
