@@ -49,6 +49,15 @@ const config: Config = {
           "radial-gradient(circle at 20% 20%, rgba(58,198,255,0.18), transparent 55%), radial-gradient(circle at 78% 0%, rgba(122,64,255,0.28), transparent 62%)",
         "card-border": "linear-gradient(135deg, rgba(58,198,255,0.42), rgba(122,64,255,0.32))",
         "cta-gradient": "linear-gradient(120deg, #7A40FF 0%, #3AC6FF 100%)"
+      },
+      keyframes: {
+        wiggle: {
+          "0%, 100%": { transform: "rotate(-3deg)" },
+          "50%": { transform: "rotate(3deg)" }
+        }
+      },
+      animation: {
+        wiggle: "wiggle 0.5s ease-in-out infinite"
       }
     }
   },

@@ -37,7 +37,7 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="hidden items-center gap-3 lg:flex">
-          <Button href="/main_app" variant="gradient" className="text-sm shadow-primary/30">
+          <Button href="/main_app" variant="gradient" className="animate-wiggle text-sm shadow-primary/30">
             Launch App
           </Button>
         </div>
@@ -77,7 +77,7 @@ export function SiteHeader() {
               ))}
             </nav>
             <div className="flex flex-col gap-3">
-              <Button href="/main_app" variant="gradient" className="w-full" onClick={() => setMenuOpen(false)}>
+              <Button href="/main_app" variant="gradient" className="animate-wiggle w-full" onClick={() => setMenuOpen(false)}>
                 Launch App
               </Button>
             </div>

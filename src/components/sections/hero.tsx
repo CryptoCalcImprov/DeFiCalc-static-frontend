@@ -13,7 +13,7 @@ export function HeroSection() {
       {/* Base gradient */}
       <div className="absolute inset-0 -z-10 bg-gradient-to-b from-slate-900/40 via-background/90 to-background" aria-hidden />
       <div className="mx-auto flex max-w-6xl flex-col items-start gap-16 px-6 py-24 lg:flex-row lg:items-center">
-        <div className="flex-1">
+        <div className="flex-1 w-full lg:w-auto">
           <div className="inline-flex items-center gap-2 rounded-full border border-mint/30 bg-slate-900/60 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-mint">
             DeFi onboarding made friendly
           </div>
@@ -25,7 +25,7 @@ export function HeroSection() {
             models in the Sandbox — all powered and enhanced by Nova AI.
           </p>
           <div className="mt-10 flex flex-wrap items-center gap-4">
-            <Button href="/main_app" variant="gradient">
+            <Button href="/main_app" variant="gradient" className="animate-wiggle">
               Launch App
             </Button>
             <Button href="#workspace" variant="secondary">
@@ -43,7 +43,7 @@ export function HeroSection() {
           </div>
           
         </div>
-        <div className="flex w-full flex-1 justify-end lg:justify-center">
+        <div className="flex w-full flex-1 justify-center">
           <div className="group relative w-full max-w-md">
             <div
               aria-hidden
