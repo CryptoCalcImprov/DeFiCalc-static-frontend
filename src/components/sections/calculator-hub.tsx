@@ -492,7 +492,11 @@ export function CalculatorHubSection() {
       }
       const scenarioSimulation = activeScenarioSimulation as DcaSimulation | TrendFollowingSimulation | BuyTheDipSimulation | null;
       const scenarioStrategyLabel =
-        activeCalculatorId === "trend-following" ? "MA crossovers" : "Scheduled buys";
+        activeCalculatorId === "trend-following"
+          ? "MA crossovers"
+          : activeCalculatorId === "buy-the-dip"
+            ? "Dip-triggered buys"
+            : "Scheduled buys";
 
       const strategyEntries: {
         point: { x: number; y: number };

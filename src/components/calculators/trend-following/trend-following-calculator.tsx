@@ -54,6 +54,7 @@ function buildPrompt(
     "Use those prices only—do not synthesize new series. Whenever you reference returns, time in market, or drawdown, call the calculate_expression tool (max twice), display the formula you evaluated (e.g., (final_equity - initial_capital) / initial_capital), and round the result to at most 5 decimal places.",
     "Every numeric value you mention—including those copied from the simulation—must be rounded to at most five decimal places before returning the response.",
     `Strategy: start with ${initialCapital} USD. Go long ${normalizedToken} when price exceeds the ${maPeriod}-day moving average; otherwise hold stablecoin. Project across ${duration}.`,
+    "This is a signal-driven strategy—no manual cadence exists—so focus on crossovers and positioning shifts only when the moving-average trigger fires.",
     "",
     "A pre-computed moving-average simulation is also provided so you can reference crossovers, time-in-market, and equity without recalculating them.",
     "Return one structured response per the schema below. Keep the language approachable—focus on insights, strategy tips, and risks/mitigations instead of referencing internal code terms.",
@@ -174,7 +175,7 @@ export function TrendFollowingCalculatorForm({
       <div>
         <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">Configure your trend-following strategy</h3>
         <p className="mt-1.5 text-xs text-muted sm:mt-2 sm:text-sm">
-          Set your token, initial capital, moving average period, and time horizon to see how Nova models momentum-based trading.
+          Set your token, total investment capital, moving average period, and time horizon to see how Nova models momentum-based trading.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
@@ -191,11 +192,11 @@ export function TrendFollowingCalculatorForm({
           />
         </label>
         <label className="flex flex-col gap-1.5 text-xs font-medium text-slate-200 sm:gap-2 sm:text-sm">
-          Initial capital (USD)
+          Total investment capital (USD)
           <input
             type="number"
-            min="1000"
-            step="1000"
+            min="100"
+            step="100"
             value={formState.initialCapital}
             onChange={handleFieldChange("initialCapital")}
             className="rounded-xl border border-ocean/60 bg-surface/90 px-3 py-1.5 text-sm text-slate-50 placeholder:text-slate-500 shadow-inner focus:border-mint focus:bg-surface/95 focus:outline-none focus:ring-1 focus:ring-mint/35 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
