@@ -13,6 +13,7 @@ import { joinPromptLines } from "@/components/calculators/utils/prompt";
 import { parseCalculatorReply } from "@/components/calculators/utils/summary";
 import { buildNovaRequestOptions } from "@/components/calculators/utils/request";
 import { TokenSelector } from "@/components/calculators/workspace/TokenSelector";
+import type { BuyTheDipSimulation } from "@/components/calculators/buy-the-dip/simulator";
 
 export type BuyTheDipFormState = {
   token: string;
@@ -35,21 +36,61 @@ const defaultFormState: BuyTheDipFormState = {
 const initialSummaryMessage = "Run the projection to see Nova's perspective on this strategy.";
 const pendingSummaryMessage = "Generating Nova's latest projection...";
 
-function buildPrompt(formState: BuyTheDipFormState, chartProjection?: ChartProjectionData) {
+function buildPrompt(
+  formState: BuyTheDipFormState,
+  chartProjection?: ChartProjectionData,
+  strategySimulation?: BuyTheDipSimulation,
+) {
   const { token, budget, dipThreshold, duration } = formState;
   const normalizedToken = token.trim() || "the selected asset";
   const projectionPayload = chartProjection ? JSON.stringify(chartProjection) : "null";
+  const parsedBudget = Number(budget);
+  const totalBudgetValue = Number.isFinite(parsedBudget) ? parsedBudget : null;
+  const parsedDipThreshold = Number(dipThreshold);
+  const dipThresholdValue = Number.isFinite(parsedDipThreshold) ? parsedDipThreshold : null;
+  const scenarioLabel = typeof formState.scenario === "string" ? formState.scenario : "likely";
+
+  const simulationPayload = strategySimulation
+    ? JSON.stringify({
+        plan: {
+          scenario_label: scenarioLabel,
+          dip_threshold_percent: dipThresholdValue ?? dipThreshold,
+          total_budget_usd: totalBudgetValue ?? budget,
+          trigger_count: strategySimulation.points.length,
+          first_trigger_date: strategySimulation.points[0]?.date ?? null,
+          last_trigger_date: strategySimulation.points.at(-1)?.date ?? null,
+        },
+        summary: {
+          totalInvested: Number(strategySimulation.metrics.totalInvested.toFixed(5)),
+          totalQuantity: Number(strategySimulation.metrics.totalQuantity.toFixed(5)),
+          averagePrice: Number(strategySimulation.metrics.averagePrice.toFixed(5)),
+        },
+        sampleBuys: strategySimulation.points.slice(0, 4).map((point) => ({
+          date: point.date,
+          amount: Number(point.amount.toFixed(5)),
+          price: Number(point.price.toFixed(5)),
+          quantity: Number(point.quantity.toFixed(5)),
+        })),
+      })
+    : "null";
 
   return joinPromptLines([
     "Below is the projection data the calculator already displayed. It combines historical candles with the currently selected scenario path.",
     "Analyze only these prices—do not invent new ones. Whenever you explain averages, deployment percentages, or returns, call the calculate_expression tool (max twice), show the expression you evaluated (e.g., deployed_budget / total_budget), round to at most 5 decimals, and keep the tone friendly.",
     "Every numeric value you mention (even when copying from the data) must be rounded to at most five decimals before returning the response.",
-    `Strategy: deploy ${budget} USD to buy ${normalizedToken} after ${dipThreshold}%+ drops from recent highs within ${duration}.`,
+    `Strategy: deploy ${totalBudgetValue ?? budget} USD to buy ${normalizedToken} after ${dipThresholdValue ?? dipThreshold}%+ drops from recent highs within ${duration}.`,
+    "The dollar amount above is the entire budget for the plan—not a recurring allocation—so only reference it when dip triggers fire.",
+    strategySimulation
+      ? `The ${scenarioLabel} path surfaced ${strategySimulation.points.length} dip-triggered buys across this horizon. Stick to these triggers instead of inventing a cadence.`
+      : "",
     "",
     "Return a single structured response (schema below) that explains the plan in friendly language. Focus on insights, execution tips, and risk mitigations; do not list every individual buy or reference internal terms like STRATEGY_SIMULATION.",
     "",
     "Projection data:",
     projectionPayload,
+    "",
+    "Dip-trigger summary:",
+    simulationPayload,
     "",
     "Response schema:",
     "{",
@@ -267,8 +308,9 @@ export const buyTheDipCalculatorDefinition: CalculatorDefinition<BuyTheDipFormSt
   description: "Deploy capital strategically when prices fall below threshold levels.",
   Form: BuyTheDipCalculatorForm,
   getInitialState: () => ({ ...defaultFormState }),
-  getRequestConfig: (formState, chartProjection) => {
-    const prompt = buildPrompt(formState, chartProjection);
+  getRequestConfig: (formState, chartProjection, extras) => {
+    const simulation = extras?.strategySimulation as BuyTheDipSimulation | undefined;
+    const prompt = buildPrompt(formState, chartProjection, simulation);
 
     return buildNovaRequestOptions(prompt, {
       max_tokens: 18000,

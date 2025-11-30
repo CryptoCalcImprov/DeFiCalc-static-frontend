@@ -43,8 +43,31 @@ function buildPrompt(
   const { token, amount, interval, duration } = formState;
   const normalizedToken = token.trim() || "the selected asset";
   const projectionPayload = chartProjection ? JSON.stringify(chartProjection) : "null";
+  const parsedAmount = Number(amount);
+  const totalContributionValue = Number.isFinite(parsedAmount) ? parsedAmount : null;
+  const amountDisplay = totalContributionValue ?? amount;
+  const contributionCount = simulation?.metrics?.contributions ?? simulation?.points.length ?? 0;
+  const perContributionUsd =
+    contributionCount > 0 && totalContributionValue !== null
+      ? Number((totalContributionValue / contributionCount).toFixed(5))
+      : contributionCount > 0
+        ? Number((simulation?.points.reduce((sum, point) => sum + point.amount, 0) / contributionCount).toFixed(5))
+        : null;
+  const scheduleStart = simulation?.points[0]?.date ?? null;
+  const scheduleEnd = simulation?.points.at(-1)?.date ?? null;
+  const scenarioLabel = typeof formState.scenario === "string" ? formState.scenario : "likely";
   const simulationSummaryPayload = simulation
     ? JSON.stringify({
+        plan: {
+          scenario_label: scenarioLabel,
+          cadence_label: interval,
+          duration_label: duration,
+          total_contribution_usd: totalContributionValue ?? amountDisplay,
+          contribution_count: contributionCount,
+          usd_per_contribution: perContributionUsd,
+          first_buy_date: scheduleStart,
+          last_buy_date: scheduleEnd,
+        },
         summary: {
           totalInvested: Number(simulation.metrics.totalInvested?.toFixed(5)),
           totalQuantity: Number(simulation.metrics.totalQuantity?.toFixed(5)),
@@ -66,7 +89,11 @@ function buildPrompt(
     "Below is the projection data the calculator rendered (historical candles + the active scenario path).",
     "Explain the strategy using this data only. When referencing performance or cost basis, call the calculate_expression tool (max twice), show the expression (e.g., total_invested / total_quantity), round results to 5 decimals, and keep the tone friendly.",
     "All numbers you mention must be rounded to at most 5 decimals even if copied from the data.",
-    `Strategy: invest a total of ${amount} USD into ${normalizedToken}, distributing buys on a ${interval} cadence for ${duration}.`,
+    `Strategy: invest a total of ${amountDisplay} USD into ${normalizedToken}, distributing buys on a ${interval} cadence for ${duration}.`,
+    "The entire budget above is the total contribution for the whole plan—do not interpret it as a per-period amount.",
+    simulation
+      ? `The current scenario (${scenarioLabel}) spreads ${amountDisplay} USD across ${contributionCount} ${interval} contributions (~${perContributionUsd ?? "n/a"} USD each) from ${scheduleStart ?? "start"} to ${scheduleEnd ?? "end"}. Respect these schedule boundaries in your reasoning.`
+      : "",
     "",
     "A summary of the pre-computed buy schedule (first/last dates, totals, and a few sample buys) is provided so you can reference the cadence without listing every order.",
     "",
@@ -181,8 +208,8 @@ export function DcaCalculatorForm({
           Total contribution (USD)
           <input
             type="number"
-            min="10"
-            step="10"
+            min="100"
+            step="100"
             value={formState.amount}
             onChange={handleFieldChange("amount")}
             className="rounded-xl border border-ocean/60 bg-surface/90 px-3 py-1.5 text-sm text-slate-50 placeholder:text-slate-500 shadow-inner focus:border-mint focus:bg-surface/95 focus:outline-none focus:ring-1 focus:ring-mint/35 sm:rounded-2xl sm:px-4 sm:py-2 sm:text-base"
