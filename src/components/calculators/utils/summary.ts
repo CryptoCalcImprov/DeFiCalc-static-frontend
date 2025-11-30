@@ -3,7 +3,6 @@ import type {
   CalculatorResult,
   CalculatorSummaryMetric,
   CalculatorSummarySection,
-  StrategyOverlay,
   TimeSeriesPoint,
 } from "@/components/calculators/types";
 
@@ -169,76 +168,6 @@ function parseSeriesCollection(rawSeries: unknown): TimeSeriesPoint[] {
   return [];
 }
 
-function parseStrategyOverlayPoints(rawPoints: unknown) {
-  if (!Array.isArray(rawPoints)) {
-    return [];
-  }
-
-  const points = rawPoints
-    .map((item) => {
-      if (!item || typeof item !== "object") {
-        return null;
-      }
-
-      const candidate = item as JsonLike;
-      const date = typeof candidate.date === "string" ? candidate.date : "";
-      const rawPrice = candidate.price;
-      const price = typeof rawPrice === "number" ? rawPrice : Number(rawPrice);
-
-      if (!date || Number.isNaN(price)) {
-        return null;
-      }
-
-      return { date, price } as StrategyOverlay["points"][number];
-    })
-    .filter(Boolean) as StrategyOverlay["points"];
-
-  return points;
-}
-
-function parseStrategyOverlay(rawOverlay: unknown): StrategyOverlay | null {
-  if (!rawOverlay || typeof rawOverlay !== "object") {
-    return null;
-  }
-
-  const overlay = rawOverlay as JsonLike;
-  const id = typeof overlay.id === "string" ? overlay.id : undefined;
-  const label = typeof overlay.label === "string" ? overlay.label : undefined;
-  const type = typeof overlay.type === "string" ? overlay.type : undefined;
-  const points = parseStrategyOverlayPoints(overlay.points);
-  const metadata =
-    overlay.metadata && typeof overlay.metadata === "object" ? overlay.metadata as Record<string, unknown> : undefined;
-
-  if (!id || !label || !type || !points.length) {
-    return null;
-  }
-
-  const normalizedType =
-    type === "buy" || type === "sell" || type === "annotation" ? (type as StrategyOverlay["type"]) : undefined;
-
-  if (!normalizedType) {
-    return null;
-  }
-
-  return {
-    id,
-    label,
-    type: normalizedType,
-    points,
-    metadata,
-  };
-}
-
-function parseStrategyOverlays(rawOverlays: unknown): StrategyOverlay[] {
-  if (!Array.isArray(rawOverlays)) {
-    return [];
-  }
-
-  return rawOverlays
-    .map((overlay) => parseStrategyOverlay(overlay))
-    .filter(Boolean) as StrategyOverlay[];
-}
-
 function parseLegacySummaryAndDataset(reply: string) {
   const normalizedReply = reply ?? "";
   const jsonStart = normalizedReply.indexOf("[");
@@ -283,6 +212,43 @@ function extractDataset(parsed: JsonLike): TimeSeriesPoint[] {
   return [];
 }
 
+function extractJsonCandidate(source: string): string | null {
+  if (!source) {
+    return null;
+  }
+
+  const trimmed = source.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fencedMatch && fencedMatch[1]) {
+    return fencedMatch[1].trim();
+  }
+
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return trimmed.slice(firstBrace, lastBrace + 1).trim();
+  }
+
+  return null;
+}
+
+function parseStructuredObject(reply: string): JsonLike | null {
+  const attempts = [reply, extractJsonCandidate(reply)].filter(Boolean) as string[];
+
+  for (const candidate of attempts) {
+    const parsed = tryParseJson(candidate, false);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as JsonLike;
+    }
+  }
+
+  return null;
+}
+
 /**
  * Parses Nova calculator replies that emit the structured insight schema.
  * Falls back to the legacy SUMMARY/DATA parsing when newer fields are absent.
@@ -299,9 +265,8 @@ export function parseCalculatorReply(reply: string): CalculatorResult {
     };
   }
 
-  const parsed = tryParseJson(normalizedReply);
-  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-    const parsedObject = parsed as JsonLike;
+  const parsedObject = parseStructuredObject(normalizedReply);
+  if (parsedObject) {
     const insight = parseInsight(parsedObject.insight);
     const dataset = extractDataset(parsedObject);
 
@@ -309,11 +274,6 @@ export function parseCalculatorReply(reply: string): CalculatorResult {
       insight,
       dataset,
     };
-
-    const strategyOverlays = parseStrategyOverlays(parsedObject.strategy_overlays);
-    if (strategyOverlays.length) {
-      result.strategyOverlays = strategyOverlays;
-    }
 
     if (!insight) {
       const fallbackSummary =

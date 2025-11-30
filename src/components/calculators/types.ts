@@ -55,7 +55,6 @@ export type CalculatorResult = {
   dataset: TimeSeriesPoint[];
   fallbackSummary?: string;
   fallbackLines?: string[];
-  strategyOverlays?: StrategyOverlay[];
 };
 
 export type ChartProjectionMetadata = {
@@ -68,19 +67,6 @@ export type ChartProjectionData = {
   historical_data: CoinGeckoCandle[];
   projection: ProjectionPoint[];
   metadata: ChartProjectionMetadata;
-};
-
-export type StrategyOverlayPoint = {
-  date: string;
-  price: number;
-};
-
-export type StrategyOverlay = {
-  id: string;
-  label: string;
-  type: "buy" | "sell" | "annotation";
-  points: StrategyOverlayPoint[];
-  metadata?: Record<string, unknown>;
 };
 
 export type CalculatorFormChangeHandler<FormState> = <Field extends keyof FormState>(

@@ -8,7 +8,6 @@ import type {
   CalculatorInsight,
   ChartProjectionData,
   CoinGeckoCandle,
-  StrategyOverlay,
   TimeSeriesPoint,
 } from "@/components/calculators/types";
 import { CalculatorDeck } from "@/components/calculators/workspace/CalculatorDeck";
@@ -411,7 +410,6 @@ export function CalculatorHubSection() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
-  const [strategyOverlays, setStrategyOverlays] = useState<StrategyOverlay[]>([]);
   const [dcaSimulation, setDcaSimulation] = useState<DcaSimulation | null>(null);
   const [projectionStartTimestamp, setProjectionStartTimestamp] = useState(0);
   const [forecastPercentileOverlays, setForecastPercentileOverlays] = useState<PriceTrajectoryOverlay[]>([]);
@@ -493,9 +491,9 @@ export function CalculatorHubSection() {
       const scenarioSimulation = activeScenarioSimulation as DcaSimulation | TrendFollowingSimulation | BuyTheDipSimulation | null;
       const scenarioStrategyLabel =
         activeCalculatorId === "trend-following"
-          ? "MA crossovers"
+          ? "MA crossover buys"
           : activeCalculatorId === "buy-the-dip"
-            ? "Dip-triggered buys"
+            ? "Buy dip triggers"
             : "Scheduled buys";
 
       const strategyEntries: {
@@ -639,79 +637,7 @@ export function CalculatorHubSection() {
   ]);
 
 
-  const strategyEventMarkers = useMemo<PriceTrajectoryEventMarker[]>(() => {
-    if (!strategyOverlays.length) {
-      return [];
-    }
-
-    const palette: Record<StrategyOverlay["type"], { background: string; border: string }> = {
-      buy: {
-        background: "rgba(16, 185, 129, 0.85)",
-        border: "rgba(16, 185, 129, 1)",
-      },
-      sell: {
-        background: "rgba(239, 68, 68, 0.75)",
-        border: "rgba(248, 113, 113, 1)",
-      },
-      annotation: {
-        background: SCENARIO_STRATEGY_COLOR,
-        border: SCENARIO_STRATEGY_COLOR,
-      },
-    };
-
-    return strategyOverlays
-      .map((overlay) => {
-        const points = overlay.points
-          .map((point) => {
-            const timestamp = new Date(point.date).getTime();
-            if (!Number.isFinite(timestamp) || !Number.isFinite(point.price)) {
-              return null;
-            }
-
-            const actionFromMetadata =
-              typeof overlay.metadata?.action === "string" ? overlay.metadata.action : undefined;
-            const action =
-              actionFromMetadata ??
-              (overlay.type === "buy"
-                ? "Buy signal"
-                : overlay.type === "sell"
-                  ? "Sell signal"
-                  : overlay.label);
-
-            return {
-              x: timestamp,
-              y: point.price,
-              meta: {
-                action,
-                description: overlay.label,
-                price: point.price,
-                date: point.date,
-              },
-            };
-          })
-          .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
-
-        if (!points.length) {
-          return null;
-        }
-
-        const colors = palette[overlay.type];
-        return {
-          id: overlay.id,
-          label: overlay.label,
-          points,
-          backgroundColor: colors.background,
-          borderColor: colors.border,
-          radius: overlay.type === "annotation" ? 6 : 4,
-        } as PriceTrajectoryEventMarker;
-      })
-      .filter(Boolean) as PriceTrajectoryEventMarker[];
-  }, [strategyOverlays]);
-
-  const combinedEventMarkers = useMemo(
-    () => [...eventMarkers, ...strategyEventMarkers],
-    [eventMarkers, strategyEventMarkers],
-  );
+  const combinedEventMarkers = useMemo(() => [...eventMarkers], [eventMarkers]);
 
   const handleFormStateChange = (field: string, value: unknown): void => {
     setCalculatorStates((previous) => {
@@ -743,7 +669,6 @@ export function CalculatorHubSection() {
     setInsight(null);
     setFallbackLines([]);
     setSummaryMessage(pendingSummary);
-    setStrategyOverlays([]);
     setPriceHistoryError(null);
     setIsPriceHistoryLoading(true);
     setPriceHistory([]);
@@ -1010,10 +935,6 @@ export function CalculatorHubSection() {
             maPeriod: maPeriodValue,
             initialCapital: initialCapitalValue,
           });
-
-          setStrategyOverlays([]);
-        } else {
-          setStrategyOverlays([]);
         }
       }
 
@@ -1130,7 +1051,6 @@ export function CalculatorHubSection() {
         dataset: parsedDataset,
         fallbackSummary: parsedFallbackSummary,
         fallbackLines: parsedFallbackLines,
-        strategyOverlays: parsedStrategyOverlays,
       } = activeDefinition.parseReply(reply);
 
       const trendResult =
@@ -1138,7 +1058,6 @@ export function CalculatorHubSection() {
 
       setInsight(parsedInsight ?? null);
       setNovaDataset(parsedDataset);
-      setStrategyOverlays(parsedStrategyOverlays ?? []);
 
       if (parsedInsight) {
         setSummaryMessage("");
@@ -1173,7 +1092,6 @@ export function CalculatorHubSection() {
       setNovaDataset([]);
       setInsight(null);
       setFallbackLines([]);
-      setStrategyOverlays([]);
       setSummaryMessage("Nova couldn't complete this request. Please adjust your inputs and try again.");
     } finally {
       setIsInsightsLoading(false);
@@ -1198,7 +1116,6 @@ export function CalculatorHubSection() {
       setPriceHistory([]);
       setPriceHistoryError(null);
       setIsPriceHistoryLoading(false);
-      setStrategyOverlays([]);
       setDcaSimulation(null);
       setProjectionStartTimestamp(0);
       setForecastPercentileOverlays([]);
@@ -1254,7 +1171,6 @@ export function CalculatorHubSection() {
     setPriceHistory([]);
     setPriceHistoryError(null);
     setIsPriceHistoryLoading(false);
-    setStrategyOverlays([]);
     setDcaSimulation(null);
     setProjectionStartTimestamp(0);
     setForecastPercentileOverlays([]);
