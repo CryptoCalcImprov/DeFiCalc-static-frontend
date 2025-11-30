@@ -46,15 +46,16 @@ function buildPrompt(
   const parsedAmount = Number(amount);
   const totalContributionValue = Number.isFinite(parsedAmount) ? parsedAmount : null;
   const amountDisplay = totalContributionValue ?? amount;
-  const contributionCount = simulation?.metrics?.contributions ?? simulation?.points.length ?? 0;
+  const simulationPoints = Array.isArray(simulation?.points) ? simulation.points : [];
+  const contributionCount = simulation?.metrics?.contributions ?? simulationPoints.length ?? 0;
   const perContributionUsd =
     contributionCount > 0 && totalContributionValue !== null
       ? Number((totalContributionValue / contributionCount).toFixed(5))
       : contributionCount > 0
-        ? Number((simulation?.points.reduce((sum, point) => sum + point.amount, 0) / contributionCount).toFixed(5))
+        ? Number((simulationPoints.reduce((sum, point) => sum + point.amount, 0) / contributionCount).toFixed(5))
         : null;
-  const scheduleStart = simulation?.points[0]?.date ?? null;
-  const scheduleEnd = simulation?.points.at(-1)?.date ?? null;
+  const scheduleStart = simulationPoints[0]?.date ?? null;
+  const scheduleEnd = simulationPoints.at(-1)?.date ?? null;
   const scenarioLabel = typeof formState.scenario === "string" ? formState.scenario : "likely";
   const simulationSummaryPayload = simulation
     ? JSON.stringify({
@@ -188,7 +189,7 @@ export function DcaCalculatorForm({
       <div>
         <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">Configure your DCA plan</h3>
         <p className="mt-1.5 text-xs text-muted sm:mt-2 sm:text-sm">
-          Adjust token, total contribution size, cadence, and horizon to see how Nova models accumulation over time.
+          Adjust token, total investment capital, cadence, and horizon to see how Nova models accumulation over time.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
@@ -205,7 +206,7 @@ export function DcaCalculatorForm({
           />
         </label>
         <label className="flex flex-col gap-1.5 text-xs font-medium text-slate-200 sm:gap-2 sm:text-sm">
-          Total contribution (USD)
+          Total investment capital (USD)
           <input
             type="number"
             min="100"
