@@ -44,9 +44,11 @@ jobs:
         env:
           NEXT_PUBLIC_NOVA_API_URL: ${{ secrets.NEXT_PUBLIC_NOVA_API_URL }}
           NEXT_PUBLIC_NOVA_API_KEY: ${{ secrets.NEXT_PUBLIC_NOVA_API_KEY }}
+          NEXT_PUBLIC_IMGBB_API_KEY: ${{ secrets.NEXT_PUBLIC_IMGBB_API_KEY }}
         run: |
           [[ -n "${NEXT_PUBLIC_NOVA_API_URL:-}" ]] || { echo "::error::NEXT_PUBLIC_NOVA_API_URL is unset"; exit 1; }
           [[ -n "${NEXT_PUBLIC_NOVA_API_KEY:-}" ]] || { echo "::error::NEXT_PUBLIC_NOVA_API_KEY is unset"; exit 1; }
+          [[ -n "${NEXT_PUBLIC_IMGBB_API_KEY:-}" ]] || { echo "::error::NEXT_PUBLIC_IMGBB_API_KEY is unset"; exit 1; }
           echo "NEXT_PUBLIC_NOVA_API_URL length: ${#NEXT_PUBLIC_NOVA_API_URL}"
 
       - name: Build static export
@@ -54,6 +56,7 @@ jobs:
         env:
           NEXT_PUBLIC_NOVA_API_URL: ${{ secrets.NEXT_PUBLIC_NOVA_API_URL }}
           NEXT_PUBLIC_NOVA_API_KEY: ${{ secrets.NEXT_PUBLIC_NOVA_API_KEY }}
+          NEXT_PUBLIC_IMGBB_API_KEY: ${{ secrets.NEXT_PUBLIC_IMGBB_API_KEY }}
           NODE_ENV: production
         
       - name: Setup Pages
