@@ -701,6 +701,7 @@ export function PriceTrajectoryPanel({
             <canvas
               ref={canvasRef}
               className="h-full w-full"
+              data-price-trajectory="true"
               style={{ width: "100%", height: "100%" }}
             />
           </div>

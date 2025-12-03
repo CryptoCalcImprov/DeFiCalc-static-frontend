@@ -6,6 +6,7 @@ import type { CalculatorInsight, CalculatorSummarySection } from "@/components/c
 import { CalculatorSpinner } from "@/components/calculators/workspace/CalculatorSpinner";
 import { LoadingDots } from "@/components/ui/loading-dots";
 import { MessageParser } from "@/components/ui/message-parser";
+import { uploadImageToImgbb } from "@/lib/imgbb-client";
 
 type SummaryPanelProps = {
   title?: string;
@@ -227,6 +228,8 @@ export function SummaryPanel({
   loadingMessage = "Awaiting Nova’s projection...",
 }: SummaryPanelProps) {
   const [showDetails, setShowDetails] = useState(false);
+  const [isShareLoading, setIsShareLoading] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   const hasInsight = Boolean(insight && insight.sections?.length);
   const resolvedMessage = (fallbackMessage ?? "").trim();
@@ -280,6 +283,83 @@ export function SummaryPanel({
       : "";
   const shareIntentUrl = shareSummary ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareSummary)}` : null;
 
+  const formatTweetText = (summary: string, imageUrl?: string) => {
+    const baseSummary = summary.trim();
+    if (imageUrl) {
+      return `${baseSummary}\n\n📈 ${imageUrl}`.trim();
+    }
+    return baseSummary;
+  };
+
+  const captureChartImage = (): string | null => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    const canvas = document.querySelector<HTMLCanvasElement>('canvas[data-price-trajectory="true"]');
+    if (!canvas) {
+      return null;
+    }
+    try {
+      const width = canvas.width;
+      const height = canvas.height;
+      const offscreen = document.createElement("canvas");
+      offscreen.width = width;
+      offscreen.height = height;
+      const context = offscreen.getContext("2d");
+      if (!context) {
+        return canvas.toDataURL("image/png");
+      }
+
+      const gradient = context.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, "#020B1A");
+      gradient.addColorStop(0.35, "#051026");
+      gradient.addColorStop(1, "#04162D");
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, width, height);
+
+      context.drawImage(canvas, 0, 0);
+      return offscreen.toDataURL("image/png");
+    } catch (error) {
+      console.error("Unable to capture chart canvas", error);
+      return null;
+    }
+  };
+
+  const openTwitterIntent = (text: string) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleShareClick = async () => {
+    if (!shareSummary || typeof window === "undefined") {
+      return;
+    }
+
+    setIsShareLoading(true);
+    setShareError(null);
+
+    let tweetText = formatTweetText(shareSummary);
+
+    try {
+      const chartDataUrl = captureChartImage();
+      if (chartDataUrl) {
+        const hostedImageUrl = await uploadImageToImgbb(chartDataUrl);
+        tweetText = formatTweetText(shareSummary, hostedImageUrl);
+      } else {
+        setShareError("Chart snapshot unavailable, sharing text only.");
+      }
+    } catch (error) {
+      console.error("Failed to upload chart snapshot", error);
+      setShareError("Snapshot upload failed, sharing text only.");
+    } finally {
+      openTwitterIntent(tweetText);
+      setIsShareLoading(false);
+    }
+  };
+
   return (
     <div className="card-surface-muted flex h-full flex-col gap-4 rounded-2xl bg-gradient-to-br from-slate-950/65 via-slate-950/45 to-slate-900/24 p-4 shadow-[0_10px_32px_rgba(6,21,34,0.32)] sm:gap-5 sm:rounded-3xl sm:p-6 min-w-0 overflow-hidden">
       <div className="flex h-full flex-col min-w-0 overflow-hidden">
@@ -326,16 +406,16 @@ export function SummaryPanel({
                 {showToggle || shareIntentUrl ? (
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     {shareIntentUrl ? (
-                      <a
-                        href={shareIntentUrl}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        type="button"
+                        onClick={handleShareClick}
+                        disabled={isShareLoading}
                         aria-label="Share this insight on X"
-                        className="inline-flex items-center gap-2 rounded-full border border-indigo-400/60 bg-indigo-500/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-200 transition hover:border-indigo-300 hover:bg-indigo-500/20 sm:text-xs"
+                        className="inline-flex items-center gap-2 rounded-full border border-indigo-400/60 bg-indigo-500/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-200 transition hover:border-indigo-300 hover:bg-indigo-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 disabled:cursor-not-allowed disabled:opacity-60 sm:text-xs"
                       >
                         <XLogoIcon className="h-3.5 w-3.5 text-indigo-200" />
-                        Share
-                      </a>
+                        {isShareLoading ? "Preparing snapshot…" : "Share"}
+                      </button>
                     ) : (
                       <span />
                     )}
@@ -349,6 +429,11 @@ export function SummaryPanel({
                       </button>
                     ) : null}
                   </div>
+                ) : null}
+                {shareError ? (
+                  <p className="text-[11px] text-amber-200" aria-live="polite">
+                    {shareError}
+                  </p>
                 ) : null}
               </div>
             )}
