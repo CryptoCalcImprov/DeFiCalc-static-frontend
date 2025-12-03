@@ -115,12 +115,22 @@ function parseInsight(rawInsight: unknown): CalculatorInsight | null {
     : undefined;
 
   const notes = parseStringArray(insight.notes);
+  let forSharing: CalculatorInsight["for_sharing"] | undefined;
+
+  if (typeof insight.for_sharing === "object" && insight.for_sharing && !Array.isArray(insight.for_sharing)) {
+    const candidate = insight.for_sharing as JsonLike;
+    const twitterSummary = typeof candidate.twitter_summary === "string" ? candidate.twitter_summary.trim() : undefined;
+    if (twitterSummary) {
+      forSharing = { twitter_summary: twitterSummary };
+    }
+  }
 
   return {
     calculator: calculatorField as CalculatorInsight["calculator"],
     context,
     sections,
     notes,
+    for_sharing: forSharing,
   };
 }
 
