@@ -143,11 +143,15 @@ function buildPrompt(
     '        "risks": ["List each material risk in plain language."]',
     "      }",
     "    ],",
-    '    "notes": ["Include optional closing reminders or action items when helpful."]',
+    '    "notes": ["Include optional closing reminders or action items when helpful."],',
+    '    "for_sharing": {',
+    '      "twitter_summary": "Keep this 1-2 sentences (max 280 chars) ready for Twitter, ending with #DefiCalc #Inferenco, no markdown."',
+    '    }',
     "  }",
     "}",
     "",
     "Strictly follow the schema. Do not emit trailing text or additional keys.",
+    "Always populate for_sharing.twitter_summary—tweet-ready copy under 280 characters that is not surfaced in the main insight UI.",
   ]);
 }
 

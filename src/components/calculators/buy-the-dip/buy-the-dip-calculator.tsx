@@ -136,11 +136,15 @@ function buildPrompt(
     '        "risks": ["List each risk plainly."]',
     "      }",
     "    ],",
-    '    "notes": ["Optional closing reminders or next steps."]',
+    '    "notes": ["Optional closing reminders or next steps."],',
+    '    "for_sharing": {',
+    '      "twitter_summary": "1-2 sentences (max 280 chars) for Twitter, ending with #DefiCalc #Inferenco, no markdown."',
+    '    }',
     "  }",
     "}",
     "",
     "Follow the schema exactly, keep explanations conversational, and prioritize insights, tips, and risk mitigations over long numeric lists.",
+    "Always populate for_sharing.twitter_summary even though it remains hidden in the current UI—keep it tweet-ready and under 280 characters.",
   ]);
 }
 

@@ -113,11 +113,15 @@ function buildPrompt(
     '        "risks": ["List each material risk in plain language."]',
     "      }",
     "    ],",
-    '    "notes": ["Optional reminders or next steps if they help interpret the model."]',
+    '    "notes": ["Optional reminders or next steps if they help interpret the model."],',
+    '    "for_sharing": {',
+    '      "twitter_summary": "1-2 sentences (max 280 chars) formatted for Twitter, ending with #DefiCalc #Inferenco, no markdown."',
+    '    }',
     "  }",
     "}",
     "",
     "Populate metric values with actual calculations; replace template numbers and do not emit trailing commentary.",
+    "Always fill in for_sharing.twitter_summary—it stays hidden in-app but must be tweet-ready copy capped at 280 characters.",
   ]);
 }
 

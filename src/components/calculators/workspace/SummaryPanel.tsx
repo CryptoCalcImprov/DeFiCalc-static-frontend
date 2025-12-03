@@ -17,6 +17,14 @@ type SummaryPanelProps = {
   loadingMessage?: string;
 };
 
+function XLogoIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 1200 1227" xmlns="http://www.w3.org/2000/svg" aria-hidden className={className} fill="currentColor">
+      <path d="m714.2 519.3 446.7-519.3h-120.4l-373.4 429-283.4-429h-383.7l468.6 681.8-468.6 544.8h120.4l396.5-454.6 301.1 454.6h381.9zm-146.2 189.2-45.3-65.1-360.4-546.9h183.2l339.9 483.4 45.3 65.1 310.2 474.2h-183.3z" />
+    </svg>
+  );
+}
+
 function formatValue(value: unknown): string {
   if (value == null) {
     return "";
@@ -266,6 +274,12 @@ export function SummaryPanel({
         )
       : extraFallbackLines.length > 0;
 
+  const shareSummary =
+    typeof insight?.for_sharing?.twitter_summary === "string"
+      ? insight.for_sharing.twitter_summary.trim()
+      : "";
+  const shareIntentUrl = shareSummary ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareSummary)}` : null;
+
   return (
     <div className="card-surface-muted flex h-full flex-col gap-4 rounded-2xl bg-gradient-to-br from-slate-950/65 via-slate-950/45 to-slate-900/24 p-4 shadow-[0_10px_32px_rgba(6,21,34,0.32)] sm:gap-5 sm:rounded-3xl sm:p-6 min-w-0 overflow-hidden">
       <div className="flex h-full flex-col min-w-0 overflow-hidden">
@@ -309,15 +323,31 @@ export function SummaryPanel({
                 ) : (
                   <p className="text-xs text-muted sm:text-sm">{resolvedMessage || emptyMessage}</p>
                 )}
-                {showToggle ? (
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setShowDetails((previous) => !previous)}
-                      className="inline-flex items-center gap-2 rounded-full border border-mint/35 bg-slate-950/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-mint transition hover:border-mint hover:bg-slate-900/60 sm:text-xs"
-                    >
-                      {showDetails ? "Hide details" : "View full insight"}
-                    </button>
+                {showToggle || shareIntentUrl ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    {shareIntentUrl ? (
+                      <a
+                        href={shareIntentUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label="Share this insight on X"
+                        className="inline-flex items-center gap-2 rounded-full border border-indigo-400/60 bg-indigo-500/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-200 transition hover:border-indigo-300 hover:bg-indigo-500/20 sm:text-xs"
+                      >
+                        <XLogoIcon className="h-3.5 w-3.5 text-indigo-200" />
+                        Share
+                      </a>
+                    ) : (
+                      <span />
+                    )}
+                    {showToggle ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowDetails((previous) => !previous)}
+                        className="inline-flex items-center gap-2 rounded-full border border-mint/35 bg-slate-950/50 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-mint transition hover:border-mint hover:bg-slate-900/60 sm:text-xs"
+                      >
+                        {showDetails ? "Hide details" : "View full insight"}
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
               </div>

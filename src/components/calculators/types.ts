@@ -48,6 +48,9 @@ export type CalculatorInsight = {
   context?: CalculatorContext;
   sections: CalculatorSummarySection[];
   notes?: string[];
+  for_sharing?: {
+    twitter_summary?: string;
+  };
 };
 
 export type CalculatorResult = {
