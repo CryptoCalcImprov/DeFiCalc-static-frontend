@@ -42,6 +42,9 @@ export const metadata: Metadata = {
     "calculator sandbox"
   ],
   authors: [{ name: "Nova Labs" }],
+  other: {
+    "google-adsense-account": "ca-pub-3232932863925299"
+  },
   alternates: {
     canonical: canonicalUrl
   },
