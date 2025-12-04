@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import Script from "next/script";
 
 import "../styles/globals.css";
 import { publicAsset } from "@/lib/public-asset";
@@ -88,6 +89,15 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body className={`${goldman.variable} min-h-screen overflow-x-hidden bg-background text-slate-100 antialiased`}>
+        <Script src="https://www.googletagmanager.com/gtag/js?id=G-1TTB6P1KQ6" strategy="afterInteractive" />
+        <Script id="gtag-init" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-1TTB6P1KQ6');
+          `}
+        </Script>
         {children}
       </body>
     </html>
