@@ -203,7 +203,7 @@ export const footerColumns = [
     links: [
       { href: "https://twitter.com", label: "X (Twitter)", external: true },
       { href: "https://discord.com", label: "Discord", external: true },
-      { href: "mailto:hello@deficalc.io", label: "Contact" }
+      { href: "mailto:info@deficalc.io", label: "Contact" }
     ]
   }
 ] as const;
