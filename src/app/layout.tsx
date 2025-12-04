@@ -89,6 +89,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body className={`${goldman.variable} min-h-screen overflow-x-hidden bg-background text-slate-100 antialiased`}>
+        <Script
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3232932863925299"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
         <Script src="https://www.googletagmanager.com/gtag/js?id=G-1TTB6P1KQ6" strategy="afterInteractive" />
         <Script id="gtag-init" strategy="afterInteractive">
           {`
