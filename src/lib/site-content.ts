@@ -2,7 +2,8 @@ export const navigationLinks = [
   { href: "#overview", label: "Overview" },
   { href: "#workspace", label: "Calculator Lab" },
   { href: "#markets", label: "Markets & DeFi" },
-  { href: "#insights", label: "AI Insights by Nova" }
+  { href: "#insights", label: "AI Insights by Nova" },
+  { href: "#about", label: "About" }
 ] as const;
 
 export const heroStrategies = [
@@ -176,40 +177,41 @@ export const footerColumns = [
   {
     title: "Product",
     links: [
+      { href: "#overview", label: "Overview" },
       { href: "#workspace", label: "Calculator Lab" },
       { href: "#markets", label: "Market Pulse" },
-      { href: "#defi", label: "Protocol Watch" },
       { href: "#insights", label: "AI Insights" }
-    ]
-  },
-  {
-    title: "Nova AI",
-    links: [
-      { href: "#insights", label: "Education Hub" },
-      { href: "#nova", label: "Nova Assistant" },
-      { href: "/main_app", label: "Launch Nova Workspace" }
     ]
   },
   {
     title: "Resources",
     links: [
-      { href: "#workspace", label: "Module Sandbox" },
-      { href: "#markets", label: "Risk & Alert Monitor" },
-      { href: "#insights", label: "Nova Desk Briefs" }
+      { href: "#blog", label: "Blog & Updates" },
+      { href: "#insights", label: "Education Hub" },
+      { href: "/main_app", label: "Launch Nova Workspace" }
     ]
   },
   {
     title: "Company",
     links: [
-      { href: "https://twitter.com", label: "X (Twitter)", external: true },
-      { href: "https://discord.com", label: "Discord", external: true },
-      { href: "mailto:info@deficalc.io", label: "Contact" }
+      { href: "#about", label: "About Us" },
+      { href: "mailto:info@deficalc.io", label: "Email: info@deficalc.io" },
+      { href: "https://t.me/deficalc", label: "Telegram", external: true }
+    ]
+  },
+  {
+    title: "Sitemap",
+    links: [
+      { href: "#overview", label: "Home" },
+      { href: "#workspace", label: "Calculator Lab" },
+      { href: "#blog", label: "Blog" },
+      { href: "#about", label: "About & Contact" }
     ]
   }
 ] as const;
 
 export const socialLinks = [
-  { href: "https://twitter.com", label: "X (Twitter)" },
-  { href: "https://discord.com", label: "Discord" },
-  { href: "https://github.com", label: "GitHub" }
+  { href: "https://x.com/deficalc", label: "X (Twitter)", external: true },
+  { href: "https://t.me/deficalc", label: "Telegram", external: true },
+  { href: "mailto:info@deficalc.io", label: "Email" }
 ] as const;

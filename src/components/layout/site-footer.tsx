@@ -12,12 +12,25 @@ export function SiteFooter() {
           <div className="space-y-3 text-sm text-slate-300">
             <span className="text-lg font-semibold text-white">DeFiCalc.io</span>
             <p>
-              Nova-powered intelligence for desks modeling DeFi strategies with calculators, risk monitors, and AI
-              insights. Community-led and not officially affiliated with the Stohn ecosystem.
+              DeFiCalc.io is a loose conglomeration of like-minded developers and finance enthusiasts with a desire to
+              create tools that facilitate data driven research.
             </p>
-            <div className="flex gap-4 text-sm text-slate-400">
+            <p className="text-slate-400">Research-focused and educational—never investment advice.</p>
+            <p className="text-slate-400">
+              Contact: {" "}
+              <Link href="mailto:info@deficalc.io" className="transition hover:text-mint">
+                info@deficalc.io
+              </Link>
+            </p>
+            <div className="flex flex-wrap gap-4 text-sm text-slate-400">
               {socialLinks.map((link) => (
-                <Link key={link.href} href={link.href} className="transition hover:text-mint">
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="transition hover:text-mint"
+                  target={'external' in link && link.external ? "_blank" : undefined}
+                  rel={'external' in link && link.external ? "noreferrer" : undefined}
+                >
                   {link.label}
                 </Link>
               ))}
@@ -46,6 +59,13 @@ export function SiteFooter() {
         <div className="mt-12 border-t border-slate-900/60 pt-8 text-xs text-slate-500">
           <p>&copy; {year} DeFiCalc.io. Crafted by community members for educational purposes.</p>
           <p className="mt-2">DeFi insights are not financial advice. DYOR and consult professionals before deploying capital.</p>
+          <p className="mt-2">
+            Built with care and tooling support from {" "}
+            <Link href="https://inferenco.com/app.html" className="text-slate-300 hover:text-mint" target="_blank" rel="noreferrer">
+              Inferenco
+            </Link>
+            .
+          </p>
         </div>
       </div>
     </footer>
