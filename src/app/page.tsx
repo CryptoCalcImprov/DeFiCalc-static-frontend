@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { HeroSection } from "@/components/sections/hero";
 import { InsightsSection } from "@/components/sections/insights";
@@ -94,6 +95,45 @@ export default function HomePage() {
       note: "GLP redemptions after funding spike",
       pressure: "48%",
       bias: "Outflow"
+    }
+  ] as const;
+  const blogPosts = [
+    {
+      title: "First post coming soon",
+      date: "Coming soon",
+      summary: "Stay tuned for research notes, workspace updates, and explainers from the DeFiCalc.io team."
+    }
+  ] as const;
+
+  const socialItems = [
+    {
+      href: "https://x.com/deficalc",
+      label: "X (Twitter)",
+      icon: (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+          <path d="M4 4l16 16M20 4L4 20" strokeLinecap="round" />
+        </svg>
+      )
+    },
+    {
+      href: "https://t.me/deficalc",
+      label: "Telegram",
+      icon: (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+          <path d="M20 4L4.8 10.2c-.9.38-.88 1.68.04 2.02L10 14l1.8 5.2c.34.98 1.66 1.03 2.03.08L20 4z" strokeLinejoin="round" />
+          <path d="M10 14l8-8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )
+    },
+    {
+      href: "mailto:info@deficalc.io",
+      label: "Email",
+      icon: (
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+          <rect x="3" y="5" width="18" height="14" rx="2" ry="2" />
+          <path d="M3 7l9 6 9-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )
     }
   ] as const;
 
@@ -675,6 +715,68 @@ export default function HomePage() {
             description="Education tracks stay in lockstep with Nova’s data pipelines—pairing explainers, calculators, and governance context in one flow."
           >
             <InsightsSection />
+          </Section>
+          <Section
+            id="about"
+            title="About DeFiCalc.io"
+            description="DeFiCalc.io is a loose conglomeration of like-minded developers and finance enthusiasts with a desire to create tools that facilitate data driven research. Everything here is designed for education—not investment advice or fund management."
+          >
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-8">
+              <div
+                id="blog"
+                className="rounded-3xl border border-slate-800/70 bg-gradient-to-br from-slate-950/80 via-slate-950/55 to-slate-900/28 p-6 shadow-[0_16px_40px_rgba(6,21,34,0.32)] sm:p-7"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-lg font-semibold text-slate-50">Blog & updates</h3>
+                  <span className="text-[11px] text-muted">Coming soon</span>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  {blogPosts.map((post) => (
+                    <article
+                      key={post.title}
+                      className="rounded-2xl border border-ocean/60 bg-surface/80 p-4 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)]"
+                    >
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{post.date}</p>
+                      <h4 className="mt-2 text-base font-semibold text-slate-50">{post.title}</h4>
+                      <p className="mt-2 text-sm text-slate-300">{post.summary}</p>
+                      <span className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-mint">
+                        Coming soon
+                        <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+                          <path d="M5 3l6 5-6 5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
+                    </article>
+                  ))}
+                </div>
+              </div>
+              <div
+                id="contact"
+                className="rounded-3xl border border-slate-800/70 bg-gradient-to-br from-slate-950/78 via-slate-950/52 to-slate-900/26 p-6 shadow-[0_16px_40px_rgba(6,21,34,0.32)] sm:p-7"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-lg font-semibold text-slate-50">Social & contact</h3>
+                  <span className="text-[11px] text-muted">info@deficalc.io</span>
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-slate-300">
+                  Reach out for support, collaborations, or to share ideas for Nova and the calculator lab. We&apos;re here for
+                  research and education—never investment advice or fund management.
+                </p>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  {socialItems.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="inline-flex items-center gap-2 rounded-full border border-ocean/60 bg-surface/85 px-4 py-2 text-sm font-semibold text-slate-50 shadow-inner shadow-[0_0_18px_rgba(7,24,36,0.18)] transition hover:border-mint/45 hover:text-mint"
+                      target={item.href.startsWith("http") ? "_blank" : undefined}
+                      rel={item.href.startsWith("http") ? "noreferrer" : undefined}
+                    >
+                      {item.icon}
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
           </Section>
         </main>
         <SiteFooter />
