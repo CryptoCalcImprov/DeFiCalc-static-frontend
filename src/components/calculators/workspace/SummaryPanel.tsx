@@ -3,10 +3,12 @@
 import { useState } from "react";
 
 import type { CalculatorInsight, CalculatorSummarySection } from "@/components/calculators/types";
+import { AdSlot } from "@/components/ads/AdSlot";
 import { CalculatorSpinner } from "@/components/calculators/workspace/CalculatorSpinner";
 import { LoadingDots } from "@/components/ui/loading-dots";
 import { MessageParser } from "@/components/ui/message-parser";
 import { uploadImageToImgbb } from "@/lib/imgbb-client";
+import { ADSENSE_SLOTS } from "@/lib/adsense";
 
 type SummaryPanelProps = {
   title?: string;
@@ -374,6 +376,11 @@ export function SummaryPanel({
                   className="text-xs font-semibold uppercase tracking-widest text-mint/80 sm:text-sm"
                 />
                 <p className="max-w-xs text-xs text-slate-300 sm:text-sm">{loadingMessage}</p>
+                <AdSlot
+                  adSlot={ADSENSE_SLOTS.novaSummaryLoading}
+                  className="mt-4 max-w-md"
+                  minHeight={90}
+                />
               </div>
             ) : (
               <div className="flex h-full flex-col gap-4 overflow-hidden">
@@ -399,9 +406,21 @@ export function SummaryPanel({
                       extraFallbackLines.map((line, index) => (
                         <FallbackCard key={`${line}-extra-${index}`} text={line} />
                       ))}
+                    <AdSlot
+                      adSlot={ADSENSE_SLOTS.novaSummaryFallback}
+                      className="pt-2"
+                      minHeight={90}
+                    />
                   </div>
                 ) : (
-                  <p className="text-xs text-muted sm:text-sm">{resolvedMessage || emptyMessage}</p>
+                  <div className="space-y-3">
+                    <p className="text-xs text-muted sm:text-sm">{resolvedMessage || emptyMessage}</p>
+                    <AdSlot
+                      adSlot={ADSENSE_SLOTS.novaSummaryFallback}
+                      className="pt-2"
+                      minHeight={90}
+                    />
+                  </div>
                 )}
                 {showToggle || shareIntentUrl ? (
                   <div className="flex flex-wrap items-center justify-between gap-3">
