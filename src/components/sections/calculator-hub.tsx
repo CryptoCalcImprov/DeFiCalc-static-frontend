@@ -3,7 +3,9 @@
 import type { FormEvent } from "react";
 import { useMemo, useRef, useState } from "react";
 
+import { AdSlot } from "@/components/ads/AdSlot";
 import { calculatorDefinitions, findCalculatorDefinition } from "@/components/calculators";
+import { ADSENSE_SLOTS } from "@/lib/adsense";
 import type {
   CalculatorInsight,
   ChartProjectionData,
@@ -1297,6 +1299,22 @@ export function CalculatorHubSection() {
         />
       }
       chartPanel={priceTrajectoryPanel}
+      midSlot={
+        <AdSlot
+          adSlot={ADSENSE_SLOTS.betweenPanelsAndChart}
+          format="horizontal"
+          minHeight={60}
+          label="Mid Section Ad"
+        />
+      }
+      bottomSlot={
+        <AdSlot
+          adSlot={ADSENSE_SLOTS.belowChart}
+          format="horizontal"
+          minHeight={90}
+          label="Below Chart Ad"
+        />
+      }
     />
   );
 }

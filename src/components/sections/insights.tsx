@@ -101,7 +101,7 @@ export function InsightsSection() {
           </span>
           <span className="text-[11px] text-slate-400">Mock conversation</span>
         </div>
-        <div className="mt-5 flex-1 rounded-2xl border border-slate-800/70 bg-slate-950/75 p-4 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.24)]">
+        <div className="mt-5 flex-1 rounded-2xl border border-slate-800/70 bg-slate-950/75 p-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_24px_rgba(7,24,36,0.24)]">
           <div className="flex h-full flex-col gap-4">
             {mockConversation.map((message, index) => (
               <div

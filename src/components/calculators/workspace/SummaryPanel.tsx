@@ -88,7 +88,7 @@ function SectionCard({ section, showDetails }: SectionCardProps) {
   const compactMetrics = metrics?.slice(0, showDetails ? metrics.length : PREVIEW_METRIC_LIMIT) ?? [];
 
   return (
-    <div className="rounded-xl border border-ocean/40 bg-slate-950/35 p-3 shadow-inner shadow-[0_0_18px_rgba(7,24,36,0.18)] sm:rounded-2xl sm:p-4">
+    <div className="rounded-xl border border-ocean/40 bg-slate-950/35 p-3 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_18px_rgba(7,24,36,0.18)] sm:rounded-2xl sm:p-4">
       <div className="flex items-center justify-between gap-3">
         {headline ? <h4 className="text-sm font-semibold text-slate-100 sm:text-base">{headline}</h4> : null}
         {section.type ? (
@@ -211,7 +211,7 @@ function InsightContext({ insight, showDetails }: InsightContextProps) {
 
 function FallbackCard({ text }: { text: string }) {
   return (
-    <div className="rounded-xl border border-ocean/40 bg-slate-950/35 p-3 shadow-inner shadow-[0_0_18px_rgba(7,24,36,0.18)] sm:rounded-2xl sm:p-4">
+    <div className="rounded-xl border border-ocean/40 bg-slate-950/35 p-3 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_18px_rgba(7,24,36,0.18)] sm:rounded-2xl sm:p-4">
       <div className="flex items-start gap-3">
         <span className="mt-1 inline-flex h-2 w-2 flex-shrink-0 rounded-full bg-mint shadow-[0_0_10px_rgba(58,198,255,0.65)]" aria-hidden />
         <MessageParser content={text} className="flex-1 text-xs text-muted sm:text-sm" />
@@ -367,7 +367,7 @@ export function SummaryPanel({
       <div className="flex h-full flex-col min-w-0 overflow-hidden">
         <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">{title}</h3>
         <div className="mt-3 flex flex-1 min-w-0 sm:mt-4">
-          <div className="flex-1 rounded-2xl border border-ocean/65 bg-surface/80 p-4 shadow-inner shadow-[0_0_28px_rgba(7,24,36,0.22)] sm:p-5 min-w-0 overflow-hidden">
+          <div className="flex-1 rounded-2xl border border-ocean/65 bg-surface/80 p-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_28px_rgba(7,24,36,0.22)] sm:p-5 min-w-0 overflow-hidden">
             {isLoading ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                 <CalculatorSpinner />
@@ -380,6 +380,7 @@ export function SummaryPanel({
                   adSlot={ADSENSE_SLOTS.novaSummaryLoading}
                   className="mt-4 max-w-md"
                   minHeight={90}
+                  label="Loading State Ad"
                 />
               </div>
             ) : (
@@ -410,6 +411,7 @@ export function SummaryPanel({
                       adSlot={ADSENSE_SLOTS.novaSummaryFallback}
                       className="pt-2"
                       minHeight={90}
+                      label="Summary Fallback Ad"
                     />
                   </div>
                 ) : (
@@ -419,6 +421,7 @@ export function SummaryPanel({
                       adSlot={ADSENSE_SLOTS.novaSummaryFallback}
                       className="pt-2"
                       minHeight={90}
+                      label="Summary Fallback Ad"
                     />
                   </div>
                 )}

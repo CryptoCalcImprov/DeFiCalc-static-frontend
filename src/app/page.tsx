@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { AdSlot } from "@/components/ads/AdSlot";
 import { HeroSection } from "@/components/sections/hero";
 import { InsightsSection } from "@/components/sections/insights";
 import { Section } from "@/components/layout/section";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Scene3D } from "@/components/ui/Scene3D";
+import { ADSENSE_SLOTS } from "@/lib/adsense";
 import { publicAsset } from "@/lib/public-asset";
 import { marketPulse, protocolLeaders } from "@/lib/site-content";
 
@@ -144,6 +146,14 @@ export default function HomePage() {
         <SiteHeader />
         <main className="flex-1">
           <HeroSection />
+          <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+            <AdSlot
+              adSlot={ADSENSE_SLOTS.landingAfterHero}
+              format="horizontal"
+              minHeight={60}
+              label="After Hero Ad"
+            />
+          </div>
           <Section
             id="workspace"
             title="Prototype scenarios inside Nova’s calculator lab"
@@ -210,7 +220,7 @@ export default function HomePage() {
                     Nova will generate a narrative, cost basis forecast, and chart once the prototype goes live.
                   </p>
                 </div>
-                <div className="rounded-2xl border border-ocean/60 bg-surface/75 p-4 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)] sm:p-5">
+                <div className="rounded-2xl border border-ocean/60 bg-surface/75 p-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_24px_rgba(7,24,36,0.18)] sm:p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <h4 className="text-sm font-semibold text-slate-100 sm:text-base">Projected price path preview</h4>
                     <span className="inline-flex items-center rounded-full border border-mint/45 bg-mint/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-mint/85 sm:text-[11px]">
@@ -283,7 +293,7 @@ export default function HomePage() {
               <div className="flex flex-col gap-6">
                 <div className="card-surface-muted flex flex-col gap-4 rounded-2xl bg-gradient-to-br from-slate-950/65 via-slate-950/45 to-slate-900/24 p-4 shadow-[0_16px_40px_rgba(6,21,34,0.32)] sm:gap-5 sm:rounded-3xl sm:p-6">
                   <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">Nova&rsquo;s quick take</h3>
-                  <div className="rounded-2xl border border-ocean/65 bg-surface/80 p-4 shadow-inner shadow-[0_0_28px_rgba(7,24,36,0.22)] sm:p-5">
+                  <div className="rounded-2xl border border-ocean/65 bg-surface/80 p-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_28px_rgba(7,24,36,0.22)] sm:p-5">
                     <ul className="space-y-2 text-xs leading-relaxed text-muted sm:space-y-3 sm:text-sm">
                       <li className="flex items-start gap-2">
                         <span className="mt-1 inline-flex h-1.5 w-1.5 flex-shrink-0 rounded-full bg-mint shadow-[0_0_8px_rgba(58,198,255,0.65)]" aria-hidden />
@@ -321,7 +331,7 @@ export default function HomePage() {
                     data feeds, alerts, and AI helpers into a shared workspace.
                   </p>
                   <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
-                    <div className="rounded-2xl border border-ocean/60 bg-surface/80 p-4 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)] sm:p-5">
+                    <div className="rounded-2xl border border-ocean/60 bg-surface/80 p-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_24px_rgba(7,24,36,0.18)] sm:p-5">
                       <h4 className="text-sm font-semibold text-slate-100 sm:text-base">Active stack</h4>
                       <div className="mt-3 space-y-2 text-xs text-muted sm:space-y-3 sm:text-sm">
                         <div className="flex items-center justify-between rounded-xl bg-surface/65 px-3 py-2">
@@ -362,6 +372,14 @@ export default function HomePage() {
               </div>
             </div>
           </Section>
+          <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+            <AdSlot
+              adSlot={ADSENSE_SLOTS.landingAfterWorkspace}
+              format="horizontal"
+              minHeight={60}
+              label="After Workspace Ad"
+            />
+          </div>
           <Section
             id="markets"
             title="DeFi markets at analyst speed"
@@ -385,7 +403,7 @@ export default function HomePage() {
                       return (
                         <div
                           key={item.label}
-                          className="rounded-2xl border border-ocean/55 bg-surface/75 px-4 py-3 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)]"
+                          className="rounded-2xl border border-ocean/55 bg-surface/75 px-4 py-3 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_24px_rgba(7,24,36,0.18)]"
                         >
                           <dt className="text-[11px] font-medium uppercase tracking-widest text-slate-300 sm:text-xs">
                             {item.label}
@@ -398,7 +416,7 @@ export default function HomePage() {
                       );
                     })}
                   </dl>
-                  <div className="rounded-2xl border border-ocean/60 bg-surface/70 p-4 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)] sm:p-5">
+                  <div className="rounded-2xl border border-ocean/60 bg-surface/70 p-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_24px_rgba(7,24,36,0.18)] sm:p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <h4 className="text-sm font-semibold text-slate-100 sm:text-base">Price momentum</h4>
                       <span className="text-[11px] text-muted sm:text-xs">Nova highlights projected trendlines.</span>
@@ -462,7 +480,7 @@ export default function HomePage() {
                       {alerts.map((alert) => (
                         <li
                           key={alert.title}
-                          className="flex items-start gap-3 rounded-2xl border border-ocean/60 bg-surface/80 p-4 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)]"
+                          className="flex items-start gap-3 rounded-2xl border border-ocean/60 bg-surface/80 p-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_24px_rgba(7,24,36,0.18)]"
                         >
                           <span className="mt-1 inline-flex h-2.5 w-2.5 flex-shrink-0 rounded-full bg-amber-400 shadow-[0_0_10px_rgba(255,193,7,0.55)]" aria-hidden />
                           <div className="flex-1">
@@ -472,7 +490,7 @@ export default function HomePage() {
                         </li>
                       ))}
                     </ul>
-                    <div className="rounded-2xl border border-amber-400/45 bg-amber-500/10 p-4 shadow-inner shadow-[0_0_24px_rgba(255,193,7,0.18)]">
+                    <div className="rounded-2xl border border-amber-400/45 bg-amber-500/10 p-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_24px_rgba(255,193,7,0.18)]">
                       <h4 className="text-sm font-semibold text-amber-100 sm:text-base">Liquidations heatmap</h4>
                       <p className="mt-2 text-xs text-amber-50/80 sm:text-sm">
                         Nova flags at‑risk positions.
@@ -535,7 +553,7 @@ export default function HomePage() {
                       {executionQueue.map((ticket) => (
                         <div
                           key={ticket.title}
-                          className="rounded-2xl border border-ocean/60 bg-surface/80 p-3.5 shadow-inner shadow-[0_0_20px_rgba(7,24,36,0.18)]"
+                          className="rounded-2xl border border-ocean/60 bg-surface/80 p-3.5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_20px_rgba(7,24,36,0.18)]"
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div>
@@ -572,7 +590,7 @@ export default function HomePage() {
                         </div>
                       ))}
                     </div>
-                    <div className="rounded-2xl border border-ocean/60 bg-gradient-to-br from-slate-950/85 via-slate-900/65 to-slate-900/35 p-3.5 shadow-inner shadow-[0_0_20px_rgba(7,24,36,0.18)]">
+                    <div className="rounded-2xl border border-ocean/60 bg-gradient-to-br from-slate-950/85 via-slate-900/65 to-slate-900/35 p-3.5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_20px_rgba(7,24,36,0.18)]">
                       <h4 className="text-sm font-semibold text-slate-100 sm:text-base">Flow monitor</h4>
                       <p className="mt-2 text-xs text-muted">Desk net flows across key venues.</p>
                       <div className="mt-3 space-y-2.5">
@@ -610,7 +628,7 @@ export default function HomePage() {
                     <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">Yield board</h3>
                     <span className="text-[11px] text-muted sm:text-xs">Updated 5 minutes ago</span>
                   </div>
-                  <div className="overflow-x-auto rounded-2xl border border-ocean/55 bg-surface/75 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)] [-webkit-overflow-scrolling:touch]">
+                  <div className="overflow-x-auto rounded-2xl border border-ocean/55 bg-surface/75 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_24px_rgba(7,24,36,0.18)] [-webkit-overflow-scrolling:touch]">
                     <table className="w-full min-w-[600px] text-left text-xs text-slate-200 sm:text-sm">
                       <thead className="bg-surface/85 text-[11px] uppercase tracking-[0.22em] text-slate-300">
                         <tr>
@@ -648,7 +666,7 @@ export default function HomePage() {
                     {featuredProtocols.map((protocol) => (
                       <div
                         key={protocol.name}
-                        className="rounded-2xl border border-ocean/60 bg-surface/80 p-4 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)]"
+                        className="rounded-2xl border border-ocean/60 bg-surface/80 p-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_24px_rgba(7,24,36,0.18)]"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
@@ -687,7 +705,7 @@ export default function HomePage() {
                     {governanceSignals.map((signal) => (
                       <li
                         key={signal.name}
-                        className="rounded-2xl border border-ocean/60 bg-surface/80 p-4 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)]"
+                        className="rounded-2xl border border-ocean/60 bg-surface/80 p-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_24px_rgba(7,24,36,0.18)]"
                       >
                         <div className="flex items-center justify-between gap-3">
                           <p className="font-semibold text-slate-50">
@@ -709,6 +727,14 @@ export default function HomePage() {
               </div>
             </div>
           </Section>
+          <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+            <AdSlot
+              adSlot={ADSENSE_SLOTS.landingAfterMarkets}
+              format="horizontal"
+              minHeight={60}
+              label="After Markets Ad"
+            />
+          </div>
           <Section
             id="insights"
             title="AI insights by Nova"
@@ -716,6 +742,14 @@ export default function HomePage() {
           >
             <InsightsSection />
           </Section>
+          <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+            <AdSlot
+              adSlot={ADSENSE_SLOTS.landingAfterInsights}
+              format="horizontal"
+              minHeight={60}
+              label="After Insights Ad"
+            />
+          </div>
           <Section
             id="about"
             title="About DeFiCalc.io"
@@ -734,7 +768,7 @@ export default function HomePage() {
                   {blogPosts.map((post) => (
                     <article
                       key={post.title}
-                      className="rounded-2xl border border-ocean/60 bg-surface/80 p-4 shadow-inner shadow-[0_0_24px_rgba(7,24,36,0.18)]"
+                      className="rounded-2xl border border-ocean/60 bg-surface/80 p-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_24px_rgba(7,24,36,0.18)]"
                     >
                       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">{post.date}</p>
                       <h4 className="mt-2 text-base font-semibold text-slate-50">{post.title}</h4>
@@ -766,7 +800,7 @@ export default function HomePage() {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="inline-flex items-center gap-2 rounded-full border border-ocean/60 bg-surface/85 px-4 py-2 text-sm font-semibold text-slate-50 shadow-inner shadow-[0_0_18px_rgba(7,24,36,0.18)] transition hover:border-mint/45 hover:text-mint"
+                      className="inline-flex items-center gap-2 rounded-full border border-ocean/60 bg-surface/85 px-4 py-2 text-sm font-semibold text-slate-50 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_18px_rgba(7,24,36,0.18)] transition hover:border-mint/45 hover:text-mint"
                       target={item.href.startsWith("http") ? "_blank" : undefined}
                       rel={item.href.startsWith("http") ? "noreferrer" : undefined}
                     >

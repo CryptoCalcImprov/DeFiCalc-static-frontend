@@ -16,7 +16,48 @@ type AdSlotProps = {
   format?: "auto" | "rectangle" | "vertical" | "horizontal";
   fullWidthResponsive?: boolean;
   minHeight?: number;
+  label?: string;
 };
+
+function AdPlaceholder({
+  minHeight,
+  format,
+  label,
+}: {
+  minHeight: number;
+  format: string;
+  label?: string;
+}) {
+  return (
+    <div
+      className="flex items-center justify-center rounded-lg border-2 border-dashed border-slate-600/60 bg-slate-900/40"
+      style={{ minHeight }}
+    >
+      <div className="flex flex-col items-center gap-1 px-4 text-center">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-6 w-6 text-slate-500"
+        >
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+          <line x1="3" y1="9" x2="21" y2="9" />
+          <line x1="9" y1="21" x2="9" y2="9" />
+        </svg>
+        <span className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
+          {label || "Ad Space"}
+        </span>
+        <span className="text-[9px] text-slate-600">
+          {format} • {minHeight}px
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export function AdSlot({
   adSlot,
@@ -24,7 +65,10 @@ export function AdSlot({
   format = "auto",
   fullWidthResponsive = true,
   minHeight = 120,
+  label,
 }: AdSlotProps) {
+  const showPlaceholder = !adSlot;
+
   useEffect(() => {
     if (!adSlot || typeof window === "undefined") {
       return;
@@ -39,8 +83,12 @@ export function AdSlot({
     }
   }, [adSlot]);
 
-  if (!adSlot) {
-    return null;
+  if (showPlaceholder) {
+    return (
+      <div className={["w-full", className].filter(Boolean).join(" ")}>
+        <AdPlaceholder minHeight={minHeight} format={format} label={label} />
+      </div>
+    );
   }
 
   return (
