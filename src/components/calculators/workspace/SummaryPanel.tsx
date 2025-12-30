@@ -3,10 +3,12 @@
 import { useState } from "react";
 
 import type { CalculatorInsight, CalculatorSummarySection } from "@/components/calculators/types";
+import { AdSlot } from "@/components/ads/AdSlot";
 import { CalculatorSpinner } from "@/components/calculators/workspace/CalculatorSpinner";
 import { LoadingDots } from "@/components/ui/loading-dots";
 import { MessageParser } from "@/components/ui/message-parser";
 import { uploadImageToImgbb } from "@/lib/imgbb-client";
+import { ADSENSE_SLOTS } from "@/lib/adsense";
 
 type SummaryPanelProps = {
   title?: string;
@@ -86,7 +88,7 @@ function SectionCard({ section, showDetails }: SectionCardProps) {
   const compactMetrics = metrics?.slice(0, showDetails ? metrics.length : PREVIEW_METRIC_LIMIT) ?? [];
 
   return (
-    <div className="rounded-xl border border-ocean/40 bg-slate-950/35 p-3 shadow-inner shadow-[0_0_18px_rgba(7,24,36,0.18)] sm:rounded-2xl sm:p-4">
+    <div className="rounded-xl border border-ocean/40 bg-slate-950/35 p-3 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_18px_rgba(7,24,36,0.18)] sm:rounded-2xl sm:p-4">
       <div className="flex items-center justify-between gap-3">
         {headline ? <h4 className="text-sm font-semibold text-slate-100 sm:text-base">{headline}</h4> : null}
         {section.type ? (
@@ -209,7 +211,7 @@ function InsightContext({ insight, showDetails }: InsightContextProps) {
 
 function FallbackCard({ text }: { text: string }) {
   return (
-    <div className="rounded-xl border border-ocean/40 bg-slate-950/35 p-3 shadow-inner shadow-[0_0_18px_rgba(7,24,36,0.18)] sm:rounded-2xl sm:p-4">
+    <div className="rounded-xl border border-ocean/40 bg-slate-950/35 p-3 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_18px_rgba(7,24,36,0.18)] sm:rounded-2xl sm:p-4">
       <div className="flex items-start gap-3">
         <span className="mt-1 inline-flex h-2 w-2 flex-shrink-0 rounded-full bg-mint shadow-[0_0_10px_rgba(58,198,255,0.65)]" aria-hidden />
         <MessageParser content={text} className="flex-1 text-xs text-muted sm:text-sm" />
@@ -365,7 +367,7 @@ export function SummaryPanel({
       <div className="flex h-full flex-col min-w-0 overflow-hidden">
         <h3 className="text-lg font-semibold text-slate-50 sm:text-xl">{title}</h3>
         <div className="mt-3 flex flex-1 min-w-0 sm:mt-4">
-          <div className="flex-1 rounded-2xl border border-ocean/65 bg-surface/80 p-4 shadow-inner shadow-[0_0_28px_rgba(7,24,36,0.22)] sm:p-5 min-w-0 overflow-hidden">
+          <div className="flex-1 rounded-2xl border border-ocean/65 bg-surface/80 p-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_28px_rgba(7,24,36,0.22)] sm:p-5 min-w-0 overflow-hidden">
             {isLoading ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                 <CalculatorSpinner />
@@ -374,6 +376,12 @@ export function SummaryPanel({
                   className="text-xs font-semibold uppercase tracking-widest text-mint/80 sm:text-sm"
                 />
                 <p className="max-w-xs text-xs text-slate-300 sm:text-sm">{loadingMessage}</p>
+                <AdSlot
+                  adSlot={ADSENSE_SLOTS.novaSummaryLoading}
+                  className="mt-4 max-w-md"
+                  minHeight={90}
+                  label="Loading State Ad"
+                />
               </div>
             ) : (
               <div className="flex h-full flex-col gap-4 overflow-hidden">
@@ -399,9 +407,23 @@ export function SummaryPanel({
                       extraFallbackLines.map((line, index) => (
                         <FallbackCard key={`${line}-extra-${index}`} text={line} />
                       ))}
+                    <AdSlot
+                      adSlot={ADSENSE_SLOTS.novaSummaryFallback}
+                      className="pt-2"
+                      minHeight={90}
+                      label="Summary Fallback Ad"
+                    />
                   </div>
                 ) : (
-                  <p className="text-xs text-muted sm:text-sm">{resolvedMessage || emptyMessage}</p>
+                  <div className="space-y-3">
+                    <p className="text-xs text-muted sm:text-sm">{resolvedMessage || emptyMessage}</p>
+                    <AdSlot
+                      adSlot={ADSENSE_SLOTS.novaSummaryFallback}
+                      className="pt-2"
+                      minHeight={90}
+                      label="Summary Fallback Ad"
+                    />
+                  </div>
                 )}
                 {showToggle || shareIntentUrl ? (
                   <div className="flex flex-wrap items-center justify-between gap-3">

@@ -5,6 +5,8 @@ type CalculatorWorkspaceProps = {
   summaryPanel: ReactNode;
   chartPanel: ReactNode;
   controls?: ReactNode;
+  midSlot?: ReactNode;
+  bottomSlot?: ReactNode;
   className?: string;
 };
 
@@ -13,6 +15,8 @@ export function CalculatorWorkspace({
   summaryPanel,
   chartPanel,
   controls,
+  midSlot,
+  bottomSlot,
   className,
 }: CalculatorWorkspaceProps) {
   return (
@@ -22,7 +26,9 @@ export function CalculatorWorkspace({
         {calculatorPanel}
         {summaryPanel}
       </div>
+      {midSlot}
       {chartPanel}
+      {bottomSlot}
     </div>
   );
 }

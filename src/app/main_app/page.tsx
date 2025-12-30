@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 
+import { AdSlot } from "@/components/ads/AdSlot";
 import { AppHeader } from "@/components/layout/app-header";
 import { DcaCalculatorSection } from "@/components/sections/dca-calculator";
 import { Scene3D } from "@/components/ui/Scene3D";
 import { NovaAssistant } from "@/components/ui/nova-assistant";
+import { ADSENSE_SLOTS } from "@/lib/adsense";
 import { publicAsset } from "@/lib/public-asset";
 
 const ogPreview = publicAsset("/assets/defi-calc-logo.png");
@@ -62,6 +64,12 @@ export default function AppPage() {
                 the modeled price path before committing capital.
               </p>
             </div>
+            <AdSlot
+              adSlot={ADSENSE_SLOTS.workspaceHeader}
+              format="horizontal"
+              minHeight={90}
+              label="Workspace Header Ad"
+            />
             <div id="calculators">
               <DcaCalculatorSection />
             </div>

@@ -202,7 +202,7 @@ export function CalculatorDeck({
           aria-expanded={isOpen}
           title="Open calculator deck"
         >
-          <span className="relative inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-mint/40 bg-slate-950/80 text-mint shadow-inner shadow-[0_0_12px_rgba(58,198,255,0.35)] transition group-hover:border-mint group-hover:text-white">
+          <span className="relative inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-mint/40 bg-slate-950/80 text-mint shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_12px_rgba(58,198,255,0.35)] transition group-hover:border-mint group-hover:text-white">
             <span className="absolute inset-0 bg-mint/15 opacity-0 transition group-hover:opacity-100" />
             <DeckIcon className="relative h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110 group-hover:rotate-3" />
           </span>
@@ -294,7 +294,7 @@ export function CalculatorDeck({
                     favorites so they&rsquo;re ready once unlocked.
                   </div>
                 ) : null}
-                <div className="max-h-[320px] overflow-y-auto rounded-2xl border border-ocean/60 bg-slate-950/70 shadow-inner shadow-[0_0_22px_rgba(6,21,34,0.45)]">
+                <div className="max-h-[320px] overflow-y-auto rounded-2xl border border-ocean/60 bg-slate-950/70 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_22px_rgba(6,21,34,0.45)]">
                   {filteredCalculators.length > 0 ? (
                     <ul className="divide-y divide-ocean/50">
                       {filteredCalculators.map((calculator) => {
@@ -369,7 +369,7 @@ export function CalculatorDeck({
                   )}
                 </div>
               </div>
-              <div className="flex flex-col gap-3 rounded-2xl border border-ocean/60 bg-slate-950/70 p-4 shadow-inner shadow-[0_0_22px_rgba(6,21,34,0.35)] sm:min-h-[320px]">
+              <div className="flex flex-col gap-3 rounded-2xl border border-ocean/60 bg-slate-950/70 p-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_22px_rgba(6,21,34,0.35)] sm:min-h-[320px]">
                 <p className="text-xs font-semibold uppercase tracking-widest text-mint/80">Preview</p>
                 {previewCalculator ? (
                   <>

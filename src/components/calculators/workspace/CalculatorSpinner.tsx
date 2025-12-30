@@ -20,7 +20,7 @@ export function CalculatorSpinner({ size = 48, className = "" }: CalculatorSpinn
           WebkitMask: "radial-gradient(farthest-side, transparent calc(55%), black calc(60%))",
         }}
       />
-      <div className="absolute inset-[22%] rounded-full bg-slate-950/80 shadow-inner shadow-[0_0_16px_rgba(8,24,39,0.4)]" />
+      <div className="absolute inset-[22%] rounded-full bg-slate-950/80 shadow-[inset_0_1px_2px_rgba(0,0,0,0.3),0_0_16px_rgba(8,24,39,0.4)]" />
     </div>
   );
 }
