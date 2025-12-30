@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { ADSENSE_CLIENT_ID } from "@/lib/adsense";
 
@@ -67,23 +67,42 @@ export function AdSlot({
   minHeight = 120,
   label,
 }: AdSlotProps) {
-  const showPlaceholder = !adSlot;
+  const adRef = useRef<HTMLModElement>(null);
+  const isAdLoaded = useRef(false);
 
   useEffect(() => {
-    if (!adSlot || typeof window === "undefined") {
+    if (!adSlot || typeof window === "undefined" || isAdLoaded.current) {
       return;
     }
 
-    try {
-      (window.adsbygoogle = window.adsbygoogle || []).push({});
-    } catch (error) {
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("[AdSlot] Failed to initialize AdSense slot", error);
-      }
+    // Check if this specific ins element already has an ad
+    const insElement = adRef.current;
+    if (insElement && insElement.getAttribute("data-adsbygoogle-status")) {
+      isAdLoaded.current = true;
+      return;
     }
+
+    // Small delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      try {
+        (window.adsbygoogle = window.adsbygoogle || []).push({});
+        isAdLoaded.current = true;
+      } catch (error) {
+        // Silently ignore "already has ads" errors
+        if (error instanceof Error && error.message.includes("already have ads")) {
+          isAdLoaded.current = true;
+          return;
+        }
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[AdSlot] Failed to initialize AdSense slot", error);
+        }
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [adSlot]);
 
-  if (showPlaceholder) {
+  if (!adSlot) {
     return (
       <div className={["w-full", className].filter(Boolean).join(" ")}>
         <AdPlaceholder minHeight={minHeight} format={format} label={label} />
@@ -94,6 +113,7 @@ export function AdSlot({
   return (
     <div className={["w-full", className].filter(Boolean).join(" ")}>
       <ins
+        ref={adRef}
         className="adsbygoogle block w-full"
         style={{ minHeight }}
         data-ad-client={ADSENSE_CLIENT_ID}
