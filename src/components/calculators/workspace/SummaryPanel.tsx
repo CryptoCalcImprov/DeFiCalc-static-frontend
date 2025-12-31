@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type { CalculatorInsight, CalculatorSummarySection } from "@/components/calculators/types";
 import { AdSlot } from "@/components/ads/AdSlot";
+import { CustomVideoAd } from "@/components/ads/CustomVideoAd";
 import { CalculatorSpinner } from "@/components/calculators/workspace/CalculatorSpinner";
 import { LoadingDots } from "@/components/ui/loading-dots";
 import { MessageParser } from "@/components/ui/message-parser";
@@ -407,22 +408,12 @@ export function SummaryPanel({
                       extraFallbackLines.map((line, index) => (
                         <FallbackCard key={`${line}-extra-${index}`} text={line} />
                       ))}
-                    <AdSlot
-                      adSlot={ADSENSE_SLOTS.novaSummaryFallback}
-                      className="pt-2"
-                      minHeight={90}
-                      label="Summary Fallback Ad"
-                    />
+                    <CustomVideoAd />
                   </div>
                 ) : (
                   <div className="space-y-3">
                     <p className="text-xs text-muted sm:text-sm">{resolvedMessage || emptyMessage}</p>
-                    <AdSlot
-                      adSlot={ADSENSE_SLOTS.novaSummaryFallback}
-                      className="pt-2"
-                      minHeight={90}
-                      label="Summary Fallback Ad"
-                    />
+                    <CustomVideoAd />
                   </div>
                 )}
                 {showToggle || shareIntentUrl ? (
